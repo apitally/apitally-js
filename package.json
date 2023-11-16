@@ -1,0 +1,40 @@
+{
+  "name": "apitally",
+  "version": "1.0.0",
+  "description": "Apitally client library for JavaScript",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/express/testApp.js",
+    "dev": "nodemon --exec ts-node src/express/testApp.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/apitally/js-client.git"
+  },
+  "author": "Apitally <hello@apitally.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/apitally/js-client/issues"
+  },
+  "homepage": "https://apitally.io",
+  "peerDependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.9.0",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "axios-retry": "^3.9.0",
+    "celebrate": "^15.0.3",
+    "express-list-endpoints": "^6.0.0",
+    "express-validator": "^7.0.1",
+    "joi": "^17.11.0",
+    "winston": "^3.11.0"
+  }
+}
