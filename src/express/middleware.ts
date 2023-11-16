@@ -2,18 +2,73 @@ import { Express, NextFunction, Request, Response } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client";
+import { KeyInfo } from "../common/keyRegistry";
 import { ApitallyConfig, AppInfo, ValidationError } from "../common/types";
 import { getPackageVersion } from "../common/utils";
 import listEndpoints from "./listEndpoints";
 
 export const useApitally = (app: Express, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
-  client.logger.info("Apitally client initialized.");
   const middleware = getMiddleware(client);
   app.use(middleware);
   setTimeout(() => {
     client.setAppInfo(getAppInfo(app, config.appVersion));
   }, 1000);
+};
+
+export const requireApiKey = (scopes: string[] = [], customHeader?: string) => {
+  const client = ApitallyClient.getInstance();
+  return async (req: Request, res: Response, next: NextFunction) => {
+    let apiKey: string | undefined;
+
+    if (!customHeader) {
+      if (!req.headers.authorization) {
+        res
+          .status(401)
+          .set("WWW-Authenticate", "ApiKey")
+          .json({ error: "Missing authorization header" });
+        return;
+      }
+      const authorizationParts = req.headers.authorization.split(" ");
+      if (
+        authorizationParts.length === 2 &&
+        authorizationParts[0].toLowerCase() === "apikey"
+      ) {
+        apiKey = authorizationParts[1];
+      } else {
+        res
+          .status(401)
+          .set("WWW-Authenticate", "ApiKey")
+          .json({ error: "Invalid authorization scheme" });
+        return;
+      }
+    } else if (customHeader) {
+      const customHeaderValue = req.headers[customHeader];
+      if (typeof customHeaderValue === "string") {
+        apiKey = customHeaderValue;
+      } else if (Array.isArray(customHeaderValue)) {
+        apiKey = customHeaderValue[0];
+      }
+    }
+
+    if (!apiKey) {
+      res.status(403).json({ error: "Missing API key" });
+      return;
+    }
+
+    const keyInfo = await client.keyRegistry.get(apiKey);
+    if (!keyInfo) {
+      res.status(403).json({ error: "Invalid API key" });
+      return;
+    }
+    if (!keyInfo.hasScopes(scopes)) {
+      res.status(403).json({ error: "Permission denied" });
+      return;
+    }
+
+    res.locals.keyInfo = keyInfo;
+    next();
+  };
 };
 
 const getMiddleware = (client: ApitallyClient) => {
@@ -32,7 +87,7 @@ const getMiddleware = (client: ApitallyClient) => {
       res.on("finish", () => {
         if (req.route) {
           client.requestLogger.logRequest({
-            consumer: null, // TODO: Implement consumer identification
+            consumer: getConsumer(res),
             method: req.method,
             path: req.route.path,
             statusCode: res.statusCode,
@@ -54,7 +109,7 @@ const getMiddleware = (client: ApitallyClient) => {
                 }
                 validationErrors.forEach((error: any) => {
                   client.validationErrorLogger.logValidationError({
-                    consumer: null, // TODO: Implement consumer identification
+                    consumer: getConsumer(res),
                     method: req.method,
                     path: req.route.path,
                     ...error,
@@ -71,9 +126,19 @@ const getMiddleware = (client: ApitallyClient) => {
         { request: req, response: res, error }
       );
     } finally {
-      next && next();
+      next();
     }
   };
+};
+
+const getConsumer = (res: Response) => {
+  if (res.locals.consumerIdentifier) {
+    return String(res.locals.consumerIdentifier);
+  }
+  if (res.locals.keyInfo && res.locals.keyInfo instanceof KeyInfo) {
+    return `key:${res.locals.keyInfo.keyId}`;
+  }
+  return null;
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {

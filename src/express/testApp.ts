@@ -1,7 +1,6 @@
 import { Joi, Segments, celebrate, errors } from "celebrate";
 import express from "express";
-import { join } from "path";
-import { useApitally } from "./middleware";
+import { requireApiKey, useApitally } from "./middleware";
 
 const app = express();
 const port = 3001;
@@ -14,6 +13,7 @@ useApitally(app, {
 app.get("/", (req, res) => res.send("Hello world!"));
 app.get(
   "/hello",
+  requireApiKey(),
   celebrate(
     {
       [Segments.QUERY]: {

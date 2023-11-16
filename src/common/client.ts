@@ -84,6 +84,13 @@ export class ApitallyClient {
     this.handleShutdown = this.handleShutdown.bind(this);
   }
 
+  public static getInstance(): ApitallyClient {
+    if (!ApitallyClient.instance) {
+      throw new Error("Apitally client is not initialized");
+    }
+    return ApitallyClient.instance;
+  }
+
   private getHubUrl(): string {
     const baseURL =
       process.env.APITALLY_HUB_BASE_URL || "https://hub.apitally.io";
@@ -133,6 +140,7 @@ export class ApitallyClient {
 
   private async sendAppInfo(): Promise<void> {
     if (this.appInfo) {
+      this.logger.debug("Sending app info to Apitally Hub.");
       const payload: AppInfoPayload = {
         instance_uuid: this.instanceUuid,
         message_uuid: randomUUID(),
@@ -154,8 +162,10 @@ export class ApitallyClient {
           this.stopSync();
         } else {
           this.logger.debug(
-            "Error while sending app info to Apitally Hub. Will retry.",
-            { error: (error as AxiosError).toJSON() }
+            `Error while sending app info to Apitally Hub (${
+              (error as AxiosError).code
+            }). Will retry.`,
+            { error }
           );
         }
       }
@@ -163,6 +173,7 @@ export class ApitallyClient {
   }
 
   private async sendRequestsData(): Promise<void> {
+    this.logger.debug("Sending requests data to Apitally Hub.");
     const newPayload: RequestsDataPayload = {
       time_offset: 0,
       instance_uuid: this.instanceUuid,
@@ -187,7 +198,9 @@ export class ApitallyClient {
           }
         } catch (error) {
           this.logger.debug(
-            "Error while sending requests data to Apitally Hub. Will retry.",
+            `Error while sending requests data to Apitally Hub (${
+              (error as AxiosError).code
+            }). Will retry.`,
             { error }
           );
           failedItems.push(queueItem);
@@ -199,11 +212,18 @@ export class ApitallyClient {
 
   private async getKeys(): Promise<void> {
     try {
+      this.logger.debug("Getting API keys frmo Apitally Hub.");
       const response = await this.axiosClient.get("/keys");
       this.keyRegistry.salt = response.data.salt || null;
       this.keyRegistry.update(response.data.keys || {});
       this.keysUpdated = Date.now();
     } catch (error) {
+      this.logger.debug(
+        `Error while getting API keys from Apitally Hub (${
+          (error as AxiosError).code
+        }). Will retry.`,
+        { error }
+      );
       const now = Date.now();
       if (!this.keyRegistry.salt) {
         // Exit because application won't be able to authenticate requests
@@ -214,13 +234,7 @@ export class ApitallyClient {
         (!this.keysUpdated && now - this.startedAt > MAX_QUEUE_TIME)
       ) {
         this.logger.warn(
-          "Apitally API key sync has been failing for more than 1 hour.",
-          { error }
-        );
-      } else {
-        this.logger.debug(
-          "Error while getting API keys from Apitally Hub. Will retry.",
-          { error }
+          "Apitally API key sync has been failing for more than 1 hour."
         );
       }
     }
