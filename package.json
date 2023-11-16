@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "Apitally client library for JavaScript",
+  "description": "Apitally client library for Node.js",
   "main": "index.js",
   "scripts": {
     "build": "tsc",
@@ -10,12 +10,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/apitally/js-client.git"
+    "url": "git+ssh://git@github.com/apitally/nodejs-client.git"
   },
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/apitally/js-client/issues"
+    "url": "https://github.com/apitally/nodejs-client/issues"
   },
   "homepage": "https://apitally.io",
   "peerDependencies": {
