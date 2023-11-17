@@ -63,7 +63,7 @@ export class KeyRegistry {
   private async hashApiKey(apiKey: string): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.salt) {
-        throw new Error("Apitally keys not initialized");
+        throw new Error("Apitally API keys not initialized");
       }
       scrypt(
         apiKey,

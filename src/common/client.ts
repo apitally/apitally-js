@@ -23,7 +23,7 @@ export class ApitallyClient {
   private env: string;
   private syncApiKeys: boolean;
 
-  private static instance: ApitallyClient;
+  private static instance?: ApitallyClient;
   private instanceUuid: string;
   private requestsDataQueue: Array<[number, RequestsDataPayload]>;
   private axiosClient: AxiosInstance;
@@ -58,6 +58,7 @@ export class ApitallyClient {
       );
     }
 
+    ApitallyClient.instance = this;
     this.clientId = clientId;
     this.env = env;
     this.syncApiKeys = syncApiKeys;
@@ -79,7 +80,6 @@ export class ApitallyClient {
         axiosRetry.exponentialDelay(retryCount, error, 1000),
     });
 
-    ApitallyClient.instance = this;
     this.startSync();
     this.handleShutdown = this.handleShutdown.bind(this);
   }
@@ -99,6 +99,7 @@ export class ApitallyClient {
   }
 
   private startSync(): void {
+    this.sync();
     this.syncIntervalId = setInterval(() => {
       this.sync();
     }, SYNC_INTERVAL);
@@ -130,6 +131,7 @@ export class ApitallyClient {
   public async handleShutdown(): Promise<void> {
     this.stopSync();
     await this.sendRequestsData();
+    ApitallyClient.instance = undefined;
   }
 
   public setAppInfo(appInfo: AppInfo): void {
@@ -212,7 +214,7 @@ export class ApitallyClient {
 
   private async getKeys(): Promise<void> {
     try {
-      this.logger.debug("Getting API keys frmo Apitally Hub.");
+      this.logger.debug("Getting API keys from Apitally Hub.");
       const response = await this.axiosClient.get("/keys");
       this.keyRegistry.salt = response.data.salt || null;
       this.keyRegistry.update(response.data.keys || {});

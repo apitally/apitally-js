@@ -5,6 +5,7 @@ export type ApitallyConfig = {
   clientId: string;
   env?: string;
   syncApiKeys?: boolean;
+  openApiUrl?: string;
   appVersion?: string;
   logger?: Logger;
 };

@@ -13,11 +13,13 @@ export const useApitally = (app: Express, config: ApitallyConfig) => {
   app.use(middleware);
   setTimeout(() => {
     client.setAppInfo(getAppInfo(app, config.appVersion));
-  }, 1000);
+  }, 100);
 };
 
-export const requireApiKey = (scopes: string[] = [], customHeader?: string) => {
-  const client = ApitallyClient.getInstance();
+export const requireApiKey = (
+  scopes?: string | string[],
+  customHeader?: string
+) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     let apiKey: string | undefined;
 
@@ -56,12 +58,13 @@ export const requireApiKey = (scopes: string[] = [], customHeader?: string) => {
       return;
     }
 
+    const client = ApitallyClient.getInstance();
     const keyInfo = await client.keyRegistry.get(apiKey);
     if (!keyInfo) {
       res.status(403).json({ error: "Invalid API key" });
       return;
     }
-    if (!keyInfo.hasScopes(scopes)) {
+    if (scopes && !keyInfo.hasScopes(scopes)) {
       res.status(403).json({ error: "Permission denied" });
       return;
     }
@@ -72,8 +75,7 @@ export const requireApiKey = (scopes: string[] = [], customHeader?: string) => {
 };
 
 const getMiddleware = (client: ApitallyClient) => {
-  const expressValidatorInstalled =
-    getPackageVersion("express-validator") !== null;
+  const validatorInstalled = getPackageVersion("express-validator") !== null;
   const celebrateInstalled = getPackageVersion("celebrate") !== null;
 
   return (req: Request, res: Response, next: NextFunction) => {
@@ -97,7 +99,7 @@ const getMiddleware = (client: ApitallyClient) => {
             try {
               if (res.locals.body) {
                 let validationErrors: ValidationError[] = [];
-                if (expressValidatorInstalled) {
+                if (validatorInstalled) {
                   validationErrors.push(
                     ...extractExpressValidatorErrors(res.locals.body)
                   );

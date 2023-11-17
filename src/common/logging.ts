@@ -17,6 +17,6 @@ export const getLogger = () => {
         (info) => `${info.timestamp} ${info.level}: ${info.message}`
       )
     ),
-    transports: [new transports.Console({ level: "debug" })],
+    transports: [new transports.Console()],
   });
 };
