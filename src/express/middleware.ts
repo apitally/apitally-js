@@ -16,10 +16,13 @@ export const useApitally = (app: Express, config: ApitallyConfig) => {
   }, 100);
 };
 
-export const requireApiKey = (
-  scopes?: string | string[],
-  customHeader?: string
-) => {
+export const requireApiKey = ({
+  scopes,
+  customHeader,
+}: {
+  scopes?: string | string[];
+  customHeader?: string;
+}) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     let apiKey: string | undefined;
 
@@ -45,7 +48,7 @@ export const requireApiKey = (
         return;
       }
     } else if (customHeader) {
-      const customHeaderValue = req.headers[customHeader];
+      const customHeaderValue = req.headers[customHeader.toLowerCase()];
       if (typeof customHeaderValue === "string") {
         apiKey = customHeaderValue;
       } else if (Array.isArray(customHeaderValue)) {

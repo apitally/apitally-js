@@ -1,41 +1,18 @@
 import { Express } from "express";
-import nock from "nock";
 import request from "supertest";
 
 import { ApitallyClient } from "../../src/common/client";
-import { getAppWithCelebrate } from "./apps";
+import { API_KEY, mockApitallyHub } from "../mocks/hub";
+import { getAppWithCelebrate, getAppWithValidator } from "./apps";
 
-const APITALLY_HUB_BASE_URL = "https://hub.apitally.io";
-const API_KEY = "7ll40FB.DuHxzQQuGQU4xgvYvTpmnii7K365j9VI";
-const API_KEY_HASH =
-  "bcf46e16814691991c8ed756a7ca3f9cef5644d4f55cd5aaaa5ab4ab4f809208";
-const SALT = "54fd2b80dbfeb87d924affbc91b77c76";
-
-describe("Express middleware tests with celebrate", () => {
+describe("Middleware for Express with celebrate", () => {
   let app: Express;
   let appTest: request.SuperTest<request.Test>;
   let client: ApitallyClient;
+  const authHeader = { Authorization: `ApiKey ${API_KEY}` };
 
   beforeEach(async () => {
-    nock(APITALLY_HUB_BASE_URL)
-      .persist()
-      .post(/\/(info|requests)$/)
-      .reply(202);
-    nock(APITALLY_HUB_BASE_URL)
-      .persist()
-      .get(/\/keys$/)
-      .reply(200, {
-        salt: SALT,
-        keys: {
-          [API_KEY_HASH]: {
-            key_id: 1,
-            api_key_id: 1,
-            name: "Test",
-            scopes: ["hello1"],
-          },
-        },
-      });
-
+    mockApitallyHub();
     app = getAppWithCelebrate();
     appTest = request(app);
     client = ApitallyClient.getInstance();
@@ -44,8 +21,7 @@ describe("Express middleware tests with celebrate", () => {
     await new Promise((resolve) => setTimeout(resolve, 110));
   });
 
-  it("Requests and validation errors logged correctly", async () => {
-    const authHeader = { Authorization: `ApiKey ${API_KEY}` };
+  it("Request and validation error logger", async () => {
     await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200); // valid
     await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
     await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
@@ -65,6 +41,71 @@ describe("Express middleware tests with celebrate", () => {
         ?.error_count
     ).toBe(2);
     expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
+  });
+
+  it("Authentication and permission checks", async () => {
+    await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
+    await appTest.get("/hello?name=John&age=20").expect(401);
+    await appTest
+      .get("/hello?name=John&age=20")
+      .set({ Authorization: `Bearer ${API_KEY}` })
+      .expect(401);
+    await appTest
+      .get("/hello?name=John&age=20")
+      .set({ Authorization: `ApiKey xxx` })
+      .expect(403);
+    await appTest
+      .get("/hello?name=John&age=20")
+      .set({ ApiKey: API_KEY })
+      .expect(401);
+    await appTest.get("/hello/1").set(authHeader).expect(403);
+  });
+
+  afterEach(async () => {
+    if (client) {
+      await client.handleShutdown();
+    }
+  });
+});
+
+describe("Middleware for Express with express-validator and custom API key header", () => {
+  let app: Express;
+  let appTest: request.SuperTest<request.Test>;
+  let client: ApitallyClient;
+  const authHeader = { ApiKey: API_KEY };
+
+  beforeEach(async () => {
+    mockApitallyHub();
+    app = getAppWithValidator();
+    appTest = request(app);
+    client = ApitallyClient.getInstance();
+
+    // Wait for 0.1 seconds for app info to be set
+    await new Promise((resolve) => setTimeout(resolve, 110));
+  });
+
+  it("Validation error logger", async () => {
+    await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200); // valid
+    await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
+    await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
+
+    const validationErrors =
+      client.validationErrorLogger.getAndResetValidationErrors();
+    expect(validationErrors.length).toBe(2);
+    expect(
+      validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
+        ?.error_count
+    ).toBe(2);
+    expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
+  });
+
+  it("Authentication and permission checks", async () => {
+    await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
+    await appTest
+      .get("/hello?name=John&age=20")
+      .set({ ApiKey: "xxx" })
+      .expect(403);
+    await appTest.get("/hello?name=John&age=20").expect(403);
   });
 
   afterEach(async () => {
