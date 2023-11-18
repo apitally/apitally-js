@@ -38,8 +38,7 @@
   },
   "jest": {
     "preset": "ts-jest",
-    "testEnvironment": "node",
-    "collectCoverage": true
+    "testEnvironment": "node"
   },
   "dependencies": {
     "axios": "^1",
