@@ -2,21 +2,45 @@
   "name": "apitally",
   "version": "1.0.0",
   "description": "Apitally client library for Node.js",
-  "main": "index.js",
-  "scripts": {
-    "build": "tsc",
-    "test": "jest"
-  },
+  "author": "Apitally <hello@apitally.io>",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/apitally/nodejs-client.git"
   },
-  "author": "Apitally <hello@apitally.io>",
-  "license": "MIT",
   "bugs": {
     "url": "https://github.com/apitally/nodejs-client/issues"
   },
   "homepage": "https://apitally.io",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier .",
+    "check": "tsc --noEmit && eslint src && prettier --check .",
+    "test": "jest"
+  },
+  "eslintConfig": {
+    "parser": "@typescript-eslint/parser",
+    "extends": [
+      "eslint:recommended",
+      "plugin:@typescript-eslint/recommended"
+    ],
+    "plugins": [
+      "@typescript-eslint"
+    ],
+    "rules": {
+      "@typescript-eslint/no-explicit-any": "off"
+    },
+    "env": {
+      "node": true
+    },
+    "root": true
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "collectCoverage": true
+  },
   "dependencies": {
     "axios": "^1",
     "axios-retry": "^3",
@@ -30,18 +54,17 @@
     "@types/jest": "^29.5.8",
     "@types/node": "^20.9.0",
     "@types/supertest": "^2.0.16",
+    "@typescript-eslint/eslint-plugin": "^6.11.0",
+    "@typescript-eslint/parser": "^6.11.0",
     "celebrate": "^15.0.3",
+    "eslint": "^8.54.0",
     "express-validator": "^7.0.1",
     "jest": "^29.7.0",
     "nock": "^13.3.8",
+    "prettier": "^3.1.0",
     "supertest": "^6.3.3",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
-  },
-  "jest": {
-    "preset": "ts-jest",
-    "testEnvironment": "node",
-    "collectCoverage": true
   }
 }

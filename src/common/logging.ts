@@ -9,7 +9,7 @@ export interface Logger {
 
 export const getLogger = () => {
   return createLogger({
-    level: !!process.env.APITALLY_DEBUG ? "debug" : "warn",
+    level: process.env.APITALLY_DEBUG ? "debug" : "warn",
     format: format.combine(
       format.colorize(),
       format.timestamp(),

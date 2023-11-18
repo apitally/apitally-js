@@ -101,7 +101,7 @@ const getMiddleware = (client: ApitallyClient) => {
           if (res.statusCode === 400 || res.statusCode === 422) {
             try {
               if (res.locals.body) {
-                let validationErrors: ValidationError[] = [];
+                const validationErrors: ValidationError[] = [];
                 if (validatorInstalled) {
                   validationErrors.push(
                     ...extractExpressValidatorErrors(res.locals.body)
@@ -121,7 +121,7 @@ const getMiddleware = (client: ApitallyClient) => {
                   });
                 });
               }
-            } catch (error) {}
+            } catch (error) {} // eslint-disable-line no-empty
           }
         }
       });

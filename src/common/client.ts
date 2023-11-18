@@ -189,11 +189,11 @@ export class ApitallyClient {
 
     const failedItems = [];
     while (this.requestsDataQueue.length > 0) {
-      let queueItem = this.requestsDataQueue.shift();
+      const queueItem = this.requestsDataQueue.shift();
       if (queueItem) {
-        let [time, payload] = queueItem;
+        const [time, payload] = queueItem;
         try {
-          let timeOffset = Date.now() - time;
+          const timeOffset = Date.now() - time;
           if (timeOffset <= MAX_QUEUE_TIME) {
             payload.time_offset = timeOffset / 1000.0; // In seconds
             await this.axiosClient.post("/requests", payload);

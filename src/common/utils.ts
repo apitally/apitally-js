@@ -11,7 +11,7 @@ export function isValidEnv(env: string): boolean {
 
 export function getPackageVersion(name: string): string | null {
   try {
-    return require(`${name}/package.json`).version || null;
+    return require(`${name}/package.json`).version || null; // eslint-disable-line @typescript-eslint/no-var-requires
   } catch (error) {
     return null;
   }

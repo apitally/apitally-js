@@ -1,4 +1,3 @@
-import { type } from "os";
 import { Logger } from "./logging";
 
 export type ApitallyConfig = {
