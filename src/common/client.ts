@@ -49,12 +49,12 @@ export class ApitallyClient {
     }
     if (!isValidClientId(clientId)) {
       throw new Error(
-        `Invalid client ID '${clientId}' (expecting hexadeciaml UUID format)`
+        `Invalid client ID '${clientId}' (expecting hexadeciaml UUID format)`,
       );
     }
     if (!isValidEnv(env)) {
       throw new Error(
-        `Invalid env '${env}' (expecting 1-32 alphanumeric lowercase characters and hyphens only)`
+        `Invalid env '${env}' (expecting 1-32 alphanumeric lowercase characters and hyphens only)`,
       );
     }
 
@@ -167,7 +167,7 @@ export class ApitallyClient {
             `Error while sending app info to Apitally Hub (${
               (error as AxiosError).code
             }). Will retry.`,
-            { error }
+            { error },
           );
         }
       }
@@ -203,7 +203,7 @@ export class ApitallyClient {
             `Error while sending requests data to Apitally Hub (${
               (error as AxiosError).code
             }). Will retry.`,
-            { error }
+            { error },
           );
           failedItems.push(queueItem);
         }
@@ -224,7 +224,7 @@ export class ApitallyClient {
         `Error while getting API keys from Apitally Hub (${
           (error as AxiosError).code
         }). Will retry.`,
-        { error }
+        { error },
       );
       const now = Date.now();
       if (!this.keyRegistry.salt) {
@@ -236,7 +236,7 @@ export class ApitallyClient {
         (!this.keysUpdated && now - this.startedAt > MAX_QUEUE_TIME)
       ) {
         this.logger.warn(
-          "Apitally API key sync has been failing for more than 1 hour."
+          "Apitally API key sync has been failing for more than 1 hour.",
         );
       }
     }

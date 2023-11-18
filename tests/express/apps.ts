@@ -26,16 +26,16 @@ export const getAppWithCelebrate = () => {
           age: Joi.number().required().min(18),
         },
       },
-      { abortEarly: false }
+      { abortEarly: false },
     ),
     (req, res) => {
       return res.send(
-        `Hello ${req.query?.name}! You are ${req.query?.age} years old!`
+        `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
       );
-    }
+    },
   );
   app.get("/hello/:id(\\d+)", requireApiKey({ scopes: "hello2" }), (req, res) =>
-    res.send(`Hello ID ${req.params.id}!`)
+    res.send(`Hello ID ${req.params.id}!`),
   );
 
   app.use(errors());
@@ -61,11 +61,11 @@ export const getAppWithValidator = () => {
       const result = validationResult(req);
       if (result.isEmpty()) {
         return res.send(
-          `Hello ${req.query?.name}! You are ${req.query?.age} years old!`
+          `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
         );
       }
       res.status(400).send({ errors: result.array() });
-    }
+    },
   );
 
   app.use(errors());

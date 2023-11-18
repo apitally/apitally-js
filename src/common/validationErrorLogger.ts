@@ -12,7 +12,7 @@ export default class ValidationErrorLogger {
   }
 
   private getKey(
-    validationError: ConsumerMethodPath & ValidationError
+    validationError: ConsumerMethodPath & ValidationError,
   ): string {
     return [
       validationError.consumer || "",
@@ -25,7 +25,7 @@ export default class ValidationErrorLogger {
   }
 
   public logValidationError(
-    validationError: ConsumerMethodPath & ValidationError
+    validationError: ConsumerMethodPath & ValidationError,
   ): void {
     const key = this.getKey(validationError);
     this.errorCounts.set(key, (this.errorCounts.get(key) || 0) + 1);

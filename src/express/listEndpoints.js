@@ -88,7 +88,7 @@ const parseExpressPath = function (expressPathRegExp, params) {
 
     parsedRegExp = parsedRegExp.replace(
       regExpToReplaceExpressPathRegExpParams,
-      paramId
+      paramId,
     );
 
     paramIndex++;
@@ -142,12 +142,12 @@ const parseEndpoints = function (app, basePath, endpoints) {
 const addEndpoints = function (currentEndpoints, endpointsToAdd) {
   endpointsToAdd.forEach((newEndpoint) => {
     const existingEndpoint = currentEndpoints.find(
-      (item) => item.path === newEndpoint.path
+      (item) => item.path === newEndpoint.path,
     );
 
     if (existingEndpoint !== undefined) {
       const newMethods = newEndpoint.methods.filter(
-        (method) => !existingEndpoint.methods.includes(method)
+        (method) => !existingEndpoint.methods.includes(method),
       );
 
       existingEndpoint.methods = existingEndpoint.methods.concat(newMethods);
@@ -173,7 +173,7 @@ const parseStack = function (stack, basePath, endpoints) {
       endpoints = addEndpoints(endpoints, newEndpoints);
     } else if (STACK_ITEM_VALID_NAMES.includes(stackItem.name)) {
       const isExpressPathRegexp = regExpToParseExpressPathRegExp.test(
-        stackItem.regexp
+        stackItem.regexp,
       );
 
       let newBasePath = basePath;
@@ -205,7 +205,7 @@ const getEndpoints = function (app) {
     route.methods.map((method) => ({
       method,
       path: route.path,
-    }))
+    })),
   );
 };
 

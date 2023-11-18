@@ -32,7 +32,7 @@ export default class RequestLogger {
     const responseTimeMsBin = Math.floor(requestInfo.responseTime / 10) * 10; // Rounded to nearest 10ms
     responseTimeMap.set(
       responseTimeMsBin,
-      (responseTimeMap.get(responseTimeMsBin) || 0) + 1
+      (responseTimeMap.get(responseTimeMsBin) || 0) + 1,
     );
   }
 

@@ -15,7 +15,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "format": "prettier .",
+    "format": "prettier --write .",
     "check": "tsc --noEmit && eslint src && prettier --check .",
     "test": "jest"
   },

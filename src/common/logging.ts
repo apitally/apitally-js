@@ -14,8 +14,8 @@ export const getLogger = () => {
       format.colorize(),
       format.timestamp(),
       format.printf(
-        (info) => `${info.timestamp} ${info.level}: ${info.message}`
-      )
+        (info) => `${info.timestamp} ${info.level}: ${info.message}`,
+      ),
     ),
     transports: [new transports.Console()],
   });

@@ -12,7 +12,7 @@ export class KeyInfo {
     apiKeyId: number,
     name: string = "",
     scopes: string[] = [],
-    expiresInSeconds: number | null = null
+    expiresInSeconds: number | null = null,
   ) {
     this.keyId = keyId;
     this.apiKeyId = apiKeyId;
@@ -55,7 +55,7 @@ export class KeyRegistry {
     }
     this.usageCounts.set(
       key.apiKeyId,
-      (this.usageCounts.get(key.apiKeyId) || 0) + 1
+      (this.usageCounts.get(key.apiKeyId) || 0) + 1,
     );
     return key;
   }
@@ -73,7 +73,7 @@ export class KeyRegistry {
         (err, derivedKey) => {
           if (err) reject(err);
           resolve(derivedKey.toString("hex"));
-        }
+        },
       );
     });
   }
@@ -88,8 +88,8 @@ export class KeyRegistry {
           data["api_key_id"],
           data["name"],
           data["scopes"],
-          data["expires_in_seconds"]
-        )
+          data["expires_in_seconds"],
+        ),
       );
     }
   }

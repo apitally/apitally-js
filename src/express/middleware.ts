@@ -104,12 +104,12 @@ const getMiddleware = (client: ApitallyClient) => {
                 const validationErrors: ValidationError[] = [];
                 if (validatorInstalled) {
                   validationErrors.push(
-                    ...extractExpressValidatorErrors(res.locals.body)
+                    ...extractExpressValidatorErrors(res.locals.body),
                   );
                 }
                 if (celebrateInstalled) {
                   validationErrors.push(
-                    ...extractCelebrateErrors(res.locals.body)
+                    ...extractCelebrateErrors(res.locals.body),
                   );
                 }
                 validationErrors.forEach((error: any) => {
@@ -128,7 +128,7 @@ const getMiddleware = (client: ApitallyClient) => {
     } catch (error) {
       client.logger.error(
         "Error while handling request in Apitally middleware.",
-        { request: req, response: res, error }
+        { request: req, response: res, error },
       );
     } finally {
       next();

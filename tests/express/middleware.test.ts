@@ -29,7 +29,7 @@ describe("Middleware for Express with celebrate", () => {
     const requests = client.requestLogger.getAndResetRequests();
     expect(requests.length).toBe(2);
     expect(
-      requests.some((r) => r.status_code === 400 && r.request_count === 2)
+      requests.some((r) => r.status_code === 400 && r.request_count === 2),
     ).toBe(true);
     expect(requests.every((r) => r.consumer == "key:1")).toBe(true);
 
@@ -38,7 +38,7 @@ describe("Middleware for Express with celebrate", () => {
     expect(validationErrors.length).toBe(2);
     expect(
       validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
-        ?.error_count
+        ?.error_count,
     ).toBe(2);
     expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
   });
@@ -94,7 +94,7 @@ describe("Middleware for Express with express-validator and custom API key heade
     expect(validationErrors.length).toBe(2);
     expect(
       validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
-        ?.error_count
+        ?.error_count,
     ).toBe(2);
     expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
   });
