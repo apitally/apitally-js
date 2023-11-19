@@ -1,3 +1,4 @@
+import { KeyCacheBase } from "./keyRegistry";
 import { Logger } from "./logging";
 
 export type ApitallyConfig = {
@@ -7,6 +8,7 @@ export type ApitallyConfig = {
   openApiUrl?: string;
   appVersion?: string;
   logger?: Logger;
+  keyCacheClass?: new (clientId: string, env: string) => KeyCacheBase;
 };
 
 export type PathInfo = {

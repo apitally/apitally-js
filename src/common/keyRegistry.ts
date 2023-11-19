@@ -100,3 +100,21 @@ export class KeyRegistry {
     return data;
   }
 }
+
+export abstract class KeyCacheBase {
+  private clientId: string;
+  private env: string;
+
+  constructor(clientId: string, env: string) {
+    this.clientId = clientId;
+    this.env = env;
+  }
+
+  get cacheKey(): string {
+    return `apitally:keys:${this.clientId}:${this.env}`;
+  }
+
+  abstract store(data: string): void;
+
+  abstract retrieve(): string | null;
+}
