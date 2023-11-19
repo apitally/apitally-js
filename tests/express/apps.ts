@@ -74,6 +74,16 @@ export const getAppWithValidator = () => {
       res.status(400).send({ errors: result.array() });
     },
   );
+  app.get(
+    "/hello/:id(\\d+)",
+    requireApiKey({ scopes: "hello2", customHeader: "ApiKey" }),
+    (req, res) => {
+      res.send(`Hello ID ${req.params.id}!`);
+    },
+  );
+  app.get("/error", requireApiKey({ customHeader: "ApiKey" }), (req, res) => {
+    throw new Error("Error");
+  });
 
   app.use(errors());
   return app;
