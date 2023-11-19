@@ -19,10 +19,12 @@
 # Apitally client library for Node.js
 
 [![Tests](https://github.com/apitally/nodejs-client/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/nodejs-client/actions)
+[![Codecov](https://codecov.io/gh/apitally/nodejs-client/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/nodejs-client)
 
 This client library for Apitally currently supports the following Node.js web frameworks:
 
 - [Express](https://docs.apitally.io/frameworks/express)
+- [Koa](https://docs.apitally.io/frameworks/koa)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
