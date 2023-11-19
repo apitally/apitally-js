@@ -21,8 +21,9 @@ jobs:
         with:
           node-version: latest
           cache: npm
-      - run: npm install --no-save express express-validator celebrate koa
+      - run: npm install --no-save express koa
       - run: npm ci
+      - run: npm run check
       - run: npm test -- --collectCoverage
       - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v3
@@ -37,8 +38,8 @@ jobs:
       matrix:
         node: ["18", "20", "latest"]
         deps:
-          - express@4.18.x express-validator celebrate
-          - express@4.17.x express-validator celebrate
+          - express@4.18.x
+          - express@4.17.x
           - koa@2.14.x
           - koa@2.13.x
     steps:
