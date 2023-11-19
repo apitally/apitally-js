@@ -28,7 +28,7 @@ export class ApitallyClient {
   private requestsDataQueue: Array<[number, RequestsDataPayload]>;
   private axiosClient: AxiosInstance;
   private syncIntervalId?: NodeJS.Timeout;
-  private appInfo?: AppInfo;
+  public appInfo?: AppInfo;
   private appInfoSent: boolean = false;
   private startedAt: number;
   private keysUpdated?: number;

@@ -2,7 +2,7 @@ import { Joi, Segments, celebrate, errors } from "celebrate";
 import express from "express";
 import { query, validationResult } from "express-validator";
 
-import { requireApiKey, useApitally } from "../../src/express/middleware";
+import { requireApiKey, useApitally } from "../../src/express";
 
 const CLIENT_ID = "fa4f144d-33be-4694-95e4-f5c18b0f151d";
 const ENV = "default";
@@ -29,14 +29,21 @@ export const getAppWithCelebrate = () => {
       { abortEarly: false },
     ),
     (req, res) => {
-      return res.send(
+      res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
       );
     },
   );
-  app.get("/hello/:id(\\d+)", requireApiKey({ scopes: "hello2" }), (req, res) =>
-    res.send(`Hello ID ${req.params.id}!`),
+  app.get(
+    "/hello/:id(\\d+)",
+    requireApiKey({ scopes: "hello2" }),
+    (req, res) => {
+      res.send(`Hello ID ${req.params.id}!`);
+    },
   );
+  app.get("/error", requireApiKey(), (req, res) => {
+    throw new Error("Error");
+  });
 
   app.use(errors());
   return app;

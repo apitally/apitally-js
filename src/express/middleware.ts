@@ -22,7 +22,7 @@ export const requireApiKey = ({
 }: {
   scopes?: string | string[];
   customHeader?: string;
-}) => {
+} = {}) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     let apiKey: string | undefined;
 
@@ -90,16 +90,17 @@ const getMiddleware = (client: ApitallyClient) => {
         return originalJson.call(res, body);
       };
       res.on("finish", () => {
-        if (req.route) {
-          client.requestLogger.logRequest({
-            consumer: getConsumer(res),
-            method: req.method,
-            path: req.route.path,
-            statusCode: res.statusCode,
-            responseTime: performance.now() - startTime,
-          });
-          if (res.statusCode === 400 || res.statusCode === 422) {
-            try {
+        try {
+          if (req.route) {
+            const responseTime = performance.now() - startTime;
+            client.requestLogger.logRequest({
+              consumer: getConsumer(res),
+              method: req.method,
+              path: req.route.path,
+              statusCode: res.statusCode,
+              responseTime: responseTime,
+            });
+            if (res.statusCode === 400 || res.statusCode === 422) {
               if (res.locals.body) {
                 const validationErrors: ValidationError[] = [];
                 if (validatorInstalled) {
@@ -121,15 +122,21 @@ const getMiddleware = (client: ApitallyClient) => {
                   });
                 });
               }
-            } catch (error) {} // eslint-disable-line no-empty
+            }
           }
+        } catch (error) {
+          client.logger.error(
+            "Error while logging request in Apitally middleware.",
+            { request: req, response: res, error },
+          );
         }
       });
     } catch (error) {
-      client.logger.error(
-        "Error while handling request in Apitally middleware.",
-        { request: req, response: res, error },
-      );
+      client.logger.error("Error in Apitally middleware.", {
+        request: req,
+        response: res,
+        error,
+      });
     } finally {
       next();
     }

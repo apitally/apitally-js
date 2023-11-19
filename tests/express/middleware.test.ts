@@ -25,11 +25,21 @@ describe("Middleware for Express with celebrate", () => {
     await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200); // valid
     await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
     await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
+    await appTest.get("/error").set(authHeader).expect(500);
 
     const requests = client.requestLogger.getAndResetRequests();
-    expect(requests.length).toBe(2);
+    expect(requests.length).toBe(3);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" && r.path === "/hello" && r.status_code === 200,
+      ),
+    ).toBe(true);
     expect(
       requests.some((r) => r.status_code === 400 && r.request_count === 2),
+    ).toBe(true);
+    expect(
+      requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
     expect(requests.every((r) => r.consumer == "key:1")).toBe(true);
 
@@ -43,7 +53,24 @@ describe("Middleware for Express with celebrate", () => {
     expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
   });
 
-  it("Authentication and permission checks", async () => {
+  it("List endpoints", async () => {
+    expect(client.appInfo?.paths).toEqual([
+      {
+        method: "GET",
+        path: "/hello",
+      },
+      {
+        method: "GET",
+        path: "/hello/:id(\\d+)",
+      },
+      {
+        method: "GET",
+        path: "/error",
+      },
+    ]);
+  });
+
+  it("Authentication", async () => {
     await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
     await appTest.get("/hello?name=John&age=20").expect(401);
     await appTest
@@ -99,7 +126,7 @@ describe("Middleware for Express with express-validator and custom API key heade
     expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
   });
 
-  it("Authentication and permission checks", async () => {
+  it("Authentication", async () => {
     await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
     await appTest
       .get("/hello?name=John&age=20")
