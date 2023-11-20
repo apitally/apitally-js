@@ -88,3 +88,43 @@ export const getAppWithValidator = () => {
   app.use(errors());
   return app;
 };
+
+export const getNestJsApp = () => {
+  const app = express();
+
+  useApitally(app, {
+    clientId: CLIENT_ID,
+    env: ENV,
+    syncApiKeys: true,
+    appVersion: "1.2.3",
+  });
+
+  app.get(
+    "/hello",
+    requireApiKey({ scopes: "hello1", customHeader: "ApiKey" }),
+    query("name").isString().isLength({ min: 2 }),
+    query("age").isInt({ min: 18 }),
+    (req, res) => {
+      const result = validationResult(req);
+      if (result.isEmpty()) {
+        return res.send(
+          `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
+        );
+      }
+      res.status(400).send({ errors: result.array() });
+    },
+  );
+  app.get(
+    "/hello/:id(\\d+)",
+    requireApiKey({ scopes: "hello2", customHeader: "ApiKey" }),
+    (req, res) => {
+      res.send(`Hello ID ${req.params.id}!`);
+    },
+  );
+  app.get("/error", requireApiKey({ customHeader: "ApiKey" }), (req, res) => {
+    throw new Error("Error");
+  });
+
+  app.use(errors());
+  return app;
+};

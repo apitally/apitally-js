@@ -41,10 +41,11 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
     });
 
     it("Request logger", async () => {
+      await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
+
       const consoleSpy = jest
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
       await appTest.get("/error").set(authHeader).expect(500);
       consoleSpy.mockRestore();
 

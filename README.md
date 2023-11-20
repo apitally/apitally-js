@@ -25,6 +25,7 @@ This client library for Apitally currently supports the following Node.js web fr
 
 - [Express](https://docs.apitally.io/frameworks/express)
 - [Koa](https://docs.apitally.io/frameworks/koa)
+- [NestJS](https://docs.apitally.io/frameworks/nestjs) (with Express)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 

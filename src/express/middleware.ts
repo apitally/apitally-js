@@ -80,6 +80,8 @@ export const requireApiKey = ({
 const getMiddleware = (client: ApitallyClient) => {
   const validatorInstalled = getPackageVersion("express-validator") !== null;
   const celebrateInstalled = getPackageVersion("celebrate") !== null;
+  const nestInstalled = getPackageVersion("@nestjs/core") !== null;
+  const classValidatorInstalled = getPackageVersion("class-validator") !== null;
 
   return (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -111,6 +113,11 @@ const getMiddleware = (client: ApitallyClient) => {
                 if (celebrateInstalled) {
                   validationErrors.push(
                     ...extractCelebrateErrors(res.locals.body),
+                  );
+                }
+                if (nestInstalled && classValidatorInstalled) {
+                  validationErrors.push(
+                    ...extractNestValidationErrors(res.locals.body),
                   );
                 }
                 validationErrors.forEach((error: any) => {
@@ -191,6 +198,20 @@ const extractCelebrateErrors = (responseBody: any) => {
           });
         });
       }
+    });
+  }
+  return errors;
+};
+
+const extractNestValidationErrors = (responseBody: any) => {
+  const errors: ValidationError[] = [];
+  if (responseBody && Array.isArray(responseBody.message)) {
+    responseBody.message.forEach((message: any) => {
+      errors.push({
+        loc: "",
+        msg: message,
+        type: "",
+      });
     });
   }
   return errors;
