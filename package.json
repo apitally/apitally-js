@@ -12,13 +12,19 @@
     "url": "https://github.com/apitally/nodejs-client/issues"
   },
   "homepage": "https://apitally.io",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "format": "prettier --write .",
     "check": "tsc --noEmit && eslint src && prettier --check .",
     "test": "jest"
   },
+  "files": [
+    "dist/**/*",
+    "!dist/tests/",
+    "README.md",
+    "LICENSE"
+  ],
   "eslintConfig": {
     "parser": "@typescript-eslint/parser",
     "extends": [
@@ -39,6 +45,10 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
+    "coverageReporters": [
+      "text",
+      "lcovonly"
+    ],
     "collectCoverageFrom": [
       "src/**/*"
     ]

@@ -8,7 +8,7 @@
 
 <p align="center"><b>Your refreshingly simple REST API companion.</b></p>
 
-<p align="center"><i>Apitally offers busy engineering teams a simple and affordable API monitoring and API key management solution that is easy to set up and use with new and existing API projects.</i></p>
+<p align="center"><i>Apitally gives busy engineering teams valuable insights into how their APIs are being used and allows them to secure their applications with API keys managed through a simple dashboard. It is easy to set up and use with new and existing API projects.</i></p>
 
 <p align="center">🔗 <b><a href="https://apitally.io" target="_blank">apitally.io</a></b></p>
 
@@ -32,9 +32,100 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 ## Key features
 
-- Middleware for different frameworks to capture metadata about API endpoints, requests and responses (no sensitive data is captured)
+- Middleware/plugins for different frameworks to capture metadata about API endpoints, requests and responses (no sensitive data is captured)
 - Non-blocking client that aggregates and sends captured data to Apitally and optionally synchronizes API key hashes in 1 minute intervals
 - Functions to easily secure endpoints with API key authentication and permission checks
+
+## Installation
+
+You can install this library in your project using `npm` or `yarn`:
+
+```bash
+npm install apitally
+```
+
+or
+
+```bash
+yarn add apitally
+```
+
+## Usage
+
+Our comprehensive [setup guides](https://docs.apitally.io/quickstart) include all the details you need to get started.
+
+### Express
+
+This is an example of how to use the Apitally middleware with an Express application. For further instructions, see our [setup guide for Express](https://docs.apitally.io/frameworks/express).
+
+```javascript
+const express = require("express");
+const { useApitally } = require("apitally/express");
+
+const app = express();
+app.use(express.json());
+
+useApitally(app, {
+  clientId: "your-client-id",
+  env: "your-env-name",
+});
+```
+
+### NestJS
+
+This is an example of how to use the Apitally middleware with a NestJS application. For further instructions, see our [setup guide for NestJS](https://docs.apitally.io/frameworks/nestjs).
+
+_Note_: Currently only NestJS applications that use Express as the underlying HTTP server are supported (the default).
+
+```javascript
+const { NestFactory } = require("@nestjs/core");
+const { useApitally } = require("apitally/nestjs");
+const { AppModule } = require("./app.module");
+
+const app = await NestFactory.create(AppModule);
+const expressInstance = app.getHttpAdapter().getInstance();
+
+useApitally(expressInstance, {
+  clientId: "your-client-id",
+  env: "your-env-name",
+});
+```
+
+### Fastify
+
+This is an example of how to register the Apitally plugin with a Fastify application. For further instructions, see our [setup guide for Fastify](https://docs.apitally.io/frameworks/fastify).
+
+_Note:_ The Apitally plugin requires the [`fastify-plugin`](https://www.npmjs.com/package/fastify-plugin) package to be installed.
+
+```bash
+npm install fastify-plugin
+```
+
+```javascript
+const fastify = require("fastify")({ logger: true });
+const { apitallyPlugin } = require("apitally/fastify");
+
+await app.register(apitallyPlugin, {
+  clientId: "your-client-id",
+  env: "your-env-name",
+});
+```
+
+### Koa
+
+This is an example of how to use the Apitally middleware with a Koa application. For further instructions, see our [setup guide for Koa](https://docs.apitally.io/frameworks/koa).
+
+```javascript
+const Koa = require("koa");
+const { useApitally } = require("apitally/koa");
+
+const app = new Koa();
+
+useApitally(app, {
+  clientId: "your-client-id",
+  env: "your-env-name",
+});
+```
 
 ## Getting help
 
