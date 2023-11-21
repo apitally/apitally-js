@@ -21,10 +21,12 @@ jobs:
         with:
           node-version: latest
           cache: npm
-      - run: npm install --no-save express koa
-      - run: npm ci
-      - run: npm run check
-      - run: npm test -- --collectCoverage
+      - name: Install dependencies
+        run: npm ci
+      - name: Run checks
+        run: npm run check
+      - name: Run tests with coverage
+        run: npm test -- --collectCoverage
       - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v3
         with:
@@ -53,13 +55,19 @@ jobs:
         with:
           node-version: "${{ matrix.node }}"
           cache: npm
-      - run: npm ci
-      - run: npm install --no-save ${{ matrix.deps }}
-      - run: npm test -- tests/express
+      - name: Install dependencies
+        run: npm ci
+      - name: Override dependencies from matrix
+        run: npm install --no-save ${{ matrix.deps }}
+      - name: Run tests for Express
+        run: npm test -- tests/express
         if: contains(matrix.deps, 'express')
-      - run: npm test -- tests/fastify
+      - name: Run tests for Fastify
+        run: npm test -- tests/fastify
         if: contains(matrix.deps, 'fastify')
-      - run: npm test -- tests/koa
+      - name: Run tests for Koa
+        run: npm test -- tests/koa
         if: contains(matrix.deps, 'koa')
-      - run: npm test -- tests/nestjs
+      - name: Run tests for NestJS
+        run: npm test -- tests/nestjs
         if: contains(matrix.deps, 'nestjs')
