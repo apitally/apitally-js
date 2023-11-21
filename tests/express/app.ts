@@ -2,8 +2,23 @@ import { Joi, Segments, celebrate, errors } from "celebrate";
 import express from "express";
 import { query, validationResult } from "express-validator";
 
+import { KeyCacheBase } from "../../src/common/keyRegistry";
 import { requireApiKey, useApitally } from "../../src/express";
 import { CLIENT_ID, ENV } from "../utils";
+
+class TestKeyCache extends KeyCacheBase {
+  private data: string | null = JSON.stringify({ salt: "xxx", keys: {} });
+
+  store(data: string): void {
+    this.cacheKey; // test getter
+    this.data = data;
+  }
+
+  retrieve(): string | null {
+    this.cacheKey; // test getter
+    return this.data;
+  }
+}
 
 export const getAppWithCelebrate = () => {
   const app = express();
@@ -12,6 +27,7 @@ export const getAppWithCelebrate = () => {
     clientId: CLIENT_ID,
     env: ENV,
     syncApiKeys: true,
+    keyCacheClass: TestKeyCache,
   });
 
   app.get(
@@ -39,7 +55,7 @@ export const getAppWithCelebrate = () => {
       res.send(`Hello ID ${req.params.id}!`);
     },
   );
-  app.get("/error", requireApiKey(), (req, res) => {
+  app.get("/error", requireApiKey(), () => {
     throw new Error("Error");
   });
 
@@ -49,6 +65,7 @@ export const getAppWithCelebrate = () => {
 
 export const getAppWithValidator = () => {
   const app = express();
+  app.use(express.json());
 
   useApitally(app, {
     clientId: CLIENT_ID,
@@ -79,7 +96,7 @@ export const getAppWithValidator = () => {
       res.send(`Hello ID ${req.params.id}!`);
     },
   );
-  app.get("/error", requireApiKey({ customHeader: "ApiKey" }), (req, res) => {
+  app.get("/error", requireApiKey({ customHeader: "ApiKey" }), () => {
     throw new Error("Error");
   });
 
@@ -119,7 +136,7 @@ export const getNestJsApp = () => {
       res.send(`Hello ID ${req.params.id}!`);
     },
   );
-  app.get("/error", requireApiKey({ customHeader: "ApiKey" }), (req, res) => {
+  app.get("/error", requireApiKey({ customHeader: "ApiKey" }), () => {
     throw new Error("Error");
   });
 

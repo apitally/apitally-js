@@ -40,7 +40,7 @@ export const getApp = async (customHeader?: string) => {
       },
       preValidation: requireApiKey({ scopes: "hello1", customHeader }),
     },
-    async function (request, reply) {
+    async function (request) {
       const { name, age } = request.query;
       return `Hello ${name}! You are ${age} years old!`;
     },
@@ -48,7 +48,7 @@ export const getApp = async (customHeader?: string) => {
   app.get<{ Params: HelloParams }>(
     "/hello/:id",
     { preValidation: requireApiKey({ scopes: "hello2", customHeader }) },
-    async function (request, reply) {
+    async function (request) {
       const { id } = request.params;
       return `Hello ${id}!`;
     },
@@ -56,7 +56,7 @@ export const getApp = async (customHeader?: string) => {
   app.get(
     "/error",
     { preValidation: requireApiKey({ customHeader }) },
-    async function (request, reply) {
+    async function () {
       throw new Error("Error");
     },
   );

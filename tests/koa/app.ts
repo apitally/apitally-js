@@ -25,7 +25,7 @@ export const getAppWithKoaRouter = () => {
       ctx.body = `Hello ${ctx.params.id}!`;
     },
   );
-  router.get("/error", requireApiKey(), async (ctx) => {
+  router.get("/error", requireApiKey(), async () => {
     throw new Error("Error");
   });
 
@@ -57,7 +57,7 @@ export const getAppWithKoaRoute = () => {
     }),
   );
   app.use(
-    route.get("/error", async (ctx) => {
+    route.get("/error", async () => {
       throw new Error("Error");
     }),
   );
