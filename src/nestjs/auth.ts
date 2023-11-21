@@ -10,7 +10,6 @@ import { Reflector } from "@nestjs/core";
 import { Request, Response } from "express";
 
 import { ApitallyClient } from "../common/client";
-export { useApitally } from "../express";
 
 export const Scopes = (...scopes: string[]) => SetMetadata("scopes", scopes);
 

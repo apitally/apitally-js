@@ -1,1 +1,2 @@
-export { ApitallyApiKeyGuard, Scopes, useApitally } from "./middleware";
+export { useApitally } from "../express";
+export { ApitallyApiKeyGuard, Scopes } from "./auth";

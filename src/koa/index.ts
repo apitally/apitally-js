@@ -1,1 +1,2 @@
-export { requireApiKey, useApitally } from "./middleware";
+export { requireApiKey } from "./auth";
+export { useApitally } from "./middleware";

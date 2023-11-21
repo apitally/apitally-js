@@ -3,7 +3,7 @@ import { BaseExceptionFilter } from "@nestjs/core";
 import request from "supertest";
 
 import { ApitallyClient } from "../../src/common/client";
-import { ApitallyApiKeyGuard } from "../../src/nestjs/middleware";
+import { ApitallyApiKeyGuard } from "../../src/nestjs/auth";
 import { API_KEY, mockApitallyHub } from "../utils";
 import { getApp } from "./app";
 
