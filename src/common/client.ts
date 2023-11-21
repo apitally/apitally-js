@@ -101,28 +101,28 @@ export class ApitallyClient {
     this.handleShutdown = this.handleShutdown.bind(this);
   }
 
-  public static getInstance(): ApitallyClient {
+  public static getInstance() {
     if (!ApitallyClient.instance) {
       throw new Error("Apitally client is not initialized");
     }
     return ApitallyClient.instance;
   }
 
-  private getHubUrl(): string {
+  private getHubUrl() {
     const baseURL =
       process.env.APITALLY_HUB_BASE_URL || "https://hub.apitally.io";
     const version = "v1";
     return `${baseURL}/${version}/${this.clientId}/${this.env}`;
   }
 
-  private startSync(): void {
+  private startSync() {
     this.sync();
     this.syncIntervalId = setInterval(() => {
       this.sync();
     }, SYNC_INTERVAL);
   }
 
-  private async sync(): Promise<void> {
+  private async sync() {
     try {
       const promises = [this.sendRequestsData()];
       if (this.syncApiKeys) {
@@ -139,25 +139,26 @@ export class ApitallyClient {
     }
   }
 
-  private stopSync(): void {
+  private stopSync() {
     if (this.syncIntervalId) {
       clearInterval(this.syncIntervalId);
+      this.syncIntervalId = undefined;
     }
   }
 
-  public async handleShutdown(): Promise<void> {
+  public async handleShutdown() {
     this.stopSync();
     await this.sendRequestsData();
     ApitallyClient.instance = undefined;
   }
 
-  public setAppInfo(appInfo: AppInfo): void {
+  public setAppInfo(appInfo: AppInfo) {
     this.appInfo = appInfo;
     this.appInfoSent = false;
     this.sendAppInfo();
   }
 
-  private async sendAppInfo(): Promise<void> {
+  private async sendAppInfo() {
     if (this.appInfo) {
       this.logger.debug("Sending app info to Apitally Hub.");
       const payload: AppInfoPayload = {
@@ -191,7 +192,7 @@ export class ApitallyClient {
     }
   }
 
-  private async sendRequestsData(): Promise<void> {
+  private async sendRequestsData() {
     this.logger.debug("Sending requests data to Apitally Hub.");
     const newPayload: RequestsDataPayload = {
       time_offset: 0,
@@ -229,7 +230,7 @@ export class ApitallyClient {
     this.requestsDataQueue = failedItems;
   }
 
-  private async getKeys(): Promise<void> {
+  private async getKeys() {
     try {
       this.logger.debug("Getting API keys from Apitally Hub.");
       const response = await this.axiosClient.get("/keys");
@@ -258,7 +259,7 @@ export class ApitallyClient {
     }
   }
 
-  private updateKeyRegistry(data: any, cache: boolean = true): void {
+  private updateKeyRegistry(data: any, cache: boolean = true) {
     this.keyRegistry.salt = data.salt || null;
     this.keyRegistry.update(data.keys || {});
 

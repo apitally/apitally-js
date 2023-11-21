@@ -9,12 +9,12 @@ import { CLIENT_ID, ENV } from "../utils";
 class TestKeyCache extends KeyCacheBase {
   private data: string | null = JSON.stringify({ salt: "xxx", keys: {} });
 
-  store(data: string): void {
+  store(data: string) {
     this.cacheKey; // test getter
     this.data = data;
   }
 
-  retrieve(): string | null {
+  retrieve() {
     this.cacheKey; // test getter
     return this.data;
   }

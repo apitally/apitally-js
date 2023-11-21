@@ -9,7 +9,7 @@ export default class RequestLogger {
     this.responseTimes = new Map<string, Map<number, number>>();
   }
 
-  private getKey(requestInfo: RequestInfo): string {
+  private getKey(requestInfo: RequestInfo) {
     return [
       requestInfo.consumer || "",
       requestInfo.method.toUpperCase(),
@@ -18,7 +18,7 @@ export default class RequestLogger {
     ].join("|");
   }
 
-  logRequest(requestInfo: RequestInfo): void {
+  logRequest(requestInfo: RequestInfo) {
     const key = this.getKey(requestInfo);
 
     // Increment request count
@@ -36,8 +36,8 @@ export default class RequestLogger {
     );
   }
 
-  getAndResetRequests(): Array<RequestsItem> {
-    const data: Array<any> = [];
+  getAndResetRequests() {
+    const data: Array<RequestsItem> = [];
     this.requestCounts.forEach((count, key) => {
       const [consumer, method, path, statusCodeStr] = key.split("|");
       const responseTimes =

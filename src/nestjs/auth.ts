@@ -19,7 +19,7 @@ export class ApitallyApiKeyGuard implements CanActivate {
 
   constructor(private reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  async canActivate(context: ExecutionContext) {
     const customHeader = ApitallyApiKeyGuard.customHeader;
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();

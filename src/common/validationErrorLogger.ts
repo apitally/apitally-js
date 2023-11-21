@@ -11,9 +11,7 @@ export default class ValidationErrorLogger {
     this.errorCounts = new Map<string, number>();
   }
 
-  private getKey(
-    validationError: ConsumerMethodPath & ValidationError,
-  ): string {
+  private getKey(validationError: ConsumerMethodPath & ValidationError) {
     return [
       validationError.consumer || "",
       validationError.method.toUpperCase(),
@@ -26,13 +24,13 @@ export default class ValidationErrorLogger {
 
   public logValidationError(
     validationError: ConsumerMethodPath & ValidationError,
-  ): void {
+  ) {
     const key = this.getKey(validationError);
     this.errorCounts.set(key, (this.errorCounts.get(key) || 0) + 1);
   }
 
-  public getAndResetValidationErrors(): Array<ValidationErrorsItem> {
-    const data: Array<any> = [];
+  public getAndResetValidationErrors() {
+    const data: Array<ValidationErrorsItem> = [];
     this.errorCounts.forEach((count, key) => {
       const [consumer, method, path, loc, msg, type] = key.split("|");
       data.push({

@@ -24,11 +24,11 @@ export class KeyInfo {
         : null;
   }
 
-  get isExpired(): boolean {
+  get isExpired() {
     return this.expiresAt !== null && this.expiresAt < new Date();
   }
 
-  hasScopes(scopes: string | string[]): boolean {
+  hasScopes(scopes: string | string[]) {
     if (typeof scopes === "string") {
       scopes = [scopes];
     }
@@ -47,7 +47,7 @@ export class KeyRegistry {
     this.usageCounts = new Map();
   }
 
-  public async get(apiKey: string): Promise<KeyInfo | null> {
+  public async get(apiKey: string) {
     const hash = await this.hashApiKey(apiKey.trim());
     const key = this.keys.get(hash);
     if (!key || key.isExpired) {
@@ -78,7 +78,7 @@ export class KeyRegistry {
     });
   }
 
-  public update(keys: Record<string, any>): void {
+  public update(keys: Record<string, any>) {
     this.keys.clear();
     for (const [hash, data] of Object.entries(keys)) {
       this.keys.set(
@@ -110,7 +110,7 @@ export abstract class KeyCacheBase {
     this.env = env;
   }
 
-  get cacheKey(): string {
+  get cacheKey() {
     return `apitally:keys:${this.clientId}:${this.env}`;
   }
 

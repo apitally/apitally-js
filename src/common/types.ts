@@ -52,8 +52,10 @@ export type ValidationError = {
 
 export type ValidationErrorsItem = ConsumerMethodPath & {
   loc: Array<string>;
+  msg: string;
+  type: string;
   error_count: number;
-} & ValidationError;
+};
 
 export type RequestsDataPayload = {
   time_offset: number;
