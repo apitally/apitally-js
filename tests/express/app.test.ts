@@ -2,8 +2,8 @@ import { Express } from "express";
 import request from "supertest";
 
 import { ApitallyClient } from "../../src/common/client";
-import { API_KEY, mockApitallyHub } from "../mocks/hub";
-import { getAppWithCelebrate, getAppWithValidator } from "./apps";
+import { API_KEY, mockApitallyHub } from "../utils";
+import { getAppWithCelebrate, getAppWithValidator } from "./app";
 
 const testCases = [
   {

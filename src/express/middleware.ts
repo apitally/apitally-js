@@ -102,33 +102,34 @@ const getMiddleware = (client: ApitallyClient) => {
               statusCode: res.statusCode,
               responseTime: responseTime,
             });
-            if (res.statusCode === 400 || res.statusCode === 422) {
-              if (res.locals.body) {
-                const validationErrors: ValidationError[] = [];
-                if (validatorInstalled) {
-                  validationErrors.push(
-                    ...extractExpressValidatorErrors(res.locals.body),
-                  );
-                }
-                if (celebrateInstalled) {
-                  validationErrors.push(
-                    ...extractCelebrateErrors(res.locals.body),
-                  );
-                }
-                if (nestInstalled && classValidatorInstalled) {
-                  validationErrors.push(
-                    ...extractNestValidationErrors(res.locals.body),
-                  );
-                }
-                validationErrors.forEach((error: any) => {
-                  client.validationErrorLogger.logValidationError({
-                    consumer: getConsumer(res),
-                    method: req.method,
-                    path: req.route.path,
-                    ...error,
-                  });
-                });
+            if (
+              (res.statusCode === 400 || res.statusCode === 422) &&
+              res.locals.body
+            ) {
+              const validationErrors: ValidationError[] = [];
+              if (validatorInstalled) {
+                validationErrors.push(
+                  ...extractExpressValidatorErrors(res.locals.body),
+                );
               }
+              if (celebrateInstalled) {
+                validationErrors.push(
+                  ...extractCelebrateErrors(res.locals.body),
+                );
+              }
+              if (nestInstalled && classValidatorInstalled) {
+                validationErrors.push(
+                  ...extractNestValidationErrors(res.locals.body),
+                );
+              }
+              validationErrors.forEach((error) => {
+                client.validationErrorLogger.logValidationError({
+                  consumer: getConsumer(res),
+                  method: req.method,
+                  path: req.route.path,
+                  ...error,
+                });
+              });
             }
           }
         } catch (error) {
@@ -227,7 +228,7 @@ const subsetJoiMessage = (message: string, key: string) => {
 const getAppInfo = (app: Express, appVersion?: string): AppInfo => {
   const versions: Array<[string, string]> = [["nodejs", process.version]];
   const expressVersion = getPackageVersion("express");
-  const apitallyVersion = getPackageVersion(".");
+  const apitallyVersion = getPackageVersion("../..");
   if (expressVersion) {
     versions.push(["express", expressVersion]);
   }

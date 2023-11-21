@@ -63,11 +63,3 @@ export type RequestsDataPayload = {
   validation_errors: Array<ValidationErrorsItem>;
   api_key_usage: Record<number, number>;
 };
-
-export type KeyInfo = {
-  keyId: number;
-  apiKeyId: number;
-  name: string;
-  scopes: Array<string>;
-  expiresAt: Date | null;
-};

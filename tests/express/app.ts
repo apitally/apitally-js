@@ -3,9 +3,7 @@ import express from "express";
 import { query, validationResult } from "express-validator";
 
 import { requireApiKey, useApitally } from "../../src/express";
-
-const CLIENT_ID = "fa4f144d-33be-4694-95e4-f5c18b0f151d";
-const ENV = "default";
+import { CLIENT_ID, ENV } from "../utils";
 
 export const getAppWithCelebrate = () => {
   const app = express();

@@ -120,7 +120,7 @@ const getConsumer = (ctx: Koa.Context) => {
 const getAppInfo = (app: Koa, appVersion?: string): AppInfo => {
   const versions: Array<[string, string]> = [["nodejs", process.version]];
   const koaVersion = getPackageVersion("koa");
-  const apitallyVersion = getPackageVersion(".");
+  const apitallyVersion = getPackageVersion("../..");
   if (koaVersion) {
     versions.push(["koa", koaVersion]);
   }

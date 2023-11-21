@@ -4,7 +4,7 @@ import request from "supertest";
 
 import { ApitallyClient } from "../../src/common/client";
 import { ApitallyApiKeyGuard } from "../../src/nestjs/middleware";
-import { API_KEY, mockApitallyHub } from "../mocks/hub";
+import { API_KEY, mockApitallyHub } from "../utils";
 import { getApp } from "./app";
 
 describe("Middleware for NestJS", () => {

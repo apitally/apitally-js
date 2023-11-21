@@ -1,10 +1,8 @@
 import { Test } from "@nestjs/testing";
 
 import { useApitally } from "../../src/nestjs";
+import { CLIENT_ID, ENV } from "../utils";
 import { AppModule } from "./app.module";
-
-const CLIENT_ID = "fa4f144d-33be-4694-95e4-f5c18b0f151d";
-const ENV = "default";
 
 export async function getApp() {
   const moduleFixture = await Test.createTestingModule({
