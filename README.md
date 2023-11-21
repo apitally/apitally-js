@@ -8,7 +8,7 @@
 
 <p align="center"><b>Your refreshingly simple REST API companion.</b></p>
 
-<p align="center"><i>Apitally gives busy engineering teams valuable insights into how their APIs are being used and allows them to secure their applications with API keys managed through a simple dashboard. It is easy to set up and use with new and existing API projects.</i></p>
+<p align="center"><i>Apitally gives you valuable insights into how your APIs are being used and allows you to secure your applications with API keys managed through a simple dashboard. It is easy to set up and use with new and existing API projects.</i></p>
 
 <p align="center">🔗 <b><a href="https://apitally.io" target="_blank">apitally.io</a></b></p>
 
@@ -20,6 +20,7 @@
 
 [![Tests](https://github.com/apitally/nodejs-client/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/nodejs-client/actions)
 [![Codecov](https://codecov.io/gh/apitally/nodejs-client/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/nodejs-client)
+[![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
 This client library for Apitally currently supports the following Node.js web frameworks:
 

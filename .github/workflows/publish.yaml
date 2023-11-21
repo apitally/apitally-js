@@ -25,7 +25,7 @@ jobs:
         run: npm run build
       - name: Update version in package.json
         run: npm version from-git --no-git-tag-version
-      - name: Publish to NPM
+      - name: Publish to npm
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
