@@ -36,8 +36,8 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
       appTest = request(server);
       client = ApitallyClient.getInstance();
 
-      // Wait for 0.1 seconds for app info to be set
-      await new Promise((resolve) => setTimeout(resolve, 110));
+      // Wait for 0.2 seconds for app info to be set
+      await new Promise((resolve) => setTimeout(resolve, 200));
     });
 
     it("Request logger", async () => {
