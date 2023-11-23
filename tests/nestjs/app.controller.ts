@@ -9,7 +9,12 @@ import {
 } from "@nestjs/common";
 import { IsInt, IsNotEmpty, Min, MinLength } from "class-validator";
 
-import { ApitallyApiKeyGuard, Scopes } from "../../src/nestjs";
+import {
+  ApitallyApiKeyGuard,
+  GetKeyInfo,
+  KeyInfo,
+  Scopes,
+} from "../../src/nestjs";
 
 export class HelloQueryDTO {
   @IsNotEmpty()
@@ -34,8 +39,9 @@ export class AppController {
       }),
     )
     { name, age }: HelloQueryDTO,
+    @GetKeyInfo() keyInfo: KeyInfo,
   ) {
-    return `Hello ${name}! You are ${age} years old!`;
+    return `Hello ${name}! You are ${age} years old! You are authenticated as ${keyInfo.name}!`;
   }
 
   @Get("/hello/:id")

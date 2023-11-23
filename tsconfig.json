@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "compilerOptions": {
     "target": "ES2016",
     "module": "Node16",

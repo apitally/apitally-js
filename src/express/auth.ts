@@ -58,7 +58,7 @@ export const requireApiKey = ({
       return;
     }
 
-    res.locals.keyInfo = keyInfo;
+    req.keyInfo = keyInfo;
     next();
   };
 };

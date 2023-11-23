@@ -24,6 +24,8 @@ const apitallyPlugin = async (
   const client = new ApitallyClient(config);
   const routes: PathInfo[] = [];
 
+  fastify.decorateRequest("consumerIdentifier", null);
+  fastify.decorateRequest("keyInfo", null);
   fastify.decorateReply("payload", null);
 
   fastify.addHook("onRoute", (routeOptions) => {

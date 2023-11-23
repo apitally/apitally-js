@@ -1,4 +1,4 @@
-import { INestApplication, Logger } from "@nestjs/common";
+import { INestApplication } from "@nestjs/common";
 import { BaseExceptionFilter } from "@nestjs/core";
 import request from "supertest";
 

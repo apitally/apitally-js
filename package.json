@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc",
     "format": "prettier --write .",
-    "check": "tsc --noEmit && eslint src && prettier --check .",
+    "check": "tsc --noEmit && eslint src tests && prettier --check .",
     "test": "jest"
   },
   "files": [

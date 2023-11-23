@@ -5,11 +5,13 @@ import {
   Injectable,
   SetMetadata,
   UnauthorizedException,
+  createParamDecorator,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request, Response } from "express";
 
 import { ApitallyClient } from "../common/client";
+import { KeyInfo } from "../common/keyRegistry";
 
 export const Scopes = (...scopes: string[]) => SetMetadata("scopes", scopes);
 
@@ -63,7 +65,14 @@ export class ApitallyApiKeyGuard implements CanActivate {
       throw new ForbiddenException("Permission denied");
     }
 
-    res.locals.keyInfo = keyInfo;
+    req.keyInfo = keyInfo;
     return true;
   }
 }
+
+export const GetKeyInfo = createParamDecorator<KeyInfo | undefined>(
+  (data: unknown, context: ExecutionContext) => {
+    const req = context.switchToHttp().getRequest<Request>();
+    return req.keyInfo;
+  },
+);

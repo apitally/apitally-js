@@ -7,6 +7,13 @@ import { ApitallyConfig, AppInfo, ValidationError } from "../common/types";
 import { getPackageVersion } from "../common/utils";
 import listEndpoints from "./listEndpoints";
 
+declare module "express" {
+  interface Request {
+    consumerIdentifier?: string;
+    keyInfo?: KeyInfo;
+  }
+}
+
 export const useApitally = (app: Express, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(client);
@@ -35,7 +42,7 @@ const getMiddleware = (client: ApitallyClient) => {
           if (req.route) {
             const responseTime = performance.now() - startTime;
             client.requestLogger.logRequest({
-              consumer: getConsumer(res),
+              consumer: getConsumer(req),
               method: req.method,
               path: req.route.path,
               statusCode: res.statusCode,
@@ -63,7 +70,7 @@ const getMiddleware = (client: ApitallyClient) => {
               }
               validationErrors.forEach((error) => {
                 client.validationErrorLogger.logValidationError({
-                  consumer: getConsumer(res),
+                  consumer: getConsumer(req),
                   method: req.method,
                   path: req.route.path,
                   ...error,
@@ -90,12 +97,12 @@ const getMiddleware = (client: ApitallyClient) => {
   };
 };
 
-const getConsumer = (res: Response) => {
-  if (res.locals.consumerIdentifier) {
-    return String(res.locals.consumerIdentifier);
+const getConsumer = (req: Request) => {
+  if (req.consumerIdentifier) {
+    return String(req.consumerIdentifier);
   }
-  if (res.locals.keyInfo && res.locals.keyInfo instanceof KeyInfo) {
-    return `key:${res.locals.keyInfo.keyId}`;
+  if (req.keyInfo && req.keyInfo instanceof KeyInfo) {
+    return `key:${req.keyInfo.keyId}`;
   }
   return null;
 };
