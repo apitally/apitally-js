@@ -1,9 +1,29 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "Apitally client library for Node.js",
+  "description": "Simple API monitoring and API key management for REST APIs built with Express, Fastify, Koa, and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
+  "keywords": [
+    "analytics",
+    "api",
+    "apitally",
+    "auth",
+    "authentication",
+    "express",
+    "fastify",
+    "koa",
+    "logging",
+    "middleware",
+    "monitor",
+    "monitoring",
+    "nestjs",
+    "node",
+    "nodejs",
+    "plugin",
+    "rest",
+    "restful"
+  ],
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/apitally/nodejs-client.git"
