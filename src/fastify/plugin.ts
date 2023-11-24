@@ -47,6 +47,10 @@ const apitallyPlugin = async (
     client.setAppInfo(getAppInfo(routes, config.appVersion));
   });
 
+  fastify.addHook("onClose", async () => {
+    await client.handleShutdown();
+  });
+
   fastify.addHook("onSend", (request, reply, payload: any, done) => {
     try {
       reply.payload = JSON.parse(payload);
