@@ -108,6 +108,18 @@ export class ApitallyClient {
     return ApitallyClient.instance;
   }
 
+  public static async shutdown() {
+    if (ApitallyClient.instance) {
+      await ApitallyClient.instance.handleShutdown();
+    }
+  }
+
+  public async handleShutdown() {
+    this.stopSync();
+    await this.sendRequestsData();
+    ApitallyClient.instance = undefined;
+  }
+
   private getHubUrl() {
     const baseURL =
       process.env.APITALLY_HUB_BASE_URL || "https://hub.apitally.io";
@@ -144,12 +156,6 @@ export class ApitallyClient {
       clearInterval(this.syncIntervalId);
       this.syncIntervalId = undefined;
     }
-  }
-
-  public async handleShutdown() {
-    this.stopSync();
-    await this.sendRequestsData();
-    ApitallyClient.instance = undefined;
   }
 
   public setAppInfo(appInfo: AppInfo) {

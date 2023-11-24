@@ -68,8 +68,6 @@ describe("Client", () => {
   });
 
   afterEach(async () => {
-    try {
-      await ApitallyClient.getInstance().handleShutdown();
-    } catch (error) {} // eslint-disable-line no-empty
+    await ApitallyClient.shutdown();
   });
 });
