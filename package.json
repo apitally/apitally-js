@@ -35,10 +35,9 @@
   "type": "module",
   "scripts": {
     "build:tsc": "tsc",
-    "build:cjs": "BABEL_ENV=cjs babel lib/tsc --out-dir lib/cjs --extensions \".js\"",
-    "build:esm": "BABEL_ENV=esm babel lib/tsc --out-dir lib/esm --extensions \".js\"",
-    "build:types": "tsc --emitDeclarationOnly --declaration --declarationMap --outDir lib/types",
-    "build": "npm run build:tsc && npm run build:cjs && npm run build:esm && npm run build:types",
+    "build:cjs": "BABEL_ENV=cjs babel lib/tsc --out-dir lib/cjs --out-file-extension .cjs",
+    "build:esm": "BABEL_ENV=esm babel lib/tsc --out-dir lib/esm",
+    "build": "rm -rf lib && npm run build:tsc && npm run build:cjs && npm run build:esm",
     "format": "prettier --write .",
     "check": "tsc --noEmit && eslint src tests && prettier --check .",
     "test": "jest"
@@ -53,27 +52,27 @@
   "exports": {
     "./common": {
       "import": "./lib/esm/common/index.js",
-      "require": "./lib/cjs/common/index.js",
+      "require": "./lib/cjs/common/index.cjs",
       "types": "./lib/types/common/index.d.ts"
     },
     "./express": {
       "import": "./lib/esm/express/index.js",
-      "require": "./lib/cjs/express/index.js",
+      "require": "./lib/cjs/express/index.cjs",
       "types": "./lib/types/express/index.d.ts"
     },
     "./fastify": {
       "import": "./lib/esm/fastify/index.js",
-      "require": "./lib/cjs/fastify/index.js",
+      "require": "./lib/cjs/fastify/index.cjs",
       "types": "./lib/types/fastify/index.d.ts"
     },
     "./koa": {
       "import": "./lib/esm/koa/index.js",
-      "require": "./lib/cjs/koa/index.js",
+      "require": "./lib/cjs/koa/index.cjs",
       "types": "./lib/types/koa/index.d.ts"
     },
     "./nestjs": {
       "import": "./lib/esm/nestjs/index.js",
-      "require": "./lib/cjs/nestjs/index.js",
+      "require": "./lib/cjs/nestjs/index.cjs",
       "types": "./lib/types/nestjs/index.d.ts"
     }
   },
@@ -121,6 +120,16 @@
             "@babel/preset-env",
             {
               "modules": "commonjs"
+            }
+          ]
+        ],
+        "plugins": [
+          [
+            "transform-require-extensions",
+            {
+              "extensions": {
+                ".js": ".cjs"
+              }
             }
           ]
         ]
@@ -214,6 +223,7 @@
     "@typescript-eslint/eslint-plugin": "^6.11.0",
     "@typescript-eslint/parser": "^6.11.0",
     "babel-jest": "^29.7.0",
+    "babel-plugin-transform-require-extensions": "^2.0.1",
     "celebrate": "^15.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
