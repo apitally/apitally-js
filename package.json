@@ -53,26 +53,30 @@
   "exports": {
     "./common": {
       "import": "./lib/esm/common/index.js",
-      "require": "./lib/cjs/common/index.js"
+      "require": "./lib/cjs/common/index.js",
+      "types": "./lib/types/common/index.d.ts"
     },
     "./express": {
       "import": "./lib/esm/express/index.js",
-      "require": "./lib/cjs/express/index.js"
+      "require": "./lib/cjs/express/index.js",
+      "types": "./lib/types/express/index.d.ts"
     },
     "./fastify": {
       "import": "./lib/esm/fastify/index.js",
-      "require": "./lib/cjs/fastify/index.js"
+      "require": "./lib/cjs/fastify/index.js",
+      "types": "./lib/types/fastify/index.d.ts"
     },
     "./koa": {
       "import": "./lib/esm/koa/index.js",
-      "require": "./lib/cjs/koa/index.js"
+      "require": "./lib/cjs/koa/index.js",
+      "types": "./lib/types/koa/index.d.ts"
     },
     "./nestjs": {
       "import": "./lib/esm/nestjs/index.js",
-      "require": "./lib/cjs/nestjs/index.js"
+      "require": "./lib/cjs/nestjs/index.js",
+      "types": "./lib/types/nestjs/index.d.ts"
     }
   },
-  "types": "./lib/types/index.d.ts",
   "eslintConfig": {
     "parser": "@typescript-eslint/parser",
     "extends": [
@@ -154,7 +158,7 @@
   },
   "dependencies": {
     "axios": "^1",
-    "axios-retry": "^3",
+    "axios-retry": "^4",
     "winston": "^3"
   },
   "peerDependencies": {

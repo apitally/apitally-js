@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
@@ -17,9 +17,9 @@ declare module "fastify" {
   }
 }
 
-const apitallyPlugin = async (
-  fastify: FastifyInstance,
-  config: ApitallyConfig,
+const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
+  fastify,
+  config,
 ) => {
   const client = new ApitallyClient(config);
   const routes: PathInfo[] = [];
