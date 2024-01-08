@@ -1,6 +1,6 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
-import { ApitallyClient } from "../common/client";
+import { ApitallyClient } from "../common/client.js";
 
 export const requireApiKey = ({
   scopes,

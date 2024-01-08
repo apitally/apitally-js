@@ -2,17 +2,17 @@ import axios, { AxiosError, AxiosInstance } from "axios";
 import axiosRetry from "axios-retry";
 import { randomUUID } from "crypto";
 
-import { KeyCacheBase, KeyRegistry } from "./keyRegistry";
-import { Logger, getLogger } from "./logging";
-import RequestLogger from "./requestLogger";
+import { KeyCacheBase, KeyRegistry } from "./keyRegistry.js";
+import { Logger, getLogger } from "./logging.js";
+import RequestLogger from "./requestLogger.js";
 import {
   ApitallyConfig,
   AppInfo,
   AppInfoPayload,
   RequestsDataPayload,
-} from "./types";
-import { isValidClientId, isValidEnv } from "./utils";
-import ValidationErrorLogger from "./validationErrorLogger";
+} from "./types.js";
+import { isValidClientId, isValidEnv } from "./utils.js";
+import ValidationErrorLogger from "./validationErrorLogger.js";
 
 const SYNC_INTERVAL = 60000; // 60 seconds
 const REQUEST_TIMEOUT = 10000; // 10 seconds

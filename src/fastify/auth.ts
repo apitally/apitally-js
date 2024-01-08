@@ -1,5 +1,10 @@
-import { DoneFuncWithErrOrRes, FastifyReply, FastifyRequest } from "fastify";
-import { ApitallyClient } from "../common/client";
+import type {
+  DoneFuncWithErrOrRes,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
+
+import { ApitallyClient } from "../common/client.js";
 
 export const requireApiKey = ({
   scopes,

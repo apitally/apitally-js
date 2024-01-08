@@ -1,3 +1,3 @@
-export { KeyInfo } from "../common/keyRegistry";
-export { requireApiKey } from "./auth";
-export { default as apitallyPlugin } from "./plugin";
+export { KeyInfo } from "../common/keyRegistry.js";
+export { requireApiKey } from "./auth.js";
+export { default as apitallyPlugin } from "./plugin.js";

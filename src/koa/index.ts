@@ -1,3 +1,3 @@
-export { KeyInfo } from "../common/keyRegistry";
-export { requireApiKey } from "./auth";
-export { useApitally } from "./middleware";
+export { KeyInfo } from "../common/keyRegistry.js";
+export { requireApiKey } from "./auth.js";
+export { useApitally } from "./middleware.js";

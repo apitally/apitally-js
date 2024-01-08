@@ -1,1 +1,1 @@
-export { KeyCacheBase } from "./keyRegistry";
+export { KeyCacheBase } from "./keyRegistry.js";

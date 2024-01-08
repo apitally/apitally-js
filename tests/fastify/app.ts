@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 
-import { apitallyPlugin, requireApiKey } from "../../src/fastify";
-import { CLIENT_ID, ENV } from "../utils";
+import { apitallyPlugin, requireApiKey } from "../../src/fastify/index.js";
+import { CLIENT_ID, ENV } from "../utils.js";
 
 export const getApp = async (customHeader?: string) => {
   const app = Fastify({

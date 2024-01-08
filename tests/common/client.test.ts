@@ -1,7 +1,15 @@
+import {
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import nock from "nock";
 
-import { ApitallyClient } from "../../src/common/client";
-import { APITALLY_HUB_BASE_URL, CLIENT_ID, ENV } from "../utils";
+import { ApitallyClient } from "../../src/common/client.js";
+import { APITALLY_HUB_BASE_URL, CLIENT_ID, ENV } from "../utils.js";
 
 describe("Client", () => {
   beforeAll(() => {

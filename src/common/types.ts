@@ -1,5 +1,5 @@
-import { KeyCacheBase } from "./keyRegistry";
-import { Logger } from "./logging";
+import { KeyCacheBase } from "./keyRegistry.js";
+import { Logger } from "./logging.js";
 
 export type ApitallyConfig = {
   clientId: string;

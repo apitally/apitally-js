@@ -1,11 +1,19 @@
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import { INestApplication } from "@nestjs/common";
 import { BaseExceptionFilter } from "@nestjs/core";
 import request from "supertest";
 
-import { ApitallyClient } from "../../src/common/client";
-import { ApitallyApiKeyGuard } from "../../src/nestjs/auth";
-import { API_KEY, mockApitallyHub } from "../utils";
-import { getApp } from "./app";
+import { ApitallyClient } from "../../src/common/client.js";
+import { ApitallyApiKeyGuard } from "../../src/nestjs/auth.js";
+import { API_KEY, mockApitallyHub } from "../utils.js";
+import { getApp } from "./app.js";
 
 describe("Middleware for NestJS", () => {
   let app: INestApplication;
