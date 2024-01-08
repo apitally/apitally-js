@@ -10,8 +10,8 @@ import {
 import { Reflector } from "@nestjs/core";
 import { Request, Response } from "express";
 
-import { ApitallyClient } from "../common/client";
-import { KeyInfo } from "../common/keyRegistry";
+import { ApitallyClient } from "../common/client.js";
+import { KeyInfo } from "../common/keyRegistry.js";
 
 export const Scopes = (...scopes: string[]) => SetMetadata("scopes", scopes);
 

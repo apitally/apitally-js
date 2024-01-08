@@ -1,8 +1,9 @@
 import Router from "@koa/router";
 import Koa from "koa";
 import route from "koa-route";
-import { requireApiKey, useApitally } from "../../src/koa";
-import { CLIENT_ID, ENV } from "../utils";
+
+import { requireApiKey, useApitally } from "../../src/koa/index.js";
+import { CLIENT_ID, ENV } from "../utils.js";
 
 export const getAppWithKoaRouter = () => {
   const app = new Koa();

@@ -1,6 +1,6 @@
 import Koa from "koa";
 
-import { ApitallyClient } from "../common/client";
+import { ApitallyClient } from "../common/client.js";
 
 export const requireApiKey = ({
   scopes,

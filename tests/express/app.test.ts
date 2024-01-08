@@ -1,9 +1,10 @@
+import { afterEach, beforeEach, describe, expect, it } from "@jest/globals";
 import { Express } from "express";
 import request from "supertest";
 
-import { ApitallyClient } from "../../src/common/client";
-import { API_KEY, mockApitallyHub } from "../utils";
-import { getAppWithCelebrate, getAppWithValidator } from "./app";
+import { ApitallyClient } from "../../src/common/client.js";
+import { API_KEY, mockApitallyHub } from "../utils.js";
+import { getAppWithCelebrate, getAppWithValidator } from "./app.js";
 
 const testCases = [
   {

@@ -1,10 +1,10 @@
-import { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 
-import { ApitallyClient } from "../common/client";
-import { KeyInfo } from "../common/keyRegistry";
-import { ApitallyConfig, PathInfo, ValidationError } from "../common/types";
-import { getPackageVersion } from "../common/utils";
+import { ApitallyClient } from "../common/client.js";
+import { KeyInfo } from "../common/keyRegistry.js";
+import { ApitallyConfig, PathInfo, ValidationError } from "../common/types.js";
+import { getPackageVersion } from "../common/utils.js";
 
 declare module "fastify" {
   interface FastifyReply {
@@ -17,9 +17,9 @@ declare module "fastify" {
   }
 }
 
-const apitallyPlugin = async (
-  fastify: FastifyInstance,
-  config: ApitallyConfig,
+const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
+  fastify,
+  config,
 ) => {
   const client = new ApitallyClient(config);
   const routes: PathInfo[] = [];

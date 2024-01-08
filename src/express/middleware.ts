@@ -1,11 +1,11 @@
-import { Express, NextFunction, Request, Response } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import { performance } from "perf_hooks";
 
-import { ApitallyClient } from "../common/client";
-import { KeyInfo } from "../common/keyRegistry";
-import { ApitallyConfig, AppInfo, ValidationError } from "../common/types";
-import { getPackageVersion } from "../common/utils";
-import listEndpoints from "./listEndpoints";
+import { ApitallyClient } from "../common/client.js";
+import { KeyInfo } from "../common/keyRegistry.js";
+import { ApitallyConfig, AppInfo, ValidationError } from "../common/types.js";
+import { getPackageVersion } from "../common/utils.js";
+import listEndpoints from "./listEndpoints.js";
 
 declare module "express" {
   interface Request {

@@ -1,4 +1,4 @@
-import { RequestInfo, RequestsItem } from "./types";
+import { RequestInfo, RequestsItem } from "./types.js";
 
 export default class RequestLogger {
   private requestCounts: Map<string, number>;

@@ -2,9 +2,9 @@ import { Joi, Segments, celebrate, errors } from "celebrate";
 import express from "express";
 import { query, validationResult } from "express-validator";
 
-import { KeyCacheBase } from "../../src/common/keyRegistry";
-import { requireApiKey, useApitally } from "../../src/express";
-import { CLIENT_ID, ENV } from "../utils";
+import { KeyCacheBase } from "../../src/common/keyRegistry.js";
+import { requireApiKey, useApitally } from "../../src/express/index.js";
+import { CLIENT_ID, ENV } from "../utils.js";
 
 class TestKeyCache extends KeyCacheBase {
   private data: string | null = JSON.stringify({ salt: "xxx", keys: {} });

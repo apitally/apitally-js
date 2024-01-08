@@ -14,7 +14,7 @@ import {
   GetKeyInfo,
   KeyInfo,
   Scopes,
-} from "../../src/nestjs";
+} from "../../src/nestjs/index.js";
 
 export class HelloQueryDTO {
   @IsNotEmpty()

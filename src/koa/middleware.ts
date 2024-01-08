@@ -1,9 +1,9 @@
 import Koa from "koa";
 
-import { ApitallyClient } from "../common/client";
-import { KeyInfo } from "../common/keyRegistry";
-import { ApitallyConfig, AppInfo, PathInfo } from "../common/types";
-import { getPackageVersion } from "../common/utils";
+import { ApitallyClient } from "../common/client.js";
+import { KeyInfo } from "../common/keyRegistry.js";
+import { ApitallyConfig, AppInfo, PathInfo } from "../common/types.js";
+import { getPackageVersion } from "../common/utils.js";
 
 export const useApitally = (app: Koa, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);

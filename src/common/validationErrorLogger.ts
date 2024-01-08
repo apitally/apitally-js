@@ -2,7 +2,7 @@ import {
   ConsumerMethodPath,
   ValidationError,
   ValidationErrorsItem,
-} from "./types";
+} from "./types.js";
 
 export default class ValidationErrorLogger {
   private errorCounts: Map<string, number>;

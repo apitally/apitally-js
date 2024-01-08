@@ -209,4 +209,4 @@ const getEndpoints = function (app) {
   );
 };
 
-module.exports = getEndpoints;
+export default getEndpoints;

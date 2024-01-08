@@ -1,10 +1,18 @@
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import http from "http";
 import Koa from "koa";
 import request from "supertest";
 
-import { ApitallyClient } from "../../src/common/client";
-import { API_KEY, mockApitallyHub } from "../utils";
-import { getAppWithKoaRoute, getAppWithKoaRouter } from "./app";
+import { ApitallyClient } from "../../src/common/client.js";
+import { API_KEY, mockApitallyHub } from "../utils.js";
+import { getAppWithKoaRoute, getAppWithKoaRouter } from "./app.js";
 
 const testCases = [
   {
