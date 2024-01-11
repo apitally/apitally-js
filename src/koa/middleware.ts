@@ -90,7 +90,7 @@ const listEndpoints = (app: Koa) => {
       middleware.router.stack.forEach((layer: any) => {
         if (layer.methods && layer.methods.length > 0) {
           layer.methods.forEach((method: string) => {
-            if (method.toUpperCase() !== "HEAD") {
+            if (!["HEAD", "OPTIONS"].includes(method.toUpperCase())) {
               endpoints.push({
                 method: method.toUpperCase(),
                 path: layer.path,

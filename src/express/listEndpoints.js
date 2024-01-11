@@ -202,10 +202,12 @@ const parseStack = function (stack, basePath, endpoints) {
 const getEndpoints = function (app) {
   const endpoints = parseEndpoints(app);
   return endpoints.flatMap((route) =>
-    route.methods.map((method) => ({
-      method,
-      path: route.path,
-    })),
+    route.methods
+      .filter((method) => !["HEAD", "OPTIONS"].includes(method.toUpperCase()))
+      .map((method) => ({
+        method,
+        path: route.path,
+      })),
   );
 };
 

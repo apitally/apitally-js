@@ -34,9 +34,9 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       : [routeOptions.method];
     methods.forEach((method) => {
       routeOptions.onSend;
-      if (method !== "HEAD") {
+      if (!["HEAD", "OPTIONS"].includes(method.toUpperCase())) {
         routes.push({
-          method: method,
+          method: method.toUpperCase(),
           path: routeOptions.url,
         });
       }
