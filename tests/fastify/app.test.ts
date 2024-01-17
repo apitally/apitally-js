@@ -1,10 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import { FastifyInstance } from "fastify";
 import request from "supertest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { API_KEY, mockApitallyHub } from "../utils.js";
 import { getApp } from "./app.js";
+
+jest.mock("../../src/common/packageVersions.ts");
 
 const testCases = [
   {

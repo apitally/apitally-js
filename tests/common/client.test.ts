@@ -45,7 +45,7 @@ describe("Client", () => {
       env: ENV,
     });
     jest.spyOn(client.logger, "error").mockImplementation(() => {});
-    client.setAppInfo({ paths: [], versions: new Map(), client: "js:test" });
+    client.setAppInfo({ paths: [], versions: {}, client: "js:test" });
 
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(client["syncIntervalId"]).toBeUndefined();

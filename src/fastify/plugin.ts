@@ -3,8 +3,8 @@ import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
 import { KeyInfo } from "../common/keyRegistry.js";
+import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, PathInfo, ValidationError } from "../common/types.js";
-import { getPackageVersion } from "../common/utils.js";
 
 declare module "fastify" {
   interface FastifyReply {
@@ -33,7 +33,6 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       ? routeOptions.method
       : [routeOptions.method];
     methods.forEach((method) => {
-      routeOptions.onSend;
       if (!["HEAD", "OPTIONS"].includes(method.toUpperCase())) {
         routes.push({
           method: method.toUpperCase(),
@@ -92,7 +91,9 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 };
 
 const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
-  const versions: Array<[string, string]> = [["nodejs", process.version]];
+  const versions: Array<[string, string]> = [
+    ["nodejs", process.version.replace(/^v/, "")],
+  ];
   const fastifyVersion = getPackageVersion("fastify");
   const apitallyVersion = getPackageVersion("../..");
   if (fastifyVersion) {
@@ -106,7 +107,7 @@ const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
   }
   return {
     paths: routes,
-    versions: new Map(versions),
+    versions: Object.fromEntries(versions),
     client: "js:fastify",
   };
 };

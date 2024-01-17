@@ -14,6 +14,8 @@ import { ApitallyClient } from "../../src/common/client.js";
 import { API_KEY, mockApitallyHub } from "../utils.js";
 import { getAppWithKoaRoute, getAppWithKoaRouter } from "./app.js";
 
+jest.mock("../../src/common/packageVersions.ts");
+
 const testCases = [
   {
     name: "Middleware for Koa with koa-router",

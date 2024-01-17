@@ -17,8 +17,8 @@ export type PathInfo = {
 };
 
 export type AppInfo = {
-  paths: Array<PathInfo>;
-  versions: Map<string, string>;
+  paths: PathInfo[];
+  versions: Record<string, string>;
   client: string;
 };
 

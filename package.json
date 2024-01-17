@@ -74,7 +74,8 @@
       "import": "./lib/esm/nestjs/index.js",
       "require": "./lib/cjs/nestjs/index.cjs",
       "types": "./lib/types/nestjs/index.d.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "eslintConfig": {
     "parser": "@typescript-eslint/parser",
@@ -93,7 +94,13 @@
     },
     "root": true
   },
+  "prettier": {
+    "printWidth": 80
+  },
   "babel": {
+    "ignore": [
+      "**/__mocks__"
+    ],
     "presets": [
       [
         "@babel/preset-env",
@@ -124,6 +131,7 @@
           ]
         ],
         "plugins": [
+          "babel-plugin-transform-import-meta",
           [
             "transform-require-extensions",
             {
@@ -151,9 +159,17 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "transform": {
-      "^.+\\.ts$": "ts-jest",
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "useESM": true
+        }
+      ],
       "^.+\\.js$": "babel-jest"
     },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/lib"
+    ],
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
@@ -223,6 +239,7 @@
     "@typescript-eslint/eslint-plugin": "^6.11.0",
     "@typescript-eslint/parser": "^6.11.0",
     "babel-jest": "^29.7.0",
+    "babel-plugin-transform-import-meta": "^2.2.1",
     "babel-plugin-transform-require-extensions": "^2.0.1",
     "celebrate": "^15.0.3",
     "class-transformer": "^0.5.1",
