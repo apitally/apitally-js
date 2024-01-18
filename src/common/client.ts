@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 
 import { KeyCacheBase, KeyRegistry } from "./keyRegistry.js";
 import { Logger, getLogger } from "./logging.js";
+import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestLogger from "./requestLogger.js";
 import {
   ApitallyConfig,
@@ -11,7 +12,6 @@ import {
   AppInfoPayload,
   RequestsDataPayload,
 } from "./types.js";
-import { isValidClientId, isValidEnv } from "./utils.js";
 import ValidationErrorLogger from "./validationErrorLogger.js";
 
 const SYNC_INTERVAL = 60000; // 60 seconds
@@ -211,7 +211,7 @@ export class ApitallyClient {
     };
     this.requestsDataQueue.push([Date.now(), newPayload]);
 
-    const failedItems = [];
+    const failedItems: [number, RequestsDataPayload][] = [];
     while (this.requestsDataQueue.length > 0) {
       const queueItem = this.requestsDataQueue.shift();
       if (queueItem) {

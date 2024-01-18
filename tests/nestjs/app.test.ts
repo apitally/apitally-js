@@ -15,6 +15,8 @@ import { ApitallyApiKeyGuard } from "../../src/nestjs/auth.js";
 import { API_KEY, mockApitallyHub } from "../utils.js";
 import { getApp } from "./app.js";
 
+jest.mock("../../src/common/packageVersions.ts");
+
 describe("Middleware for NestJS", () => {
   let app: INestApplication;
   let appTest: request.SuperTest<request.Test>;

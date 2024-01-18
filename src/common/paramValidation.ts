@@ -8,11 +8,3 @@ export function isValidEnv(env: string): boolean {
   const regexExp = /^[\w-]{1,32}$/;
   return regexExp.test(env);
 }
-
-export function getPackageVersion(name: string): string | null {
-  try {
-    return require(`${name}/package.json`).version || null; // eslint-disable-line @typescript-eslint/no-var-requires
-  } catch (error) {
-    return null;
-  }
-}

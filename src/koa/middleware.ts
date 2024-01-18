@@ -2,8 +2,8 @@ import Koa from "koa";
 
 import { ApitallyClient } from "../common/client.js";
 import { KeyInfo } from "../common/keyRegistry.js";
+import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, AppInfo, PathInfo } from "../common/types.js";
-import { getPackageVersion } from "../common/utils.js";
 
 export const useApitally = (app: Koa, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
@@ -56,7 +56,9 @@ const getConsumer = (ctx: Koa.Context) => {
 };
 
 const getAppInfo = (app: Koa, appVersion?: string): AppInfo => {
-  const versions: Array<[string, string]> = [["nodejs", process.version]];
+  const versions: Array<[string, string]> = [
+    ["nodejs", process.version.replace(/^v/, "")],
+  ];
   const koaVersion = getPackageVersion("koa");
   const apitallyVersion = getPackageVersion("../..");
   if (koaVersion) {
@@ -70,7 +72,7 @@ const getAppInfo = (app: Koa, appVersion?: string): AppInfo => {
   }
   return {
     paths: listEndpoints(app),
-    versions: new Map(versions),
+    versions: Object.fromEntries(versions),
     client: "js:koa",
   };
 };

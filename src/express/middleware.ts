@@ -3,8 +3,8 @@ import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { KeyInfo } from "../common/keyRegistry.js";
+import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, AppInfo, ValidationError } from "../common/types.js";
-import { getPackageVersion } from "../common/utils.js";
 import listEndpoints from "./listEndpoints.js";
 
 declare module "express" {
@@ -172,7 +172,9 @@ const subsetJoiMessage = (message: string, key: string) => {
 };
 
 const getAppInfo = (app: Express, appVersion?: string): AppInfo => {
-  const versions: Array<[string, string]> = [["nodejs", process.version]];
+  const versions: Array<[string, string]> = [
+    ["nodejs", process.version.replace(/^v/, "")],
+  ];
   const expressVersion = getPackageVersion("express");
   const apitallyVersion = getPackageVersion("../..");
   if (expressVersion) {
@@ -186,7 +188,7 @@ const getAppInfo = (app: Express, appVersion?: string): AppInfo => {
   }
   return {
     paths: listEndpoints(app),
-    versions: new Map(versions),
+    versions: Object.fromEntries(versions),
     client: "js:express",
   };
 };
