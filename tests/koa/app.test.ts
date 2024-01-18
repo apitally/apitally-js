@@ -1,20 +1,11 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  jest,
-} from "@jest/globals";
 import http from "http";
 import Koa from "koa";
 import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { API_KEY, mockApitallyHub } from "../utils.js";
 import { getAppWithKoaRoute, getAppWithKoaRouter } from "./app.js";
-
-jest.mock("../../src/common/packageVersions.ts");
 
 const testCases = [
   {
@@ -53,7 +44,7 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
     it("Request logger", async () => {
       await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
 
-      const consoleSpy = jest
+      const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
       await appTest.get("/error").set(authHeader).expect(500);

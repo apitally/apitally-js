@@ -1,21 +1,12 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  jest,
-} from "@jest/globals";
 import { INestApplication } from "@nestjs/common";
 import { BaseExceptionFilter } from "@nestjs/core";
 import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { ApitallyApiKeyGuard } from "../../src/nestjs/auth.js";
 import { API_KEY, mockApitallyHub } from "../utils.js";
 import { getApp } from "./app.js";
-
-jest.mock("../../src/common/packageVersions.ts");
 
 describe("Middleware for NestJS", () => {
   let app: INestApplication;
@@ -39,7 +30,7 @@ describe("Middleware for NestJS", () => {
     await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
     await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
 
-    const loggerSpy = jest
+    const loggerSpy = vi
       .spyOn((BaseExceptionFilter as any).logger, "error")
       .mockImplementation(() => {});
     await appTest.get("/error").set(authHeader).expect(500);

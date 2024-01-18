@@ -1,12 +1,5 @@
-import {
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  jest,
-} from "@jest/globals";
 import nock from "nock";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { APITALLY_HUB_BASE_URL, CLIENT_ID, ENV } from "../utils.js";
@@ -44,7 +37,7 @@ describe("Client", () => {
       clientId: CLIENT_ID,
       env: ENV,
     });
-    jest.spyOn(client.logger, "error").mockImplementation(() => {});
+    vi.spyOn(client.logger, "error").mockImplementation(() => {});
     client.setAppInfo({ paths: [], versions: {}, client: "js:test" });
 
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -66,8 +59,8 @@ describe("Client", () => {
       env: ENV,
       syncApiKeys: true,
     });
-    jest.spyOn(client.logger, "error").mockImplementation(() => {});
-    const exitSpy = jest
+    vi.spyOn(client.logger, "error").mockImplementation(() => {});
+    const exitSpy = vi
       .spyOn(process, "exit")
       .mockImplementation(() => undefined as never);
 
