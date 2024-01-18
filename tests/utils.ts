@@ -2,7 +2,7 @@ import nock from "nock";
 
 export const APITALLY_HUB_BASE_URL = "https://hub.apitally.io";
 export const CLIENT_ID = "fa4f144d-33be-4694-95e4-f5c18b0f151d";
-export const ENV = "default";
+export const ENV = "dev";
 export const API_KEY = "7ll40FB.DuHxzQQuGQU4xgvYvTpmnii7K365j9VI";
 
 const SALT = "54fd2b80dbfeb87d924affbc91b77c76";

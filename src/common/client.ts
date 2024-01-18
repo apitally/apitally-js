@@ -41,7 +41,7 @@ export class ApitallyClient {
 
   constructor({
     clientId,
-    env = "default",
+    env = "dev",
     syncApiKeys = false,
     logger,
     keyCacheClass,

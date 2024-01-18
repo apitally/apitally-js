@@ -76,7 +76,7 @@ app.use(express.json());
 
 useApitally(app, {
   clientId: "your-client-id",
-  env: "default", // or "dev", "prod" etc. (optional)
+  env: "dev", // or "prod" etc.
 });
 ```
 
@@ -99,7 +99,7 @@ const expressInstance = app.getHttpAdapter().getInstance();
 
 useApitally(expressInstance, {
   clientId: "your-client-id",
-  env: "default", // or "dev", "prod" etc. (optional)
+  env: "dev", // or "prod" etc.
 });
 ```
 
@@ -123,7 +123,7 @@ const { apitallyPlugin } = require("apitally/fastify");
 
 await fastify.register(apitallyPlugin, {
   clientId: "your-client-id",
-  env: "default", // or "dev", "prod" etc. (optional)
+  env: "dev", // or "prod" etc.
 });
 ```
 
@@ -141,7 +141,7 @@ const app = new Koa();
 
 useApitally(app, {
   clientId: "your-client-id",
-  env: "default", // or "dev", "prod" etc. (optional)
+  env: "dev", // or "prod" etc.
 });
 ```
 
