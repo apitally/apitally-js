@@ -153,6 +153,7 @@
     "sourceMaps": true
   },
   "dependencies": {
+    "@babel/runtime": "^7.23.8",
     "axios": "^1",
     "axios-retry": "^4",
     "winston": "^3"
