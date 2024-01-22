@@ -109,7 +109,7 @@ This is an example of how to register the Apitally plugin with a Fastify
 application. For further instructions, see our
 [setup guide for Fastify](https://docs.apitally.io/frameworks/fastify).
 
-_Note:_ The Apitally plugin requires the
+The Apitally plugin requires the
 [`fastify-plugin`](https://www.npmjs.com/package/fastify-plugin) package to be
 installed.
 
@@ -121,11 +121,21 @@ npm install fastify-plugin
 const fastify = require("fastify")({ logger: true });
 const { apitallyPlugin } = require("apitally/fastify");
 
-await fastify.register(apitallyPlugin, {
+fastify.register(apitallyPlugin, {
   clientId: "your-client-id",
   env: "dev", // or "prod" etc.
 });
+
+// Wrap your routes in a plugin, so Apitally can detect them
+fastify.register((instance, opts, done) => {
+  instance.get("/", (request, reply) => {
+    reply.send("hello");
+  });
+  done();
+});
 ```
+
+_Note:_ If your project uses ES modules you can use `await fastify.register(...)` and don't need to wrap your routes in a plugin. See the [Fastify V4 migration guide](https://fastify.dev/docs/latest/Guides/Migration-Guide-V4/#synchronous-route-definitions-2954) for more details.
 
 ### Koa
 
