@@ -16,16 +16,16 @@ export const getApp = async (customHeader?: string) => {
     appVersion: "1.2.3",
   });
 
-  interface HelloQuerystring {
+  interface HelloParams {
     name: string;
     age: number;
   }
 
-  interface HelloParams {
+  interface HelloIDParams {
     id: number;
   }
 
-  app.get<{ Querystring: HelloQuerystring }>(
+  app.get<{ Querystring: HelloParams }>(
     "/hello",
     {
       schema: {
@@ -45,12 +45,32 @@ export const getApp = async (customHeader?: string) => {
       return `Hello ${name}! You are ${age} years old!`;
     },
   );
-  app.get<{ Params: HelloParams }>(
+  app.get<{ Params: HelloIDParams }>(
     "/hello/:id",
     { preValidation: requireApiKey({ scopes: "hello2", customHeader }) },
     async function (request) {
       const { id } = request.params;
       return `Hello ${id}!`;
+    },
+  );
+  app.post<{ Body: HelloParams }>(
+    "/hello",
+    {
+      schema: {
+        body: {
+          type: "object",
+          properties: {
+            name: { type: "string", minLength: 2 },
+            age: { type: "integer", minimum: 18 },
+          },
+          required: ["name", "age"],
+        },
+      },
+      preValidation: requireApiKey({ scopes: "hello1", customHeader }),
+    },
+    async function (request) {
+      const { name, age } = request.body;
+      return `Hello ${name}! You are ${age} years old!`;
     },
   );
   app.get(

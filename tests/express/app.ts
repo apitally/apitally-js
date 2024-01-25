@@ -1,6 +1,6 @@
 import { Joi, Segments, celebrate, errors } from "celebrate";
 import express from "express";
-import { query, validationResult } from "express-validator";
+import { body, query, validationResult } from "express-validator";
 
 import { KeyCacheBase } from "../../src/common/keyRegistry.js";
 import { requireApiKey, useApitally } from "../../src/express/index.js";
@@ -55,6 +55,22 @@ export const getAppWithCelebrate = () => {
       res.send(`Hello ID ${req.params.id}!`);
     },
   );
+  app.post(
+    "/hello",
+    requireApiKey({ scopes: "hello1" }),
+    celebrate(
+      {
+        [Segments.BODY]: {
+          name: Joi.string().required().min(2),
+          age: Joi.number().required().min(18),
+        },
+      },
+      { abortEarly: false },
+    ),
+    (req, res) => {
+      res.send(`Hello ${req.body?.name}! You are ${req.body?.age} years old!`);
+    },
+  );
   app.get("/error", requireApiKey(), () => {
     throw new Error("Error");
   });
@@ -94,6 +110,21 @@ export const getAppWithValidator = () => {
     requireApiKey({ scopes: "hello2", customHeader: "ApiKey" }),
     (req, res) => {
       res.send(`Hello ID ${req.params.id}!`);
+    },
+  );
+  app.post(
+    "/hello",
+    requireApiKey({ scopes: "hello1", customHeader: "ApiKey" }),
+    body("name").isString().isLength({ min: 2 }),
+    body("age").isInt({ min: 18 }),
+    (req, res) => {
+      const result = validationResult(req);
+      if (result.isEmpty()) {
+        return res.send(
+          `Hello ${req.body?.name}! You are ${req.body?.age} years old!`,
+        );
+      }
+      res.status(400).send({ errors: result.array() });
     },
   );
   app.get("/error", requireApiKey({ customHeader: "ApiKey" }), () => {

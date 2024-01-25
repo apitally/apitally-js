@@ -43,6 +43,11 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
 
     it("Request logger", async () => {
       await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
+      await appTest
+        .post("/hello")
+        .set(authHeader)
+        .send({ name: "John", age: 20 })
+        .expect(200);
 
       const consoleSpy = vi
         .spyOn(console, "error")
@@ -50,12 +55,26 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
       await appTest.get("/error").set(authHeader).expect(500);
       consoleSpy.mockRestore();
 
-      const requests = client.requestLogger.getAndResetRequests();
-      expect(requests.length).toBe(2);
+      const requests = client.requestCounter.getAndResetRequests();
+      expect(requests.length).toBe(3);
       expect(
         requests.some(
           (r) =>
-            r.method === "GET" && r.path === "/hello" && r.status_code === 200,
+            r.method === "GET" &&
+            r.path === "/hello" &&
+            r.status_code === 200 &&
+            r.request_size_sum == 0 &&
+            r.response_size_sum > 0,
+        ),
+      ).toBe(true);
+      expect(
+        requests.some(
+          (r) =>
+            r.method === "POST" &&
+            r.path === "/hello" &&
+            r.status_code === 200 &&
+            r.request_size_sum > 0 &&
+            r.response_size_sum > 0,
         ),
       ).toBe(true);
       expect(requests.some((r) => r.status_code === 500)).toBe(true);
@@ -72,6 +91,10 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
           {
             method: "GET",
             path: "/hello/:id",
+          },
+          {
+            method: "POST",
+            path: "/hello",
           },
           {
             method: "GET",
