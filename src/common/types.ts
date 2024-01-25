@@ -36,12 +36,18 @@ export type ConsumerMethodPath = {
 export type RequestInfo = ConsumerMethodPath & {
   statusCode: number;
   responseTime: number;
+  requestSize?: string | number;
+  responseSize?: string | number;
 };
 
 export type RequestsItem = ConsumerMethodPath & {
   status_code: number;
   request_count: number;
+  request_size_sum: number;
+  response_size_sum: number;
   response_times: Record<number, number>;
+  request_sizes: Record<number, number>;
+  response_sizes: Record<number, number>;
 };
 
 export type ValidationError = {

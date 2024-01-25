@@ -27,12 +27,14 @@ const getMiddleware = (client: ApitallyClient) => {
       try {
         // _matchedRoute is set by koa-router, routePath is set by koa-route
         if (ctx._matchedRoute || ctx.routePath) {
-          client.requestLogger.logRequest({
+          client.requestCounter.addRequest({
             consumer: getConsumer(ctx),
             method: ctx.request.method,
             path: ctx._matchedRoute || ctx.routePath,
             statusCode: statusCode || ctx.response.status,
             responseTime: performance.now() - startTime,
+            requestSize: ctx.request.length,
+            responseSize: ctx.response.length,
           });
         }
       } catch (error) {

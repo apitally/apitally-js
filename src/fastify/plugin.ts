@@ -63,12 +63,19 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       "routeOptions" in request
         ? (request as any).routeOptions.url
         : (request as any).routerPath;
-    client.requestLogger.logRequest({
+    const requestSize = request.headers["content-length"];
+    let responseSize = reply.getHeader("content-length");
+    if (Array.isArray(responseSize)) {
+      responseSize = responseSize[0];
+    }
+    client.requestCounter.addRequest({
       consumer: getConsumer(request),
       method: request.method,
       path: path,
       statusCode: reply.statusCode,
       responseTime: reply.getResponseTime(),
+      requestSize: requestSize,
+      responseSize: responseSize,
     });
     if (
       (reply.statusCode === 400 || reply.statusCode === 422) &&
@@ -78,7 +85,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
     ) {
       const validationErrors = extractAjvErrors(reply.payload.message);
       validationErrors.forEach((error) => {
-        client.validationErrorLogger.logValidationError({
+        client.validationErrorCounter.addValidationError({
           consumer: getConsumer(request),
           method: request.method,
           path: path,

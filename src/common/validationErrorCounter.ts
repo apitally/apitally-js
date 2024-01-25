@@ -4,7 +4,7 @@ import {
   ValidationErrorsItem,
 } from "./types.js";
 
-export default class ValidationErrorLogger {
+export default class ValidationErrorCounter {
   private errorCounts: Map<string, number>;
 
   constructor() {
@@ -22,7 +22,7 @@ export default class ValidationErrorLogger {
     ].join("|");
   }
 
-  public logValidationError(
+  public addValidationError(
     validationError: ConsumerMethodPath & ValidationError,
   ) {
     const key = this.getKey(validationError);

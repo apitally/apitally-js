@@ -36,12 +36,15 @@ describe("Middleware for NestJS", () => {
     await appTest.get("/error").set(authHeader).expect(500);
     loggerSpy.mockRestore();
 
-    const requests = client.requestLogger.getAndResetRequests();
+    const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(3);
     expect(
       requests.some(
         (r) =>
-          r.method === "GET" && r.path === "/hello" && r.status_code === 200,
+          r.method === "GET" &&
+          r.path === "/hello" &&
+          r.status_code === 200 &&
+          r.response_size_sum > 0,
       ),
     ).toBe(true);
     expect(
@@ -59,7 +62,7 @@ describe("Middleware for NestJS", () => {
     await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
 
     const validationErrors =
-      client.validationErrorLogger.getAndResetValidationErrors();
+      client.validationErrorCounter.getAndResetValidationErrors();
     expect(validationErrors.length).toBe(2);
     expect(
       validationErrors.find((e) => e.msg.startsWith("age"))?.error_count,

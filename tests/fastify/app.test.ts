@@ -43,18 +43,35 @@ testCases.forEach(({ name, customHeader }) => {
           .get("/hello?name=John&age=20")
           .set(authHeader)
           .expect(200);
+        await appTest
+          .post("/hello")
+          .set(authHeader)
+          .send({ name: "John", age: 20 })
+          .expect(200);
         await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
         await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
         await appTest.get("/error").set(authHeader).expect(500);
 
-        const requests = client.requestLogger.getAndResetRequests();
-        expect(requests.length).toBe(3);
+        const requests = client.requestCounter.getAndResetRequests();
+        expect(requests.length).toBe(4);
         expect(
           requests.some(
             (r) =>
               r.method === "GET" &&
               r.path === "/hello" &&
-              r.status_code === 200,
+              r.status_code === 200 &&
+              r.request_size_sum == 0 &&
+              r.response_size_sum > 0,
+          ),
+        ).toBe(true);
+        expect(
+          requests.some(
+            (r) =>
+              r.method === "POST" &&
+              r.path === "/hello" &&
+              r.status_code === 200 &&
+              r.request_size_sum > 0 &&
+              r.response_size_sum > 0,
           ),
         ).toBe(true);
         expect(
@@ -75,7 +92,7 @@ testCases.forEach(({ name, customHeader }) => {
         await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
 
         const validationErrors =
-          client.validationErrorLogger.getAndResetValidationErrors();
+          client.validationErrorCounter.getAndResetValidationErrors();
         expect(validationErrors.length).toBe(2);
         expect(
           validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
@@ -93,6 +110,10 @@ testCases.forEach(({ name, customHeader }) => {
           {
             method: "GET",
             path: "/hello/:id",
+          },
+          {
+            method: "POST",
+            path: "/hello",
           },
           {
             method: "GET",

@@ -41,12 +41,14 @@ const getMiddleware = (client: ApitallyClient) => {
         try {
           if (req.route) {
             const responseTime = performance.now() - startTime;
-            client.requestLogger.logRequest({
+            client.requestCounter.addRequest({
               consumer: getConsumer(req),
               method: req.method,
               path: req.route.path,
               statusCode: res.statusCode,
               responseTime: responseTime,
+              requestSize: req.get("content-length"),
+              responseSize: res.get("content-length"),
             });
             if (
               (res.statusCode === 400 || res.statusCode === 422) &&
@@ -69,7 +71,7 @@ const getMiddleware = (client: ApitallyClient) => {
                 );
               }
               validationErrors.forEach((error) => {
-                client.validationErrorLogger.logValidationError({
+                client.validationErrorCounter.addValidationError({
                   consumer: getConsumer(req),
                   method: req.method,
                   path: req.route.path,

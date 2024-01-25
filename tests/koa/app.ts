@@ -1,5 +1,6 @@
 import Router from "@koa/router";
 import Koa from "koa";
+import bodyParser from "koa-bodyparser";
 import route from "koa-route";
 
 import { requireApiKey, useApitally } from "../../src/koa/index.js";
@@ -26,10 +27,15 @@ export const getAppWithKoaRouter = () => {
       ctx.body = `Hello ${ctx.params.id}!`;
     },
   );
+  router.post("/hello", requireApiKey({ scopes: ["hello1"] }), async (ctx) => {
+    const requestBody = ctx.request.body as any;
+    ctx.body = `Hello ${requestBody.name}! You are ${requestBody.age} years old!`;
+  });
   router.get("/error", requireApiKey(), async () => {
     throw new Error("Error");
   });
 
+  app.use(bodyParser());
   app.use(router.routes());
   app.use(router.allowedMethods());
 
@@ -47,6 +53,7 @@ export const getAppWithKoaRoute = () => {
   });
 
   app.use(requireApiKey({ customHeader: "ApiKey" }));
+  app.use(bodyParser());
   app.use(
     route.get("/hello", async (ctx) => {
       ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
@@ -55,6 +62,12 @@ export const getAppWithKoaRoute = () => {
   app.use(
     route.get("/hello/:id", async (ctx, id) => {
       ctx.body = `Hello ${id}!`;
+    }),
+  );
+  app.use(
+    route.post("/hello", async (ctx) => {
+      const requestBody = ctx.request.body as any;
+      ctx.body = `Hello ${requestBody.name}! You are ${requestBody.age} years old!`;
     }),
   );
   app.use(

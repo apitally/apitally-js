@@ -5,14 +5,14 @@ import { randomUUID } from "crypto";
 import { KeyCacheBase, KeyRegistry } from "./keyRegistry.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
-import RequestLogger from "./requestLogger.js";
+import RequestCounter from "./requestCounter.js";
 import {
   ApitallyConfig,
   AppInfo,
   AppInfoPayload,
   RequestsDataPayload,
 } from "./types.js";
-import ValidationErrorLogger from "./validationErrorLogger.js";
+import ValidationErrorCounter from "./validationErrorCounter.js";
 
 const SYNC_INTERVAL = 60000; // 60 seconds
 const REQUEST_TIMEOUT = 10000; // 10 seconds
@@ -33,8 +33,8 @@ export class ApitallyClient {
   private startedAt: number;
   private keysUpdated?: number;
 
-  public requestLogger: RequestLogger;
-  public validationErrorLogger: ValidationErrorLogger;
+  public requestCounter: RequestCounter;
+  public validationErrorCounter: ValidationErrorCounter;
   public keyRegistry: KeyRegistry;
   public keyCache?: KeyCacheBase;
   public logger: Logger;
@@ -67,8 +67,8 @@ export class ApitallyClient {
     this.instanceUuid = randomUUID();
     this.requestsDataQueue = [];
     this.startedAt = Date.now();
-    this.requestLogger = new RequestLogger();
-    this.validationErrorLogger = new ValidationErrorLogger();
+    this.requestCounter = new RequestCounter();
+    this.validationErrorCounter = new ValidationErrorCounter();
     this.keyRegistry = new KeyRegistry();
     this.keyCache = keyCacheClass
       ? new keyCacheClass(clientId, env)
@@ -204,9 +204,9 @@ export class ApitallyClient {
       time_offset: 0,
       instance_uuid: this.instanceUuid,
       message_uuid: randomUUID(),
-      requests: this.requestLogger.getAndResetRequests(),
+      requests: this.requestCounter.getAndResetRequests(),
       validation_errors:
-        this.validationErrorLogger.getAndResetValidationErrors(),
+        this.validationErrorCounter.getAndResetValidationErrors(),
       api_key_usage: this.keyRegistry.getAndResetUsageCounts(),
     };
     this.requestsDataQueue.push([Date.now(), newPayload]);
