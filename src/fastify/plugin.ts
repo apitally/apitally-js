@@ -58,40 +58,42 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   });
 
   fastify.addHook("onResponse", (request, reply, done) => {
-    // Get path from routeOptions if available (from v4), otherwise fallback to deprecated routerPath
-    const path =
-      "routeOptions" in request
-        ? (request as any).routeOptions.url
-        : (request as any).routerPath;
-    const requestSize = request.headers["content-length"];
-    let responseSize = reply.getHeader("content-length");
-    if (Array.isArray(responseSize)) {
-      responseSize = responseSize[0];
-    }
-    client.requestCounter.addRequest({
-      consumer: getConsumer(request),
-      method: request.method,
-      path: path,
-      statusCode: reply.statusCode,
-      responseTime: reply.getResponseTime(),
-      requestSize: requestSize,
-      responseSize: responseSize,
-    });
-    if (
-      (reply.statusCode === 400 || reply.statusCode === 422) &&
-      reply.payload &&
-      (!reply.payload.code || reply.payload.code === "FST_ERR_VALIDATION") &&
-      typeof reply.payload.message === "string"
-    ) {
-      const validationErrors = extractAjvErrors(reply.payload.message);
-      validationErrors.forEach((error) => {
-        client.validationErrorCounter.addValidationError({
-          consumer: getConsumer(request),
-          method: request.method,
-          path: path,
-          ...error,
-        });
+    if (request.method.toUpperCase() !== "OPTIONS") {
+      // Get path from routeOptions if available (from v4), otherwise fallback to deprecated routerPath
+      const path =
+        "routeOptions" in request
+          ? (request as any).routeOptions.url
+          : (request as any).routerPath;
+      const requestSize = request.headers["content-length"];
+      let responseSize = reply.getHeader("content-length");
+      if (Array.isArray(responseSize)) {
+        responseSize = responseSize[0];
+      }
+      client.requestCounter.addRequest({
+        consumer: getConsumer(request),
+        method: request.method,
+        path: path,
+        statusCode: reply.statusCode,
+        responseTime: reply.getResponseTime(),
+        requestSize: requestSize,
+        responseSize: responseSize,
       });
+      if (
+        (reply.statusCode === 400 || reply.statusCode === 422) &&
+        reply.payload &&
+        (!reply.payload.code || reply.payload.code === "FST_ERR_VALIDATION") &&
+        typeof reply.payload.message === "string"
+      ) {
+        const validationErrors = extractAjvErrors(reply.payload.message);
+        validationErrors.forEach((error) => {
+          client.validationErrorCounter.addValidationError({
+            consumer: getConsumer(request),
+            method: request.method,
+            path: path,
+            ...error,
+          });
+        });
+      }
     }
     done();
   });
