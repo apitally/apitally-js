@@ -15,6 +15,8 @@ import {
 import ValidationErrorCounter from "./validationErrorCounter.js";
 
 const SYNC_INTERVAL = 60000; // 60 seconds
+const INITIAL_SYNC_INTERVAL = 10000; // 10 seconds
+const INITIAL_SYNC_INTERVAL_DURATION = 3600000; // 1 hour
 const REQUEST_TIMEOUT = 10000; // 10 seconds
 const MAX_QUEUE_TIME = 3.6e6; // 1 hour
 
@@ -131,7 +133,13 @@ export class ApitallyClient {
     this.sync();
     this.syncIntervalId = setInterval(() => {
       this.sync();
-    }, SYNC_INTERVAL);
+    }, INITIAL_SYNC_INTERVAL);
+    setTimeout(() => {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = setInterval(() => {
+        this.sync();
+      }, SYNC_INTERVAL);
+    }, INITIAL_SYNC_INTERVAL_DURATION);
   }
 
   private async sync() {
