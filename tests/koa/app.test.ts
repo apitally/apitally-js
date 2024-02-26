@@ -4,7 +4,7 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { API_KEY, mockApitallyHub } from "../utils.js";
+import { mockApitallyHub } from "../utils.js";
 import { getAppWithKoaRoute, getAppWithKoaRouter } from "./app.js";
 
 const testCases = [
@@ -14,21 +14,17 @@ const testCases = [
     getApp: getAppWithKoaRouter,
   },
   {
-    name: "Middleware for Koa with koa-route and custom API key header",
+    name: "Middleware for Koa with koa-route",
     router: "koa-route",
     getApp: getAppWithKoaRoute,
-    customHeader: "ApiKey",
   },
 ];
 
-testCases.forEach(({ name, router, getApp, customHeader }) => {
+testCases.forEach(({ name, router, getApp }) => {
   describe(name, () => {
     let app: Koa;
     let appTest: request.SuperTest<request.Test>;
     let client: ApitallyClient;
-    const authHeader = customHeader
-      ? { [customHeader]: API_KEY }
-      : { Authorization: `ApiKey ${API_KEY}` };
 
     beforeEach(async () => {
       mockApitallyHub();
@@ -42,17 +38,13 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
     });
 
     it("Request logger", async () => {
-      await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
-      await appTest
-        .post("/hello")
-        .set(authHeader)
-        .send({ name: "John", age: 20 })
-        .expect(200);
+      await appTest.get("/hello?name=John&age=20").expect(200);
+      await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
 
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      await appTest.get("/error").set(authHeader).expect(500);
+      await appTest.get("/error").expect(500);
       consoleSpy.mockRestore();
 
       const requests = client.requestCounter.getAndResetRequests();
@@ -64,7 +56,8 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
             r.path === "/hello" &&
             r.status_code === 200 &&
             r.request_size_sum == 0 &&
-            r.response_size_sum > 0,
+            r.response_size_sum > 0 &&
+            r.consumer === "test",
         ),
       ).toBe(true);
       expect(
@@ -78,7 +71,6 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
         ),
       ).toBe(true);
       expect(requests.some((r) => r.status_code === 500)).toBe(true);
-      expect(requests.every((r) => r.consumer == "key:1")).toBe(true);
     });
 
     if (router === "koa-router") {
@@ -101,37 +93,6 @@ testCases.forEach(({ name, router, getApp, customHeader }) => {
             path: "/error",
           },
         ]);
-      });
-    }
-
-    if (!customHeader) {
-      it("Authentication", async () => {
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set(authHeader)
-          .expect(200);
-        await appTest.get("/hello?name=John&age=20").expect(401);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ Authorization: `Bearer ${API_KEY}` })
-          .expect(401);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ Authorization: `ApiKey xxx` })
-          .expect(403);
-        await appTest.get("/hello/1").set(authHeader).expect(403); // missing scope
-      });
-    } else {
-      it("Authentication", async () => {
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set(authHeader)
-          .expect(200);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ [customHeader]: "xxx" })
-          .expect(403);
-        await appTest.get("/hello?name=John&age=20").expect(403);
       });
     }
 

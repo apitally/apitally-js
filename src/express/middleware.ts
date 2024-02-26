@@ -2,7 +2,6 @@ import type { Express, NextFunction, Request, Response } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
-import { KeyInfo } from "../common/keyRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, AppInfo, ValidationError } from "../common/types.js";
 import listEndpoints from "./listEndpoints.js";
@@ -10,7 +9,6 @@ import listEndpoints from "./listEndpoints.js";
 declare module "express" {
   interface Request {
     consumerIdentifier?: string;
-    keyInfo?: KeyInfo;
   }
 }
 
@@ -100,13 +98,7 @@ const getMiddleware = (client: ApitallyClient) => {
 };
 
 const getConsumer = (req: Request) => {
-  if (req.consumerIdentifier) {
-    return String(req.consumerIdentifier);
-  }
-  if (req.keyInfo && req.keyInfo instanceof KeyInfo) {
-    return `key:${req.keyInfo.keyId}`;
-  }
-  return null;
+  return req.consumerIdentifier ? String(req.consumerIdentifier) : null;
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {

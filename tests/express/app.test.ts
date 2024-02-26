@@ -3,7 +3,7 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { API_KEY, mockApitallyHub } from "../utils.js";
+import { mockApitallyHub } from "../utils.js";
 import { getAppWithCelebrate, getAppWithValidator } from "./app.js";
 
 const testCases = [
@@ -12,20 +12,16 @@ const testCases = [
     getApp: getAppWithCelebrate,
   },
   {
-    name: "Middleware for Express with express-validator and custom API key header",
+    name: "Middleware for Express with express-validator",
     getApp: getAppWithValidator,
-    customHeader: "ApiKey",
   },
 ];
 
-testCases.forEach(({ name, getApp, customHeader }) => {
+testCases.forEach(({ name, getApp }) => {
   describe(name, () => {
     let app: Express;
     let appTest: request.SuperTest<request.Test>;
     let client: ApitallyClient;
-    const authHeader = customHeader
-      ? { [customHeader]: API_KEY }
-      : { Authorization: `ApiKey ${API_KEY}` };
 
     beforeEach(async () => {
       mockApitallyHub();
@@ -38,15 +34,11 @@ testCases.forEach(({ name, getApp, customHeader }) => {
     });
 
     it("Request logger", async () => {
-      await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
-      await appTest
-        .post("/hello")
-        .set(authHeader)
-        .send({ name: "John", age: 20 })
-        .expect(200);
-      await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
-      await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
-      await appTest.get("/error").set(authHeader).expect(500);
+      await appTest.get("/hello?name=John&age=20").expect(200);
+      await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
+      await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
+      await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
+      await appTest.get("/error").expect(500);
 
       const requests = client.requestCounter.getAndResetRequests();
       expect(requests.length).toBe(4);
@@ -57,7 +49,8 @@ testCases.forEach(({ name, getApp, customHeader }) => {
             r.path === "/hello" &&
             r.status_code === 200 &&
             r.request_size_sum == 0 &&
-            r.response_size_sum > 0,
+            r.response_size_sum > 0 &&
+            r.consumer === "test",
         ),
       ).toBe(true);
       expect(
@@ -76,13 +69,12 @@ testCases.forEach(({ name, getApp, customHeader }) => {
       expect(
         requests.some((r) => r.status_code === 500 && r.request_count === 1),
       ).toBe(true);
-      expect(requests.every((r) => r.consumer == "key:1")).toBe(true);
     });
 
     it("Validation error logger", async () => {
-      await appTest.get("/hello?name=John&age=20").set(authHeader).expect(200);
-      await appTest.get("/hello?name=Bob&age=17").set(authHeader).expect(400); // invalid (age < 18)
-      await appTest.get("/hello?name=X&age=1").set(authHeader).expect(400); // invalid (name too short and age < 18)
+      await appTest.get("/hello?name=John&age=20").expect(200);
+      await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
+      await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
 
       const validationErrors =
         client.validationErrorCounter.getAndResetValidationErrors();
@@ -91,7 +83,6 @@ testCases.forEach(({ name, getApp, customHeader }) => {
         validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
           ?.error_count,
       ).toBe(2);
-      expect(validationErrors.every((e) => e.consumer == "key:1")).toBe(true);
     });
 
     it("List endpoints", async () => {
@@ -114,41 +105,6 @@ testCases.forEach(({ name, getApp, customHeader }) => {
         },
       ]);
     });
-
-    if (!customHeader) {
-      it("Authentication", async () => {
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set(authHeader)
-          .expect(200);
-        await appTest.get("/hello?name=John&age=20").expect(401);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ Authorization: `Bearer ${API_KEY}` })
-          .expect(401);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ Authorization: `ApiKey xxx` })
-          .expect(403);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ ApiKey: API_KEY })
-          .expect(401);
-        await appTest.get("/hello/1").set(authHeader).expect(403);
-      });
-    } else {
-      it("Authentication", async () => {
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set(authHeader)
-          .expect(200);
-        await appTest
-          .get("/hello?name=John&age=20")
-          .set({ ApiKey: "xxx" })
-          .expect(403);
-        await appTest.get("/hello?name=John&age=20").expect(403);
-      });
-    }
 
     afterEach(async () => {
       if (client) {

@@ -6,9 +6,9 @@
   </picture>
 </p>
 
-<p align="center"><b>Your refreshingly simple REST API companion.</b></p>
+<p align="center"><b>API monitoring made easy.</b></p>
 
-<p align="center"><i>Apitally is a simple and affordable API monitoring and API key management solution with a focus on data privacy. It is easy to set up and use for new and existing API projects using Python or Node.js.</i></p>
+<p align="center"><i>Apitally is a simple and affordable API monitoring solution with a focus on data privacy. It is easy to set up and use for new and existing API projects using Python or Node.js.</i></p>
 
 <p align="center">🔗 <b><a href="https://apitally.io" target="_blank">apitally.io</a></b></p>
 
@@ -37,10 +37,7 @@ the 📚 [documentation](https://docs.apitally.io).
 
 - Middleware/plugins for different frameworks to capture metadata about API
   endpoints, requests and responses (no sensitive data is captured)
-- Non-blocking client that aggregates and sends captured data to Apitally and
-  optionally synchronizes API key hashes in 1 minute intervals
-- Functions to easily secure endpoints with API key authentication and
-  permission checks
+- Non-blocking client that aggregates and sends captured data to Apitally in regular intervals
 
 ## Installation
 
@@ -157,9 +154,8 @@ useApitally(app, {
 
 ## Getting help
 
-If you need help please
-[create a new discussion](https://github.com/orgs/apitally/discussions/categories/q-a)
-on GitHub.
+If you need help please [create a new discussion](https://github.com/orgs/apitally/discussions/categories/q-a) on GitHub
+or [join our Slack workspace](https://join.slack.com/t/apitally-community/shared_invite/zt-2b3xxqhdu-9RMq2HyZbR79wtzNLoGHrg).
 
 ## License
 

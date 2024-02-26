@@ -1,15 +1,13 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "Simple API monitoring and API key management for REST APIs built with Express, Fastify, Koa, and NestJS.",
+  "description": "API monitoring for REST APIs built with Express, Fastify, Koa, and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
     "analytics",
     "api",
     "apitally",
-    "auth",
-    "authentication",
     "express",
     "fastify",
     "koa",

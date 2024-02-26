@@ -1,14 +1,11 @@
-import { KeyCacheBase } from "./keyRegistry.js";
 import { Logger } from "./logging.js";
 
 export type ApitallyConfig = {
   clientId: string;
   env?: string;
-  syncApiKeys?: boolean;
   openApiUrl?: string;
   appVersion?: string;
   logger?: Logger;
-  keyCacheClass?: new (clientId: string, env: string) => KeyCacheBase;
 };
 
 export type PathInfo = {
@@ -69,5 +66,4 @@ export type RequestsDataPayload = {
   message_uuid: string;
   requests: Array<RequestsItem>;
   validation_errors: Array<ValidationErrorsItem>;
-  api_key_usage: Record<number, number>;
 };
