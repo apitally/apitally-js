@@ -1,9 +1,16 @@
 import { Joi, Segments, celebrate, errors } from "celebrate";
+import type { Request } from "express";
 import express from "express";
 import { body, query, validationResult } from "express-validator";
 
 import { useApitally } from "../../src/express/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
+
+declare module "express" {
+  interface Request {
+    consumerIdentifier?: string;
+  }
+}
 
 export const getAppWithCelebrate = () => {
   const app = express();
@@ -24,7 +31,8 @@ export const getAppWithCelebrate = () => {
       },
       { abortEarly: false },
     ),
-    (req, res) => {
+    (req: Request, res) => {
+      req.consumerIdentifier = "test";
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
       );
@@ -70,7 +78,8 @@ export const getAppWithValidator = () => {
     "/hello",
     query("name").isString().isLength({ min: 2 }),
     query("age").isInt({ min: 18 }),
-    (req, res) => {
+    (req: Request, res) => {
+      req.consumerIdentifier = "test";
       const result = validationResult(req);
       if (result.isEmpty()) {
         return res.send(
