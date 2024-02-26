@@ -2,7 +2,6 @@ import axios, { AxiosError, AxiosInstance } from "axios";
 import axiosRetry from "axios-retry";
 import { randomUUID } from "crypto";
 
-import { KeyCacheBase, KeyRegistry } from "./keyRegistry.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
@@ -23,7 +22,6 @@ const MAX_QUEUE_TIME = 3.6e6; // 1 hour
 export class ApitallyClient {
   private clientId: string;
   private env: string;
-  private syncApiKeys: boolean;
 
   private static instance?: ApitallyClient;
   private instanceUuid: string;
@@ -32,22 +30,12 @@ export class ApitallyClient {
   private syncIntervalId?: NodeJS.Timeout;
   public appInfo?: AppInfo;
   private appInfoSent: boolean = false;
-  private startedAt: number;
-  private keysUpdated?: number;
 
   public requestCounter: RequestCounter;
   public validationErrorCounter: ValidationErrorCounter;
-  public keyRegistry: KeyRegistry;
-  public keyCache?: KeyCacheBase;
   public logger: Logger;
 
-  constructor({
-    clientId,
-    env = "dev",
-    syncApiKeys = false,
-    logger,
-    keyCacheClass,
-  }: ApitallyConfig) {
+  constructor({ clientId, env = "dev", logger }: ApitallyConfig) {
     if (ApitallyClient.instance) {
       throw new Error("Apitally client is already initialized");
     }
@@ -65,16 +53,10 @@ export class ApitallyClient {
     ApitallyClient.instance = this;
     this.clientId = clientId;
     this.env = env;
-    this.syncApiKeys = syncApiKeys;
     this.instanceUuid = randomUUID();
     this.requestsDataQueue = [];
-    this.startedAt = Date.now();
     this.requestCounter = new RequestCounter();
     this.validationErrorCounter = new ValidationErrorCounter();
-    this.keyRegistry = new KeyRegistry();
-    this.keyCache = keyCacheClass
-      ? new keyCacheClass(clientId, env)
-      : undefined;
     this.logger = logger || getLogger();
 
     this.axiosClient = axios.create({
@@ -86,18 +68,6 @@ export class ApitallyClient {
       retryDelay: (retryCount, error) =>
         axiosRetry.exponentialDelay(retryCount, error, 1000),
     });
-
-    if (this.keyCache) {
-      const keyDataString = this.keyCache.retrieve();
-      if (keyDataString) {
-        try {
-          const keyData = JSON.parse(keyDataString);
-          this.updateKeyRegistry(keyData, false);
-        } catch (error) {
-          this.logger.error("Failed to load API keys from cache.", { error });
-        }
-      }
-    }
 
     this.startSync();
     this.handleShutdown = this.handleShutdown.bind(this);
@@ -145,9 +115,6 @@ export class ApitallyClient {
   private async sync() {
     try {
       const promises = [this.sendRequestsData()];
-      if (this.syncApiKeys) {
-        promises.push(this.getKeys());
-      }
       if (!this.appInfoSent) {
         promises.push(this.sendAppInfo());
       }
@@ -215,7 +182,6 @@ export class ApitallyClient {
       requests: this.requestCounter.getAndResetRequests(),
       validation_errors:
         this.validationErrorCounter.getAndResetValidationErrors(),
-      api_key_usage: this.keyRegistry.getAndResetUsageCounts(),
     };
     this.requestsDataQueue.push([Date.now(), newPayload]);
 
@@ -242,43 +208,5 @@ export class ApitallyClient {
       }
     }
     this.requestsDataQueue = failedItems;
-  }
-
-  private async getKeys() {
-    try {
-      this.logger.debug("Getting API keys from Apitally Hub.");
-      const response = await this.axiosClient.get("/keys");
-      this.updateKeyRegistry(response.data);
-      this.keysUpdated = Date.now();
-    } catch (error) {
-      this.logger.debug(
-        `Error while getting API keys from Apitally Hub (${
-          (error as AxiosError).code
-        }). Will retry.`,
-        { error },
-      );
-      const now = Date.now();
-      if (!this.keyRegistry.salt) {
-        // Exit because application won't be able to authenticate requests
-        this.logger.error("Initial Apitally API key sync failed.");
-        process.exit(1);
-      } else if (
-        (this.keysUpdated && now - this.keysUpdated > MAX_QUEUE_TIME) ||
-        (!this.keysUpdated && now - this.startedAt > MAX_QUEUE_TIME)
-      ) {
-        this.logger.warn(
-          "Apitally API key sync has been failing for more than 1 hour.",
-        );
-      }
-    }
-  }
-
-  private updateKeyRegistry(data: any, cache: boolean = true) {
-    this.keyRegistry.salt = data.salt || null;
-    this.keyRegistry.update(data.keys || {});
-
-    if (cache && this.keyCache) {
-      this.keyCache.store(JSON.stringify(data));
-    }
   }
 }

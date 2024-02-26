@@ -1,7 +1,6 @@
 import Koa from "koa";
 
 import { ApitallyClient } from "../common/client.js";
-import { KeyInfo } from "../common/keyRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, AppInfo, PathInfo } from "../common/types.js";
 
@@ -48,13 +47,9 @@ const getMiddleware = (client: ApitallyClient) => {
 };
 
 const getConsumer = (ctx: Koa.Context) => {
-  if (ctx.state.consumerIdentifier) {
-    return String(ctx.state.consumerIdentifier);
-  }
-  if (ctx.state.keyInfo && ctx.state.keyInfo instanceof KeyInfo) {
-    return `key:${ctx.state.keyInfo.keyId}`;
-  }
-  return null;
+  return ctx.state.consumerIdentifier
+    ? String(ctx.state.consumerIdentifier)
+    : null;
 };
 
 const getAppInfo = (app: Koa, appVersion?: string): AppInfo => {

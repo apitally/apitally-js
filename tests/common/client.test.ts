@@ -44,30 +44,6 @@ describe("Client", () => {
     expect(client["syncIntervalId"]).toBeUndefined();
   });
 
-  it("Exit if initial API key sync fails", async () => {
-    nock(APITALLY_HUB_BASE_URL)
-      .persist()
-      .post(/\/info$/)
-      .reply(202);
-    nock(APITALLY_HUB_BASE_URL)
-      .persist()
-      .get(/\/keys$/)
-      .reply(400);
-
-    const client = new ApitallyClient({
-      clientId: CLIENT_ID,
-      env: ENV,
-      syncApiKeys: true,
-    });
-    vi.spyOn(client.logger, "error").mockImplementation(() => {});
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(() => undefined as never);
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(exitSpy).toHaveBeenCalledWith(1);
-  });
-
   afterEach(async () => {
     await ApitallyClient.shutdown();
   });

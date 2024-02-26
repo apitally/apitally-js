@@ -4,17 +4,9 @@ import {
   Param,
   ParseIntPipe,
   Query,
-  UseGuards,
   ValidationPipe,
 } from "@nestjs/common";
 import { IsInt, IsNotEmpty, Min, MinLength } from "class-validator";
-
-import {
-  ApitallyApiKeyGuard,
-  GetKeyInfo,
-  KeyInfo,
-  Scopes,
-} from "../../src/nestjs/index.js";
 
 export class HelloQueryDTO {
   @IsNotEmpty()
@@ -27,10 +19,8 @@ export class HelloQueryDTO {
 }
 
 @Controller()
-@UseGuards(ApitallyApiKeyGuard)
 export class AppController {
   @Get("/hello")
-  @Scopes("hello1")
   getHello(
     @Query(
       new ValidationPipe({
@@ -39,13 +29,11 @@ export class AppController {
       }),
     )
     { name, age }: HelloQueryDTO,
-    @GetKeyInfo() keyInfo: KeyInfo,
   ) {
-    return `Hello ${name}! You are ${age} years old! You are authenticated as ${keyInfo.name}!`;
+    return `Hello ${name}! You are ${age} years old!`;
   }
 
   @Get("/hello/:id")
-  @Scopes("hello2")
   getHelloById(@Param("id", new ParseIntPipe()) id: number) {
     return `Hello ID ${id}!`;
   }

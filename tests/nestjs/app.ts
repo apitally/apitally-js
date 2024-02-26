@@ -15,7 +15,6 @@ export async function getApp() {
   useApitally(expressInstance, {
     clientId: CLIENT_ID,
     env: ENV,
-    syncApiKeys: true,
     appVersion: "1.2.3",
   });
 

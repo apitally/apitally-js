@@ -1,9 +1,9 @@
 import Fastify from "fastify";
 
-import { apitallyPlugin, requireApiKey } from "../../src/fastify/index.js";
+import { apitallyPlugin } from "../../src/fastify/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
-export const getApp = async (customHeader?: string) => {
+export const getApp = async () => {
   const app = Fastify({
     ajv: { customOptions: { allErrors: true } },
     // logger: { level: "error" },
@@ -12,7 +12,6 @@ export const getApp = async (customHeader?: string) => {
   await app.register(apitallyPlugin, {
     clientId: CLIENT_ID,
     env: ENV,
-    syncApiKeys: true,
     appVersion: "1.2.3",
   });
 
@@ -38,21 +37,16 @@ export const getApp = async (customHeader?: string) => {
           required: ["name", "age"],
         },
       },
-      preValidation: requireApiKey({ scopes: "hello1", customHeader }),
     },
     async function (request) {
       const { name, age } = request.query;
       return `Hello ${name}! You are ${age} years old!`;
     },
   );
-  app.get<{ Params: HelloIDParams }>(
-    "/hello/:id",
-    { preValidation: requireApiKey({ scopes: "hello2", customHeader }) },
-    async function (request) {
-      const { id } = request.params;
-      return `Hello ${id}!`;
-    },
-  );
+  app.get<{ Params: HelloIDParams }>("/hello/:id", async function (request) {
+    const { id } = request.params;
+    return `Hello ${id}!`;
+  });
   app.post<{ Body: HelloParams }>(
     "/hello",
     {
@@ -66,20 +60,15 @@ export const getApp = async (customHeader?: string) => {
           required: ["name", "age"],
         },
       },
-      preValidation: requireApiKey({ scopes: "hello1", customHeader }),
     },
     async function (request) {
       const { name, age } = request.body;
       return `Hello ${name}! You are ${age} years old!`;
     },
   );
-  app.get(
-    "/error",
-    { preValidation: requireApiKey({ customHeader }) },
-    async function () {
-      throw new Error("Error");
-    },
-  );
+  app.get("/error", async function () {
+    throw new Error("Error");
+  });
 
   return app;
 };

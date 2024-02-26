@@ -2,7 +2,6 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
-import { KeyInfo } from "../common/keyRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, PathInfo, ValidationError } from "../common/types.js";
 
@@ -13,7 +12,6 @@ declare module "fastify" {
 
   interface FastifyRequest {
     consumerIdentifier?: string;
-    keyInfo?: KeyInfo;
   }
 }
 
@@ -25,7 +23,6 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   const routes: PathInfo[] = [];
 
   fastify.decorateRequest("consumerIdentifier", null);
-  fastify.decorateRequest("keyInfo", null);
   fastify.decorateReply("payload", null);
 
   fastify.addHook("onRoute", (routeOptions) => {
@@ -122,13 +119,7 @@ const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
 };
 
 const getConsumer = (request: FastifyRequest) => {
-  if (request.consumerIdentifier) {
-    return String(request.consumerIdentifier);
-  }
-  if (request.keyInfo && request.keyInfo instanceof KeyInfo) {
-    return `key:${request.keyInfo.keyId}`;
-  }
-  return null;
+  return request.consumerIdentifier ? String(request.consumerIdentifier) : null;
 };
 
 const extractAjvErrors = (message: string): ValidationError[] => {
