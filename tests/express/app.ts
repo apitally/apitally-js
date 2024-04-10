@@ -57,7 +57,7 @@ export const getAppWithCelebrate = () => {
     },
   );
   app.get("/error", () => {
-    throw new Error("Error");
+    throw new Error("test");
   });
 
   app.use(errors());
