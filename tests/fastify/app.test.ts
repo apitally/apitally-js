@@ -63,7 +63,11 @@ describe("Plugin for Fastify", () => {
     expect(serverErrors.length).toBe(1);
     expect(
       serverErrors.some(
-        (e) => e.type === "Error" && e.msg === "test" && e.error_count === 1,
+        (e) =>
+          e.type === "Error" &&
+          e.msg === "test" &&
+          e.traceback &&
+          e.error_count === 1,
       ),
     ).toBe(true);
   });
