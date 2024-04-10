@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyError, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
@@ -8,6 +8,7 @@ import { ApitallyConfig, PathInfo, ValidationError } from "../common/types.js";
 declare module "fastify" {
   interface FastifyReply {
     payload: any;
+    serverError?: FastifyError;
   }
 
   interface FastifyRequest {
@@ -54,9 +55,17 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
     done();
   });
 
+  fastify.addHook("onError", (request, reply, error, done) => {
+    if (!error.statusCode || error.statusCode === 500) {
+      reply.serverError = error;
+    }
+    done();
+  });
+
   fastify.addHook("onResponse", (request, reply, done) => {
     if (request.method.toUpperCase() !== "OPTIONS") {
       // Get path from routeOptions if available (from v4), otherwise fallback to deprecated routerPath
+      const consumer = getConsumer(request);
       const path =
         "routeOptions" in request
           ? (request as any).routeOptions.url
@@ -67,7 +76,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         responseSize = responseSize[0];
       }
       client.requestCounter.addRequest({
-        consumer: getConsumer(request),
+        consumer: consumer,
         method: request.method,
         path: path,
         statusCode: reply.statusCode,
@@ -84,11 +93,21 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         const validationErrors = extractAjvErrors(reply.payload.message);
         validationErrors.forEach((error) => {
           client.validationErrorCounter.addValidationError({
-            consumer: getConsumer(request),
+            consumer: consumer,
             method: request.method,
             path: path,
             ...error,
           });
+        });
+      }
+      if (reply.statusCode === 500 && reply.serverError) {
+        client.serverErrorCounter.addServerError({
+          consumer: consumer,
+          method: request.method,
+          path: path,
+          type: reply.serverError.name,
+          msg: reply.serverError.message,
+          traceback: reply.serverError.stack || "",
         });
       }
     }

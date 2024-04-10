@@ -68,7 +68,7 @@ export const getApp = async () => {
     },
   );
   app.get("/error", async function () {
-    throw new Error("Error");
+    throw new Error("test");
   });
 
   return app;

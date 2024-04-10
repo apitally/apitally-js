@@ -60,10 +60,24 @@ export type ValidationErrorsItem = ConsumerMethodPath & {
   error_count: number;
 };
 
+export type ServerError = {
+  type: string;
+  msg: string;
+  traceback: string;
+};
+
+export type ServerErrorsItem = ConsumerMethodPath & {
+  type: string;
+  msg: string;
+  traceback: string;
+  error_count: number;
+};
+
 export type RequestsDataPayload = {
   time_offset: number;
   instance_uuid: string;
   message_uuid: string;
   requests: Array<RequestsItem>;
   validation_errors: Array<ValidationErrorsItem>;
+  server_errors: Array<ServerErrorsItem>;
 };

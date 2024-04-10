@@ -14,20 +14,31 @@ declare module "express" {
 
 export const useApitally = (app: Express, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
-  const middleware = getMiddleware(client);
+  const middleware = getMiddleware(app, client);
   app.use(middleware);
   setTimeout(() => {
     client.setAppInfo(getAppInfo(app, config.appVersion));
   }, 100);
 };
 
-const getMiddleware = (client: ApitallyClient) => {
+const getMiddleware = (app: Express, client: ApitallyClient) => {
   const validatorInstalled = getPackageVersion("express-validator") !== null;
   const celebrateInstalled = getPackageVersion("celebrate") !== null;
   const nestInstalled = getPackageVersion("@nestjs/core") !== null;
   const classValidatorInstalled = getPackageVersion("class-validator") !== null;
+  let errorHandlerConfigured = false;
 
   return (req: Request, res: Response, next: NextFunction) => {
+    if (!errorHandlerConfigured) {
+      // Add error handling middleware to the bottom of the stack when handling the first request
+      app.use(
+        (err: Error, req: Request, res: Response, next: NextFunction): void => {
+          res.locals.serverError = err;
+          next(err);
+        },
+      );
+      errorHandlerConfigured = true;
+    }
     try {
       const startTime = performance.now();
       const originalJson = res.json;
@@ -39,8 +50,9 @@ const getMiddleware = (client: ApitallyClient) => {
         try {
           if (req.route) {
             const responseTime = performance.now() - startTime;
+            const consumer = getConsumer(req);
             client.requestCounter.addRequest({
-              consumer: getConsumer(req),
+              consumer: consumer,
               method: req.method,
               path: req.route.path,
               statusCode: res.statusCode,
@@ -70,11 +82,22 @@ const getMiddleware = (client: ApitallyClient) => {
               }
               validationErrors.forEach((error) => {
                 client.validationErrorCounter.addValidationError({
-                  consumer: getConsumer(req),
+                  consumer: consumer,
                   method: req.method,
                   path: req.route.path,
                   ...error,
                 });
+              });
+            }
+            if (res.statusCode === 500 && res.locals.serverError) {
+              const serverError = res.locals.serverError as Error;
+              client.serverErrorCounter.addServerError({
+                consumer: consumer,
+                method: req.method,
+                path: req.route.path,
+                type: serverError.name,
+                msg: serverError.message,
+                traceback: serverError.stack || "",
               });
             }
           }

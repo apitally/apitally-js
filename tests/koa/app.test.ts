@@ -48,6 +48,7 @@ testCases.forEach(({ name, router, getApp }) => {
       consoleSpy.mockRestore();
 
       const requests = client.requestCounter.getAndResetRequests();
+      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(requests.length).toBe(3);
       expect(
         requests.some(
@@ -71,6 +72,16 @@ testCases.forEach(({ name, router, getApp }) => {
         ),
       ).toBe(true);
       expect(requests.some((r) => r.status_code === 500)).toBe(true);
+      expect(serverErrors.length).toBe(1);
+      expect(
+        serverErrors.some(
+          (e) =>
+            e.type === "Error" &&
+            e.msg === "test" &&
+            e.traceback &&
+            e.error_count === 1,
+        ),
+      ).toBe(true);
     });
 
     if (router === "koa-router") {
