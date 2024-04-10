@@ -15,35 +15,53 @@ export const useApitally = (app: Koa, config: ApitallyConfig) => {
 
 const getMiddleware = (client: ApitallyClient) => {
   return async (ctx: Koa.Context, next: Koa.Next) => {
-    const startTime = performance.now();
+    let path: string | undefined;
     let statusCode: number | undefined;
+    const startTime = performance.now();
     try {
       await next();
     } catch (error: any) {
+      path = getPath(ctx);
       statusCode = error.statusCode || error.status || 500;
+      if (path && statusCode === 500 && error instanceof Error) {
+        client.serverErrorCounter.addServerError({
+          consumer: getConsumer(ctx),
+          method: ctx.request.method,
+          path,
+          type: error.name,
+          msg: error.message,
+          traceback: error.stack || "",
+        });
+      }
       throw error;
     } finally {
-      try {
-        // _matchedRoute is set by koa-router, routePath is set by koa-route
-        if (ctx._matchedRoute || ctx.routePath) {
+      if (!path) {
+        path = getPath(ctx);
+      }
+      if (path) {
+        try {
           client.requestCounter.addRequest({
             consumer: getConsumer(ctx),
             method: ctx.request.method,
-            path: ctx._matchedRoute || ctx.routePath,
+            path,
             statusCode: statusCode || ctx.response.status,
             responseTime: performance.now() - startTime,
             requestSize: ctx.request.length,
             responseSize: ctx.response.length,
           });
+        } catch (error) {
+          client.logger.error(
+            "Error while logging request in Apitally middleware.",
+            { context: ctx, error },
+          );
         }
-      } catch (error) {
-        client.logger.error(
-          "Error while logging request in Apitally middleware.",
-          { context: ctx, error },
-        );
       }
     }
   };
+};
+
+const getPath = (ctx: Koa.Context) => {
+  return ctx._matchedRoute || ctx.routePath; // _matchedRoute is set by koa-router, routePath is set by koa-route
 };
 
 const getConsumer = (ctx: Koa.Context) => {
