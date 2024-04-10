@@ -15,18 +15,6 @@ export default class ValidationErrorCounter {
     this.errorDetails = new Map();
   }
 
-  private getKey(validationError: ConsumerMethodPath & ValidationError) {
-    const hashInput = [
-      validationError.consumer || "",
-      validationError.method.toUpperCase(),
-      validationError.path,
-      validationError.loc,
-      validationError.msg.trim(),
-      validationError.type,
-    ].join("|");
-    return createHash("md5").update(hashInput).digest("hex");
-  }
-
   public addValidationError(
     validationError: ConsumerMethodPath & ValidationError,
   ) {
@@ -56,5 +44,17 @@ export default class ValidationErrorCounter {
     this.errorCounts.clear();
     this.errorDetails.clear();
     return data;
+  }
+
+  private getKey(validationError: ConsumerMethodPath & ValidationError) {
+    const hashInput = [
+      validationError.consumer || "",
+      validationError.method.toUpperCase(),
+      validationError.path,
+      validationError.loc,
+      validationError.msg.trim(),
+      validationError.type,
+    ].join("|");
+    return createHash("md5").update(hashInput).digest("hex");
   }
 }
