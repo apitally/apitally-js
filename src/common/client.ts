@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
+import ServerErrorCounter from "./serverErrorCounter.js";
 import {
   ApitallyConfig,
   AppInfo,
@@ -33,6 +34,7 @@ export class ApitallyClient {
 
   public requestCounter: RequestCounter;
   public validationErrorCounter: ValidationErrorCounter;
+  public serverErrorCounter: ServerErrorCounter;
   public logger: Logger;
 
   constructor({ clientId, env = "dev", logger }: ApitallyConfig) {
@@ -57,6 +59,7 @@ export class ApitallyClient {
     this.requestsDataQueue = [];
     this.requestCounter = new RequestCounter();
     this.validationErrorCounter = new ValidationErrorCounter();
+    this.serverErrorCounter = new ServerErrorCounter();
     this.logger = logger || getLogger();
 
     this.axiosClient = axios.create({
@@ -182,6 +185,7 @@ export class ApitallyClient {
       requests: this.requestCounter.getAndResetRequests(),
       validation_errors:
         this.validationErrorCounter.getAndResetValidationErrors(),
+      server_errors: this.serverErrorCounter.getAndResetServerErrors(),
     };
     this.requestsDataQueue.push([Date.now(), newPayload]);
 
