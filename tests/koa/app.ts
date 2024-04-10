@@ -28,7 +28,7 @@ export const getAppWithKoaRouter = () => {
     ctx.body = `Hello ${requestBody.name}! You are ${requestBody.age} years old!`;
   });
   router.get("/error", async () => {
-    throw new Error("Error");
+    throw new Error("test");
   });
 
   app.use(bodyParser());
@@ -67,7 +67,7 @@ export const getAppWithKoaRoute = () => {
   );
   app.use(
     route.get("/error", async () => {
-      throw new Error("Error");
+      throw new Error("test");
     }),
   );
 

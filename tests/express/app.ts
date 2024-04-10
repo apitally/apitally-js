@@ -107,7 +107,7 @@ export const getAppWithValidator = () => {
     },
   );
   app.get("/error", () => {
-    throw new Error("Error");
+    throw new Error("test");
   });
 
   app.use(errors());

@@ -31,6 +31,7 @@ describe("Plugin for Fastify", () => {
     await appTest.get("/error").expect(500);
 
     const requests = client.requestCounter.getAndResetRequests();
+    const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(requests.length).toBe(4);
     expect(
       requests.some(
@@ -58,6 +59,12 @@ describe("Plugin for Fastify", () => {
     ).toBe(true);
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
+    ).toBe(true);
+    expect(serverErrors.length).toBe(1);
+    expect(
+      serverErrors.some(
+        (e) => e.type === "Error" && e.msg === "test" && e.error_count === 1,
+      ),
     ).toBe(true);
   });
 
