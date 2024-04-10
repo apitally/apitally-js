@@ -79,6 +79,6 @@ export default class ServerErrorCounter {
       truncatedLines.push(line);
       length += line.length + 1;
     }
-    return truncatedLines.join("\n").trim();
+    return truncatedLines.join("\n");
   }
 }
