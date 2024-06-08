@@ -1,3 +1,4 @@
+import type * as Sentry from "@sentry/node";
 import { createHash } from "crypto";
 
 import { ConsumerMethodPath, ServerError, ServerErrorsItem } from "./types.js";
@@ -9,11 +10,13 @@ export default class ServerErrorCounter {
   private errorCounts: Map<string, number>;
   private errorDetails: Map<string, ConsumerMethodPath & ServerError>;
   private sentryEventIds: Map<string, string>;
+  private sentry: typeof Sentry | undefined;
 
   constructor() {
     this.errorCounts = new Map();
     this.errorDetails = new Map();
     this.sentryEventIds = new Map();
+    this.tryImportSentry();
   }
 
   public addServerError(serverError: ConsumerMethodPath & ServerError) {
@@ -86,15 +89,20 @@ export default class ServerErrorCounter {
     return truncatedLines.join("\n");
   }
 
-  private async captureSentryEventId(serverErrorKey: string) {
-    try {
-      const { lastEventId } = await import("@sentry/node");
-      const eventId = lastEventId();
+  private captureSentryEventId(serverErrorKey: string) {
+    if (this.sentry) {
+      const eventId = this.sentry.lastEventId();
       if (eventId) {
         this.sentryEventIds.set(serverErrorKey, eventId);
       }
+    }
+  }
+
+  private async tryImportSentry() {
+    try {
+      this.sentry = await import("@sentry/node");
     } catch (e) {
-      // Ignore if Sentry SDK is not installed or configured
+      // Sentry SDK is not installed, ignore
     }
   }
 }
