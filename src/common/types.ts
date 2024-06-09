@@ -70,6 +70,7 @@ export type ServerErrorsItem = ConsumerMethodPath & {
   type: string;
   msg: string;
   traceback: string;
+  sentry_event_id: string | null;
   error_count: number;
 };
 

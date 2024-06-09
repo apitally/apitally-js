@@ -1,3 +1,4 @@
+import type * as Sentry from "@sentry/node";
 import { createHash } from "crypto";
 
 import { ConsumerMethodPath, ServerError, ServerErrorsItem } from "./types.js";
@@ -8,10 +9,14 @@ const MAX_STACKTRACE_LENGTH = 65536;
 export default class ServerErrorCounter {
   private errorCounts: Map<string, number>;
   private errorDetails: Map<string, ConsumerMethodPath & ServerError>;
+  private sentryEventIds: Map<string, string>;
+  private sentry: typeof Sentry | undefined;
 
   constructor() {
     this.errorCounts = new Map();
     this.errorDetails = new Map();
+    this.sentryEventIds = new Map();
+    this.tryImportSentry();
   }
 
   public addServerError(serverError: ConsumerMethodPath & ServerError) {
@@ -20,6 +25,7 @@ export default class ServerErrorCounter {
       this.errorDetails.set(key, serverError);
     }
     this.errorCounts.set(key, (this.errorCounts.get(key) || 0) + 1);
+    this.captureSentryEventId(key);
   }
 
   public getAndResetServerErrors() {
@@ -34,6 +40,7 @@ export default class ServerErrorCounter {
           type: serverError.type,
           msg: this.getTruncatedMessage(serverError.msg),
           traceback: this.getTruncatedStack(serverError.traceback),
+          sentry_event_id: this.sentryEventIds.get(key) || null,
           error_count: count,
         });
       }
@@ -80,5 +87,22 @@ export default class ServerErrorCounter {
       length += line.length + 1;
     }
     return truncatedLines.join("\n");
+  }
+
+  private captureSentryEventId(serverErrorKey: string) {
+    if (this.sentry && this.sentry.lastEventId) {
+      const eventId = this.sentry.lastEventId();
+      if (eventId) {
+        this.sentryEventIds.set(serverErrorKey, eventId);
+      }
+    }
+  }
+
+  private async tryImportSentry() {
+    try {
+      this.sentry = await import("@sentry/node");
+    } catch (e) {
+      // Sentry SDK is not installed, ignore
+    }
   }
 }
