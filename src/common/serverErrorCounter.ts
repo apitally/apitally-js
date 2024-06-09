@@ -90,7 +90,7 @@ export default class ServerErrorCounter {
   }
 
   private captureSentryEventId(serverErrorKey: string) {
-    if (this.sentry) {
+    if (this.sentry && this.sentry.lastEventId) {
       const eventId = this.sentry.lastEventId();
       if (eventId) {
         this.sentryEventIds.set(serverErrorKey, eventId);
