@@ -228,7 +228,7 @@
     "install": "^0.13.0",
     "koa": "^2.14.2",
     "koa-bodyparser": "^4.4.1",
-    "koa-route": "^3.2.0",
+    "koa-route": "^4.0.0",
     "nock": "^13.3.8",
     "npm": "^10.2.4",
     "prettier": "^3.1.0",
