@@ -12,7 +12,8 @@ declare module "fastify" {
   }
 
   interface FastifyRequest {
-    consumerIdentifier?: string;
+    apitallyConsumer?: string;
+    consumerIdentifier?: string; // For backwards compatibility
   }
 }
 
@@ -23,7 +24,8 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   const client = new ApitallyClient(config);
   const routes: PathInfo[] = [];
 
-  fastify.decorateRequest("consumerIdentifier", null);
+  fastify.decorateRequest("apitallyConsumer", null);
+  fastify.decorateRequest("consumerIdentifier", null); // For backwards compatibility
   fastify.decorateReply("payload", null);
 
   fastify.addHook("onRoute", (routeOptions) => {
@@ -138,7 +140,13 @@ const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
 };
 
 const getConsumer = (request: FastifyRequest) => {
-  return request.consumerIdentifier ? String(request.consumerIdentifier) : null;
+  if (request.apitallyConsumer) {
+    return String(request.apitallyConsumer);
+  } else if (request.consumerIdentifier) {
+    // For backwards compatibility
+    return String(request.consumerIdentifier);
+  }
+  return null;
 };
 
 const extractAjvErrors = (message: string): ValidationError[] => {

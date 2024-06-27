@@ -8,7 +8,7 @@ import { CLIENT_ID, ENV } from "../utils.js";
 
 declare module "express" {
   interface Request {
-    consumerIdentifier?: string;
+    apitallyConsumer?: string;
   }
 }
 
@@ -32,7 +32,7 @@ export const getAppWithCelebrate = () => {
       { abortEarly: false },
     ),
     (req: Request, res) => {
-      req.consumerIdentifier = "test";
+      req.apitallyConsumer = "test";
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
       );
@@ -79,7 +79,7 @@ export const getAppWithValidator = () => {
     query("name").isString().isLength({ min: 2 }),
     query("age").isInt({ min: 18 }),
     (req: Request, res) => {
-      req.consumerIdentifier = "test";
+      req.apitallyConsumer = "test";
       const result = validationResult(req);
       if (result.isEmpty()) {
         return res.send(

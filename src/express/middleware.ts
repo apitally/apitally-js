@@ -8,7 +8,8 @@ import listEndpoints from "./listEndpoints.js";
 
 declare module "express" {
   interface Request {
-    consumerIdentifier?: string;
+    apitallyConsumer?: string;
+    consumerIdentifier?: string; // For backwards compatibility
   }
 }
 
@@ -121,7 +122,13 @@ const getMiddleware = (app: Express, client: ApitallyClient) => {
 };
 
 const getConsumer = (req: Request) => {
-  return req.consumerIdentifier ? String(req.consumerIdentifier) : null;
+  if (req.apitallyConsumer) {
+    return String(req.apitallyConsumer);
+  } else if (req.consumerIdentifier) {
+    // For backwards compatibility
+    return String(req.consumerIdentifier);
+  }
+  return null;
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {
