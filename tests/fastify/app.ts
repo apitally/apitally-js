@@ -40,7 +40,7 @@ export const getApp = async () => {
     },
     async function (request) {
       const { name, age } = request.query;
-      request.consumerIdentifier = "test";
+      request.apitallyConsumer = "test";
       return `Hello ${name}! You are ${age} years old!`;
     },
   );

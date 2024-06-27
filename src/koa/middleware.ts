@@ -65,9 +65,13 @@ const getPath = (ctx: Koa.Context) => {
 };
 
 const getConsumer = (ctx: Koa.Context) => {
-  return ctx.state.consumerIdentifier
-    ? String(ctx.state.consumerIdentifier)
-    : null;
+  if (ctx.state.apitallyConsumer) {
+    return String(ctx.state.apitallyConsumer);
+  } else if (ctx.state.consumerIdentifier) {
+    // For backwards compatibility
+    return String(ctx.state.consumerIdentifier);
+  }
+  return null;
 };
 
 const getAppInfo = (app: Koa, appVersion?: string): AppInfo => {
