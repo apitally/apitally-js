@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "API monitoring for REST APIs built with Express, Fastify, Koa, and NestJS.",
+  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, Koa, and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -12,6 +12,7 @@
     "fastify",
     "koa",
     "logging",
+    "metrics",
     "middleware",
     "monitor",
     "monitoring",
@@ -24,10 +25,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/apitally/nodejs-client.git"
+    "url": "git+ssh://git@github.com/apitally/apitally-js.git"
   },
   "bugs": {
-    "url": "https://github.com/apitally/nodejs-client/issues"
+    "url": "https://github.com/apitally/apitally-js/issues"
   },
   "homepage": "https://apitally.io",
   "type": "module",
