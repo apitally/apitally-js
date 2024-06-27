@@ -2,13 +2,13 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://assets.apitally.io/logos/logo-vertical-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="https://assets.apitally.io/logos/logo-vertical-light.png">
-    <img alt="Apitally logo" src="https://assets.apitally.io/logos/logo-vertical-light.png">
+    <img alt="Apitally logo" src="https://assets.apitally.io/logos/logo-vertical-light.png" width="150">
   </picture>
 </p>
 
 <p align="center"><b>API monitoring made easy.</b></p>
 
-<p align="center"><i>Apitally is a simple and affordable API monitoring tool with a focus on data privacy.<br>It is super easy to use for API projects in Python or Node.js and never collects sensitive data.</i></p>
+<p align="center"><i>Apitally is a simple API monitoring & analytics tool with a focus on data privacy.<br>It is super easy to use for API projects in Node.js or Python and never collects sensitive data.</i></p>
 
 <p align="center">🔗 <b><a href="https://apitally.io" target="_blank">apitally.io</a></b></p>
 
@@ -18,8 +18,8 @@
 
 # Apitally client library for Node.js
 
-[![Tests](https://github.com/apitally/nodejs-client/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/nodejs-client/actions)
-[![Codecov](https://codecov.io/gh/apitally/nodejs-client/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/nodejs-client)
+[![Tests](https://github.com/apitally/apitally-js/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/apitally-js/actions)
+[![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
 This client library for Apitally currently supports the following Node.js web
