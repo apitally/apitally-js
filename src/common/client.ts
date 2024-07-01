@@ -154,17 +154,8 @@ export class ApitallyClient {
         await this.axiosClient.post("/info", payload);
         this.appInfoSent = true;
       } catch (error) {
-        if (
-          error instanceof AxiosError &&
-          error.response &&
-          error.response.status === 404 &&
-          error.response.data &&
-          typeof error.response.data === "string" &&
-          error.response.data.includes("Client ID")
-        ) {
-          this.logger.error(`Invalid Apitally client ID '${this.clientId}'.`);
-          this.stopSync();
-        } else {
+        const handled = this.handleHubError(error);
+        if (!handled) {
           this.logger.debug(
             `Error while sending app info to Apitally Hub (${
               (error as AxiosError).code
@@ -201,16 +192,32 @@ export class ApitallyClient {
             await this.axiosClient.post("/requests", payload);
           }
         } catch (error) {
-          this.logger.debug(
-            `Error while sending requests data to Apitally Hub (${
-              (error as AxiosError).code
-            }). Will retry.`,
-            { error },
-          );
-          failedItems.push(queueItem);
+          const handled = this.handleHubError(error);
+          if (!handled) {
+            this.logger.debug(
+              `Error while sending requests data to Apitally Hub (${
+                (error as AxiosError).code
+              }). Will retry.`,
+              { error },
+            );
+            failedItems.push(queueItem);
+          }
         }
       }
     }
     this.requestsDataQueue = failedItems;
+  }
+
+  private handleHubError(error: unknown) {
+    if (
+      error instanceof AxiosError &&
+      error.response &&
+      error.response.status === 404
+    ) {
+      this.logger.error(`Invalid Apitally client ID '${this.clientId}'.`);
+      this.stopSync();
+      return true;
+    }
+    return false;
   }
 }
