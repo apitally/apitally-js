@@ -10,7 +10,7 @@ export const useApitally = (app: Koa, config: ApitallyConfig) => {
   app.use(middleware);
   setTimeout(() => {
     client.setAppInfo(getAppInfo(app, config.appVersion));
-  }, 100);
+  }, 1000);
 };
 
 const getMiddleware = (client: ApitallyClient) => {
