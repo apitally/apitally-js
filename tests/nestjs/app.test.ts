@@ -18,8 +18,8 @@ describe("Middleware for NestJS", () => {
     appTest = request(app.getHttpServer());
     client = ApitallyClient.getInstance();
 
-    // Wait for 0.2 seconds for app info to be set
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Wait for 1.2 seconds for app info to be set
+    await new Promise((resolve) => setTimeout(resolve, 1200));
   });
 
   it("Request logger", async () => {
