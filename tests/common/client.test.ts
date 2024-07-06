@@ -8,7 +8,7 @@ describe("Client", () => {
   beforeAll(() => {
     nock(APITALLY_HUB_BASE_URL)
       .persist()
-      .post(/\/requests$/)
+      .post(/\/sync$/)
       .reply(202);
   });
 
@@ -30,7 +30,7 @@ describe("Client", () => {
   it("Stop sync if client ID is invalid", async () => {
     nock(APITALLY_HUB_BASE_URL)
       .persist()
-      .post(/\/(info|requests)$/)
+      .post(/\/(startup|sync)$/)
       .reply(404, `Client ID '${CLIENT_ID}' not found`);
 
     const client = new ApitallyClient({
@@ -38,7 +38,7 @@ describe("Client", () => {
       env: ENV,
     });
     vi.spyOn(client.logger, "error").mockImplementation(() => {});
-    client.setAppInfo({ paths: [], versions: {}, client: "js:test" });
+    client.setStartupData({ paths: [], versions: {}, client: "js:test" });
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(client["syncIntervalId"]).toBeUndefined();

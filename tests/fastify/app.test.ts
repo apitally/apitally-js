@@ -18,7 +18,7 @@ describe("Plugin for Fastify", () => {
     client = ApitallyClient.getInstance();
     await app.ready();
 
-    // Wait for 0.2 seconds for app info to be set
+    // Wait for 0.2 seconds for startup data to be set
     await new Promise((resolve) => setTimeout(resolve, 200));
   });
 
@@ -86,7 +86,7 @@ describe("Plugin for Fastify", () => {
   });
 
   it("List endpoints", async () => {
-    expect(client.appInfo?.paths).toEqual([
+    expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
         path: "/hello",

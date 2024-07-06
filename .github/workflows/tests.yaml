@@ -61,10 +61,12 @@ jobs:
       matrix:
         node: ["18", "20", "latest"]
         deps:
+          - express@4.19
           - express@4.18
           - express@4.17
           - fastify@4 fastify-plugin@4
           - fastify@3 fastify-plugin@3
+          - koa@2.15
           - koa@2.14
           - koa@2.13
           - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-express@10 @nestjs/testing@10"

@@ -43,7 +43,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   });
 
   fastify.addHook("onReady", () => {
-    client.setAppInfo(getAppInfo(routes, config.appVersion));
+    client.setStartupData(getAppInfo(routes, config.appVersion));
   });
 
   fastify.addHook("onClose", async () => {

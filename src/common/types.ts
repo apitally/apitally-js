@@ -13,16 +13,16 @@ export type PathInfo = {
   path: string;
 };
 
-export type AppInfo = {
+export type StartupData = {
   paths: PathInfo[];
   versions: Record<string, string>;
   client: string;
 };
 
-export type AppInfoPayload = {
+export type StartupPayload = {
   instance_uuid: string;
   message_uuid: string;
-} & AppInfo;
+} & StartupData;
 
 export type ConsumerMethodPath = {
   consumer?: string | null;
@@ -74,7 +74,7 @@ export type ServerErrorsItem = ConsumerMethodPath & {
   error_count: number;
 };
 
-export type RequestsDataPayload = {
+export type SyncPayload = {
   time_offset: number;
   instance_uuid: string;
   message_uuid: string;

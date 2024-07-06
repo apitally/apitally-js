@@ -6,9 +6,9 @@ import RequestCounter from "./requestCounter.js";
 import ServerErrorCounter from "./serverErrorCounter.js";
 import {
   ApitallyConfig,
-  AppInfo,
-  AppInfoPayload,
-  RequestsDataPayload,
+  StartupData,
+  StartupPayload,
+  SyncPayload,
 } from "./types.js";
 import ValidationErrorCounter from "./validationErrorCounter.js";
 
@@ -35,10 +35,10 @@ export class ApitallyClient {
 
   private static instance?: ApitallyClient;
   private instanceUuid: string;
-  private requestsDataQueue: Array<[number, RequestsDataPayload]>;
+  private syncDataQueue: Array<[number, SyncPayload]>;
   private syncIntervalId?: NodeJS.Timeout;
-  public appInfo?: AppInfo;
-  private appInfoSent: boolean = false;
+  public startupData?: StartupData;
+  private startupDataSent: boolean = false;
 
   public requestCounter: RequestCounter;
   public validationErrorCounter: ValidationErrorCounter;
@@ -64,7 +64,7 @@ export class ApitallyClient {
     this.clientId = clientId;
     this.env = env;
     this.instanceUuid = randomUUID();
-    this.requestsDataQueue = [];
+    this.syncDataQueue = [];
     this.requestCounter = new RequestCounter();
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
@@ -89,18 +89,18 @@ export class ApitallyClient {
 
   public async handleShutdown() {
     this.stopSync();
-    await this.sendRequestsData();
+    await this.sendSyncData();
     ApitallyClient.instance = undefined;
   }
 
   private getHubUrlPrefix() {
     const baseURL =
       process.env.APITALLY_HUB_BASE_URL || "https://hub.apitally.io";
-    const version = "v1";
+    const version = "v2";
     return `${baseURL}/${version}/${this.clientId}/${this.env}/`;
   }
 
-  private async makeHubRequest(url: string, payload: any) {
+  private async sendData(url: string, payload: any) {
     const fetchWithRetry = fetchRetry(fetch, {
       retries: 3,
       retryDelay: 1000,
@@ -131,9 +131,9 @@ export class ApitallyClient {
 
   private async sync() {
     try {
-      const promises = [this.sendRequestsData()];
-      if (!this.appInfoSent) {
-        promises.push(this.sendAppInfo());
+      const promises = [this.sendSyncData()];
+      if (!this.startupDataSent) {
+        promises.push(this.sendStartupData());
       }
       await Promise.all(promises);
     } catch (error) {
@@ -150,29 +150,29 @@ export class ApitallyClient {
     }
   }
 
-  public setAppInfo(appInfo: AppInfo) {
-    this.appInfo = appInfo;
-    this.appInfoSent = false;
-    this.sendAppInfo();
+  public setStartupData(data: StartupData) {
+    this.startupData = data;
+    this.startupDataSent = false;
+    this.sendStartupData();
   }
 
-  private async sendAppInfo() {
-    if (this.appInfo) {
-      this.logger.debug("Sending app info to Apitally Hub");
-      const payload: AppInfoPayload = {
+  private async sendStartupData() {
+    if (this.startupData) {
+      this.logger.debug("Sending startup data to Apitally Hub");
+      const payload: StartupPayload = {
         instance_uuid: this.instanceUuid,
         message_uuid: randomUUID(),
-        ...this.appInfo,
+        ...this.startupData,
       };
       try {
-        await this.makeHubRequest("info", payload);
-        this.appInfoSent = true;
+        await this.sendData("startup", payload);
+        this.startupDataSent = true;
       } catch (error) {
         const handled = this.handleHubError(error);
         if (!handled) {
           this.logger.error((error as Error).message);
           this.logger.debug(
-            "Error while sending app info to Apitally Hub (will retry)",
+            "Error while sending startup data to Apitally Hub (will retry)",
             { error },
           );
         }
@@ -180,9 +180,9 @@ export class ApitallyClient {
     }
   }
 
-  private async sendRequestsData() {
-    this.logger.debug("Sending requests data to Apitally Hub");
-    const newPayload: RequestsDataPayload = {
+  private async sendSyncData() {
+    this.logger.debug("Synchronizing data with Apitally Hub");
+    const newPayload: SyncPayload = {
       time_offset: 0,
       instance_uuid: this.instanceUuid,
       message_uuid: randomUUID(),
@@ -191,24 +191,24 @@ export class ApitallyClient {
         this.validationErrorCounter.getAndResetValidationErrors(),
       server_errors: this.serverErrorCounter.getAndResetServerErrors(),
     };
-    this.requestsDataQueue.push([Date.now(), newPayload]);
+    this.syncDataQueue.push([Date.now(), newPayload]);
 
-    const failedItems: [number, RequestsDataPayload][] = [];
-    while (this.requestsDataQueue.length > 0) {
-      const queueItem = this.requestsDataQueue.shift();
+    const failedItems: [number, SyncPayload][] = [];
+    while (this.syncDataQueue.length > 0) {
+      const queueItem = this.syncDataQueue.shift();
       if (queueItem) {
         const [time, payload] = queueItem;
         try {
           const timeOffset = Date.now() - time;
           if (timeOffset <= MAX_QUEUE_TIME) {
             payload.time_offset = timeOffset / 1000.0; // In seconds
-            await this.makeHubRequest("requests", payload);
+            await this.sendData("sync", payload);
           }
         } catch (error) {
           const handled = this.handleHubError(error);
           if (!handled) {
             this.logger.debug(
-              "Error while sending requests data to Apitally Hub (will retry)",
+              "Error while synchronizing data with Apitally Hub (will retry)",
               { error },
             );
             failedItems.push(queueItem);
@@ -216,7 +216,7 @@ export class ApitallyClient {
         }
       }
     }
-    this.requestsDataQueue = failedItems;
+    this.syncDataQueue = failedItems;
   }
 
   private handleHubError(error: unknown) {

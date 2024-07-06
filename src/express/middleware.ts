@@ -3,7 +3,11 @@ import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { ApitallyConfig, AppInfo, ValidationError } from "../common/types.js";
+import {
+  ApitallyConfig,
+  StartupData,
+  ValidationError,
+} from "../common/types.js";
 import listEndpoints from "./listEndpoints.js";
 
 declare module "express" {
@@ -18,7 +22,7 @@ export const useApitally = (app: Express, config: ApitallyConfig) => {
   const middleware = getMiddleware(app, client);
   app.use(middleware);
   setTimeout(() => {
-    client.setAppInfo(getAppInfo(app, config.appVersion));
+    client.setStartupData(getAppInfo(app, config.appVersion));
   }, 1000);
 };
 
@@ -195,7 +199,7 @@ const subsetJoiMessage = (message: string, key: string) => {
   return messageWithKey ? messageWithKey : message;
 };
 
-const getAppInfo = (app: Express, appVersion?: string): AppInfo => {
+const getAppInfo = (app: Express, appVersion?: string): StartupData => {
   const versions: Array<[string, string]> = [
     ["nodejs", process.version.replace(/^v/, "")],
   ];

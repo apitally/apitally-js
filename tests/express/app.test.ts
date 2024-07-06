@@ -29,7 +29,7 @@ testCases.forEach(({ name, getApp }) => {
       appTest = request(app);
       client = ApitallyClient.getInstance();
 
-      // Wait for 1.2 seconds for app info to be set
+      // Wait for 1.2 seconds for startup data to be set
       await new Promise((resolve) => setTimeout(resolve, 1200));
     });
 
@@ -97,7 +97,7 @@ testCases.forEach(({ name, getApp }) => {
     });
 
     it("List endpoints", async () => {
-      expect(client.appInfo?.paths).toEqual([
+      expect(client.startupData?.paths).toEqual([
         {
           method: "GET",
           path: "/hello",

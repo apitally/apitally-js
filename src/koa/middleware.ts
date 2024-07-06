@@ -2,14 +2,14 @@ import Koa from "koa";
 
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { ApitallyConfig, AppInfo, PathInfo } from "../common/types.js";
+import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 
 export const useApitally = (app: Koa, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(client);
   app.use(middleware);
   setTimeout(() => {
-    client.setAppInfo(getAppInfo(app, config.appVersion));
+    client.setStartupData(getAppInfo(app, config.appVersion));
   }, 1000);
 };
 
@@ -74,7 +74,7 @@ const getConsumer = (ctx: Koa.Context) => {
   return null;
 };
 
-const getAppInfo = (app: Koa, appVersion?: string): AppInfo => {
+const getAppInfo = (app: Koa, appVersion?: string): StartupData => {
   const versions: Array<[string, string]> = [
     ["nodejs", process.version.replace(/^v/, "")],
   ];

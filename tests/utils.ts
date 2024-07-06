@@ -7,6 +7,6 @@ export const ENV = "dev";
 export const mockApitallyHub = () => {
   nock(APITALLY_HUB_BASE_URL)
     .persist()
-    .post(/\/(info|requests)$/)
+    .post(/\/(startup|sync)$/)
     .reply(202);
 };
