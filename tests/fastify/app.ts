@@ -6,7 +6,6 @@ import { CLIENT_ID, ENV } from "../utils.js";
 export const getApp = async () => {
   const app = Fastify({
     ajv: { customOptions: { allErrors: true } },
-    // logger: { level: "error" },
   });
 
   await app.register(apitallyPlugin, {

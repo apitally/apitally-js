@@ -35,6 +35,7 @@ describe("Plugin for Fastify", () => {
     expect(
       requests.some(
         (r) =>
+          r.consumer === "test" &&
           r.method === "GET" &&
           r.path === "/hello" &&
           r.status_code === 200 &&
