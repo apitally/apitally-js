@@ -8,6 +8,8 @@
     "strict": true,
     "skipLibCheck": true,
     "allowJs": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true
   }
 }
