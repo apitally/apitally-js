@@ -17,12 +17,6 @@ const INITIAL_SYNC_INTERVAL = 10000; // 10 seconds
 const INITIAL_SYNC_INTERVAL_DURATION = 3600000; // 1 hour
 const MAX_QUEUE_TIME = 3.6e6; // 1 hour
 
-const fetchWithRetry = fetchRetry(fetch, {
-  retries: 3,
-  retryDelay: 1000,
-  retryOn: [408, 429, 500, 502, 503, 504],
-});
-
 class HTTPError extends Error {
   public response: Response;
 
@@ -107,6 +101,11 @@ export class ApitallyClient {
   }
 
   private async makeHubRequest(url: string, payload: any) {
+    const fetchWithRetry = fetchRetry(fetch, {
+      retries: 3,
+      retryDelay: 1000,
+      retryOn: [408, 429, 500, 502, 503, 504],
+    });
     const response = await fetchWithRetry(this.getHubUrlPrefix() + url, {
       method: "POST",
       body: JSON.stringify(payload),

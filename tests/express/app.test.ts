@@ -20,7 +20,7 @@ const testCases = [
 testCases.forEach(({ name, getApp }) => {
   describe(name, () => {
     let app: Express;
-    let appTest: request.SuperTest<request.Test>;
+    let appTest: request.Agent;
     let client: ApitallyClient;
 
     beforeEach(async () => {

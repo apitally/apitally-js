@@ -192,7 +192,7 @@
     "koa": "^2.14.2",
     "koa-bodyparser": "^4.4.1",
     "koa-route": "^4.0.0",
-    "nock": "^13.3.8",
+    "nock": "^14.0.0-beta.7",
     "npm": "^10.2.4",
     "prettier": "^3.1.0",
     "supertest": "^7.0.0",

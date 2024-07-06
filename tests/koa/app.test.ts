@@ -23,7 +23,7 @@ const testCases = [
 testCases.forEach(({ name, router, getApp }) => {
   describe(name, () => {
     let app: Koa;
-    let appTest: request.SuperTest<request.Test>;
+    let appTest: request.Agent;
     let client: ApitallyClient;
 
     beforeEach(async () => {
