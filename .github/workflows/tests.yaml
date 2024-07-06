@@ -19,6 +19,13 @@ jobs:
           python-version: "3.12"
       - uses: pre-commit/action@v3.0.1
 
+  check-attw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check package.json with Are The Types Wrong (attw)
+        uses: boyum/attw-action@v1.2
+
   test-coverage:
     runs-on: ubuntu-latest
     steps:
