@@ -10,7 +10,7 @@ export const consumerFromStringOrObject = (
     consumer.identifier = String(consumer.identifier).trim().substring(0, 128);
     consumer.name = consumer.name?.trim().substring(0, 64);
     consumer.group = consumer.group?.trim().substring(0, 64);
-    return consumer;
+    return consumer.identifier ? consumer : null;
   }
 };
 
@@ -24,7 +24,7 @@ export default class ConsumerRegistry {
   }
 
   public addOrUpdateConsumer(consumer?: ApitallyConsumer | null) {
-    if (!consumer) {
+    if (!consumer || (!consumer.name && !consumer.group)) {
       return;
     }
     const existing = this.consumers.get(consumer.identifier);
