@@ -1,6 +1,7 @@
 import Koa from "koa";
 
 import { ApitallyClient } from "../common/client.js";
+import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 
@@ -25,7 +26,7 @@ const getMiddleware = (client: ApitallyClient) => {
       statusCode = error.statusCode || error.status || 500;
       if (path && statusCode === 500 && error instanceof Error) {
         client.serverErrorCounter.addServerError({
-          consumer: getConsumer(ctx),
+          consumer: getConsumer(ctx)?.identifier,
           method: ctx.request.method,
           path,
           type: error.name,
@@ -40,8 +41,10 @@ const getMiddleware = (client: ApitallyClient) => {
       }
       if (path) {
         try {
+          const consumer = getConsumer(ctx);
+          client.consumerRegistry.addOrUpdateConsumer(consumer);
           client.requestCounter.addRequest({
-            consumer: getConsumer(ctx),
+            consumer: consumer?.identifier,
             method: ctx.request.method,
             path,
             statusCode: statusCode || ctx.response.status,
@@ -66,10 +69,14 @@ const getPath = (ctx: Koa.Context) => {
 
 const getConsumer = (ctx: Koa.Context) => {
   if (ctx.state.apitallyConsumer) {
-    return String(ctx.state.apitallyConsumer);
+    return consumerFromStringOrObject(ctx.state.apitallyConsumer);
   } else if (ctx.state.consumerIdentifier) {
     // For backwards compatibility
-    return String(ctx.state.consumerIdentifier);
+    process.emitWarning(
+      "The consumerIdentifier property on the ctx.state object is deprecated. Use apitallyConsumer instead.",
+      "DeprecationWarning",
+    );
+    return consumerFromStringOrObject(ctx.state.consumerIdentifier);
   }
   return null;
 };
