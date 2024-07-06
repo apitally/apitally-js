@@ -8,13 +8,12 @@ import { getApp } from "./app.js";
 
 describe("Plugin for Fastify", () => {
   let app: FastifyInstance;
-  let appTest: request.SuperTest<request.Test>;
+  let appTest: request.Agent;
   let client: ApitallyClient;
 
   beforeEach(async () => {
     mockApitallyHub();
     app = await getApp();
-    app.printRoutes;
     appTest = request(app.server);
     client = ApitallyClient.getInstance();
     await app.ready();

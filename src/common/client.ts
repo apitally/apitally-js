@@ -1,7 +1,5 @@
-import axios, { AxiosError, AxiosInstance } from "axios";
-import axiosRetry from "axios-retry";
 import { randomUUID } from "crypto";
-
+import fetchRetry from "fetch-retry";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
@@ -17,8 +15,19 @@ import ValidationErrorCounter from "./validationErrorCounter.js";
 const SYNC_INTERVAL = 60000; // 60 seconds
 const INITIAL_SYNC_INTERVAL = 10000; // 10 seconds
 const INITIAL_SYNC_INTERVAL_DURATION = 3600000; // 1 hour
-const REQUEST_TIMEOUT = 10000; // 10 seconds
 const MAX_QUEUE_TIME = 3.6e6; // 1 hour
+
+class HTTPError extends Error {
+  public response: Response;
+
+  constructor(response: Response) {
+    const reason = response.status
+      ? `status code ${response.status}`
+      : "an unknown error";
+    super(`Request failed with ${reason}`);
+    this.response = response;
+  }
+}
 
 export class ApitallyClient {
   private clientId: string;
@@ -27,7 +36,6 @@ export class ApitallyClient {
   private static instance?: ApitallyClient;
   private instanceUuid: string;
   private requestsDataQueue: Array<[number, RequestsDataPayload]>;
-  private axiosClient: AxiosInstance;
   private syncIntervalId?: NodeJS.Timeout;
   public appInfo?: AppInfo;
   private appInfoSent: boolean = false;
@@ -62,16 +70,6 @@ export class ApitallyClient {
     this.serverErrorCounter = new ServerErrorCounter();
     this.logger = logger || getLogger();
 
-    this.axiosClient = axios.create({
-      baseURL: this.getHubUrl(),
-      timeout: REQUEST_TIMEOUT,
-    });
-    axiosRetry(this.axiosClient, {
-      retries: 3,
-      retryDelay: (retryCount, error) =>
-        axiosRetry.exponentialDelay(retryCount, error, 1000),
-    });
-
     this.startSync();
     this.handleShutdown = this.handleShutdown.bind(this);
   }
@@ -95,11 +93,27 @@ export class ApitallyClient {
     ApitallyClient.instance = undefined;
   }
 
-  private getHubUrl() {
+  private getHubUrlPrefix() {
     const baseURL =
       process.env.APITALLY_HUB_BASE_URL || "https://hub.apitally.io";
     const version = "v1";
-    return `${baseURL}/${version}/${this.clientId}/${this.env}`;
+    return `${baseURL}/${version}/${this.clientId}/${this.env}/`;
+  }
+
+  private async makeHubRequest(url: string, payload: any) {
+    const fetchWithRetry = fetchRetry(fetch, {
+      retries: 3,
+      retryDelay: 1000,
+      retryOn: [408, 429, 500, 502, 503, 504],
+    });
+    const response = await fetchWithRetry(this.getHubUrlPrefix() + url, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      throw new HTTPError(response);
+    }
   }
 
   private startSync() {
@@ -123,7 +137,7 @@ export class ApitallyClient {
       }
       await Promise.all(promises);
     } catch (error) {
-      this.logger.error("Error while syncing with Apitally Hub.", {
+      this.logger.error("Error while syncing with Apitally Hub", {
         error,
       });
     }
@@ -144,22 +158,21 @@ export class ApitallyClient {
 
   private async sendAppInfo() {
     if (this.appInfo) {
-      this.logger.debug("Sending app info to Apitally Hub.");
+      this.logger.debug("Sending app info to Apitally Hub");
       const payload: AppInfoPayload = {
         instance_uuid: this.instanceUuid,
         message_uuid: randomUUID(),
         ...this.appInfo,
       };
       try {
-        await this.axiosClient.post("/info", payload);
+        await this.makeHubRequest("info", payload);
         this.appInfoSent = true;
       } catch (error) {
         const handled = this.handleHubError(error);
         if (!handled) {
+          this.logger.error((error as Error).message);
           this.logger.debug(
-            `Error while sending app info to Apitally Hub (${
-              (error as AxiosError).code
-            }). Will retry.`,
+            "Error while sending app info to Apitally Hub (will retry)",
             { error },
           );
         }
@@ -168,7 +181,7 @@ export class ApitallyClient {
   }
 
   private async sendRequestsData() {
-    this.logger.debug("Sending requests data to Apitally Hub.");
+    this.logger.debug("Sending requests data to Apitally Hub");
     const newPayload: RequestsDataPayload = {
       time_offset: 0,
       instance_uuid: this.instanceUuid,
@@ -189,15 +202,13 @@ export class ApitallyClient {
           const timeOffset = Date.now() - time;
           if (timeOffset <= MAX_QUEUE_TIME) {
             payload.time_offset = timeOffset / 1000.0; // In seconds
-            await this.axiosClient.post("/requests", payload);
+            await this.makeHubRequest("requests", payload);
           }
         } catch (error) {
           const handled = this.handleHubError(error);
           if (!handled) {
             this.logger.debug(
-              `Error while sending requests data to Apitally Hub (${
-                (error as AxiosError).code
-              }). Will retry.`,
+              "Error while sending requests data to Apitally Hub (will retry)",
               { error },
             );
             failedItems.push(queueItem);
@@ -209,14 +220,16 @@ export class ApitallyClient {
   }
 
   private handleHubError(error: unknown) {
-    if (
-      error instanceof AxiosError &&
-      error.response &&
-      error.response.status === 404
-    ) {
-      this.logger.error(`Invalid Apitally client ID '${this.clientId}'.`);
-      this.stopSync();
-      return true;
+    if (error instanceof HTTPError) {
+      if (error.response.status === 404) {
+        this.logger.error(`Invalid Apitally client ID: '${this.clientId}'`);
+        this.stopSync();
+        return true;
+      }
+      if (error.response.status === 422) {
+        this.logger.error("Received validation error from Apitally Hub");
+        return true;
+      }
     }
     return false;
   }

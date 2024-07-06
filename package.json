@@ -33,48 +33,74 @@
   "homepage": "https://apitally.io",
   "type": "module",
   "scripts": {
-    "build:tsc": "tsc",
-    "build:cjs": "BABEL_ENV=cjs babel lib/tsc --out-dir lib/cjs --out-file-extension .cjs",
-    "build:esm": "BABEL_ENV=esm babel lib/tsc --out-dir lib/esm",
-    "build": "rm -rf lib && npm run build:tsc && npm run build:cjs && npm run build:esm",
+    "build": "tsup src",
     "format": "prettier --write .",
     "check": "tsc --noEmit && eslint src tests && prettier --check .",
     "test": "vitest"
   },
   "files": [
-    "lib/cjs/",
-    "lib/esm/",
-    "lib/types/",
+    "dist/",
     "README.md",
     "LICENSE"
   ],
   "exports": {
-    "./common": {
-      "import": "./lib/esm/common/index.js",
-      "require": "./lib/cjs/common/index.cjs",
-      "types": "./lib/types/common/index.d.ts"
-    },
     "./express": {
-      "import": "./lib/esm/express/index.js",
-      "require": "./lib/cjs/express/index.cjs",
-      "types": "./lib/types/express/index.d.ts"
+      "import": {
+        "default": "./dist/express/index.js",
+        "types": "./dist/express/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/express/index.cjs",
+        "types": "./dist/express/index.d.cts"
+      }
     },
     "./fastify": {
-      "import": "./lib/esm/fastify/index.js",
-      "require": "./lib/cjs/fastify/index.cjs",
-      "types": "./lib/types/fastify/index.d.ts"
+      "import": {
+        "default": "./dist/fastify/index.js",
+        "types": "./dist/fastify/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/fastify/index.cjs",
+        "types": "./dist/fastify/index.d.cts"
+      }
     },
     "./koa": {
-      "import": "./lib/esm/koa/index.js",
-      "require": "./lib/cjs/koa/index.cjs",
-      "types": "./lib/types/koa/index.d.ts"
+      "import": {
+        "default": "./dist/koa/index.js",
+        "types": "./dist/koa/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/koa/index.cjs",
+        "types": "./dist/koa/index.d.cts"
+      }
     },
     "./nestjs": {
-      "import": "./lib/esm/nestjs/index.js",
-      "require": "./lib/cjs/nestjs/index.cjs",
-      "types": "./lib/types/nestjs/index.d.ts"
+      "import": {
+        "default": "./dist/nestjs/index.js",
+        "types": "./dist/nestjs/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/nestjs/index.cjs",
+        "types": "./dist/nestjs/index.d.cts"
+      }
     },
     "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "express": [
+        "./dist/express/index.d.ts"
+      ],
+      "fastify": [
+        "./dist/fastify/index.d.ts"
+      ],
+      "koa": [
+        "./dist/koa/index.d.ts"
+      ],
+      "nestjs": [
+        "./dist/nestjs/index.d.ts"
+      ]
+    }
   },
   "eslintConfig": {
     "parser": "@typescript-eslint/parser",
@@ -96,65 +122,8 @@
   "prettier": {
     "printWidth": 80
   },
-  "babel": {
-    "presets": [
-      [
-        "@babel/preset-env",
-        {
-          "targets": {
-            "esmodules": true
-          }
-        }
-      ]
-    ],
-    "plugins": [
-      [
-        "@babel/plugin-proposal-decorators",
-        {
-          "version": "2023-05"
-        }
-      ],
-      "@babel/plugin-transform-runtime"
-    ],
-    "env": {
-      "cjs": {
-        "presets": [
-          [
-            "@babel/preset-env",
-            {
-              "modules": "commonjs"
-            }
-          ]
-        ],
-        "plugins": [
-          "babel-plugin-transform-import-meta",
-          [
-            "transform-require-extensions",
-            {
-              "extensions": {
-                ".js": ".cjs"
-              }
-            }
-          ]
-        ]
-      },
-      "esm": {
-        "presets": [
-          [
-            "@babel/preset-env",
-            {
-              "modules": false
-            }
-          ]
-        ]
-      }
-    },
-    "sourceMaps": true
-  },
   "dependencies": {
-    "@babel/runtime": "^7.23.8",
-    "axios": "^1",
-    "axios-retry": "^4",
+    "fetch-retry": "^6.0.0",
     "winston": "^3"
   },
   "peerDependencies": {
@@ -194,11 +163,6 @@
     }
   },
   "devDependencies": {
-    "@babel/cli": "^7.23.4",
-    "@babel/core": "^7.23.7",
-    "@babel/plugin-proposal-decorators": "^7.23.7",
-    "@babel/plugin-transform-runtime": "^7.23.7",
-    "@babel/preset-env": "^7.23.7",
     "@koa/router": "^12.0.1",
     "@nestjs/common": "^10.2.9",
     "@nestjs/core": "^10.2.9",
@@ -216,8 +180,6 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^1.5.0",
-    "babel-plugin-transform-import-meta": "^2.2.1",
-    "babel-plugin-transform-require-extensions": "^2.0.1",
     "celebrate": "^15.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -230,13 +192,14 @@
     "koa": "^2.14.2",
     "koa-bodyparser": "^4.4.1",
     "koa-route": "^4.0.0",
-    "nock": "^13.3.8",
+    "nock": "^14.0.0-beta.7",
     "npm": "^10.2.4",
     "prettier": "^3.1.0",
     "supertest": "^7.0.0",
     "ts-node": "^10.9.1",
+    "tsup": "^8.1.0",
     "typescript": "^5.2.2",
-    "unplugin-swc": "^1.4.4",
+    "unplugin-swc": "^1.5.1",
     "vitest": "^1.5.0"
   }
 }

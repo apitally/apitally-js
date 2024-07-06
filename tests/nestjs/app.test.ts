@@ -9,7 +9,7 @@ import { getApp } from "./app.js";
 
 describe("Middleware for NestJS", () => {
   let app: INestApplication;
-  let appTest: request.SuperTest<request.Test>;
+  let appTest: request.Agent;
   let client: ApitallyClient;
 
   beforeEach(async () => {
