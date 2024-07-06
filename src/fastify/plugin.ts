@@ -1,4 +1,9 @@
-import type { FastifyError, FastifyPluginAsync, FastifyRequest } from "fastify";
+import type {
+  FastifyError,
+  FastifyPluginAsync,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
@@ -82,7 +87,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         method: request.method,
         path: path,
         statusCode: reply.statusCode,
-        responseTime: reply.getResponseTime(),
+        responseTime: getResponseTime(reply),
         requestSize: requestSize,
         responseSize: responseSize,
       });
@@ -147,6 +152,15 @@ const getConsumer = (request: FastifyRequest) => {
     return String(request.consumerIdentifier);
   }
   return null;
+};
+
+const getResponseTime = (reply: FastifyReply) => {
+  if (reply.elapsedTime !== undefined) {
+    return reply.elapsedTime;
+  } else if (reply.getResponseTime !== undefined) {
+    return reply.getResponseTime();
+  }
+  return 0;
 };
 
 const extractAjvErrors = (message: string): ValidationError[] => {
