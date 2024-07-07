@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import ConsumerRegistry, {
   consumerFromStringOrObject,
-} from "../../src/common/consumerRegistry";
+} from "../../src/common/consumerRegistry.js";
 
 describe("Consumer registry", () => {
   it("Consumer from string or object", () => {
