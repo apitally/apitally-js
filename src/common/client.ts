@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import fetchRetry from "fetch-retry";
+import ConsumerRegistry from "./consumerRegistry.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
@@ -43,6 +44,7 @@ export class ApitallyClient {
   public requestCounter: RequestCounter;
   public validationErrorCounter: ValidationErrorCounter;
   public serverErrorCounter: ServerErrorCounter;
+  public consumerRegistry: ConsumerRegistry;
   public logger: Logger;
 
   constructor({ clientId, env = "dev", logger }: ApitallyConfig) {
@@ -68,6 +70,7 @@ export class ApitallyClient {
     this.requestCounter = new RequestCounter();
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
+    this.consumerRegistry = new ConsumerRegistry();
     this.logger = logger || getLogger();
 
     this.startSync();
@@ -190,6 +193,7 @@ export class ApitallyClient {
       validation_errors:
         this.validationErrorCounter.getAndResetValidationErrors(),
       server_errors: this.serverErrorCounter.getAndResetServerErrors(),
+      consumers: this.consumerRegistry.getAndResetUpdatedConsumers(),
     };
     this.syncDataQueue.push([Date.now(), newPayload]);
 

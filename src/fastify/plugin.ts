@@ -7,8 +7,14 @@ import type {
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
+import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { ApitallyConfig, PathInfo, ValidationError } from "../common/types.js";
+import {
+  ApitallyConfig,
+  ApitallyConsumer,
+  PathInfo,
+  ValidationError,
+} from "../common/types.js";
 
 declare module "fastify" {
   interface FastifyReply {
@@ -17,8 +23,8 @@ declare module "fastify" {
   }
 
   interface FastifyRequest {
-    apitallyConsumer?: string;
-    consumerIdentifier?: string; // For backwards compatibility
+    apitallyConsumer?: ApitallyConsumer | string | null;
+    consumerIdentifier?: ApitallyConsumer | string | null; // For backwards compatibility
   }
 }
 
@@ -82,8 +88,9 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       if (Array.isArray(responseSize)) {
         responseSize = responseSize[0];
       }
+      client.consumerRegistry.addOrUpdateConsumer(consumer);
       client.requestCounter.addRequest({
-        consumer: consumer,
+        consumer: consumer?.identifier,
         method: request.method,
         path: path,
         statusCode: reply.statusCode,
@@ -100,7 +107,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         const validationErrors = extractAjvErrors(reply.payload.message);
         validationErrors.forEach((error) => {
           client.validationErrorCounter.addValidationError({
-            consumer: consumer,
+            consumer: consumer?.identifier,
             method: request.method,
             path: path,
             ...error,
@@ -109,7 +116,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       }
       if (reply.statusCode === 500 && reply.serverError) {
         client.serverErrorCounter.addServerError({
-          consumer: consumer,
+          consumer: consumer?.identifier,
           method: request.method,
           path: path,
           type: reply.serverError.name,
@@ -146,10 +153,14 @@ const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
 
 const getConsumer = (request: FastifyRequest) => {
   if (request.apitallyConsumer) {
-    return String(request.apitallyConsumer);
+    return consumerFromStringOrObject(request.apitallyConsumer);
   } else if (request.consumerIdentifier) {
     // For backwards compatibility
-    return String(request.consumerIdentifier);
+    process.emitWarning(
+      "The consumerIdentifier property on the request object is deprecated. Use apitallyConsumer instead.",
+      "DeprecationWarning",
+    );
+    return consumerFromStringOrObject(request.consumerIdentifier);
   }
   return null;
 };

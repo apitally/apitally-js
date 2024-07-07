@@ -6,12 +6,6 @@ import { body, query, validationResult } from "express-validator";
 import { useApitally } from "../../src/express/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
-declare module "express" {
-  interface Request {
-    apitallyConsumer?: string;
-  }
-}
-
 export const getAppWithCelebrate = () => {
   const app = express();
 

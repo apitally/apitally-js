@@ -2,9 +2,11 @@ import type { Express, NextFunction, Request, Response } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
+import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import {
   ApitallyConfig,
+  ApitallyConsumer,
   StartupData,
   ValidationError,
 } from "../common/types.js";
@@ -12,8 +14,8 @@ import listEndpoints from "./listEndpoints.js";
 
 declare module "express" {
   interface Request {
-    apitallyConsumer?: string;
-    consumerIdentifier?: string; // For backwards compatibility
+    apitallyConsumer?: ApitallyConsumer | string | null;
+    consumerIdentifier?: ApitallyConsumer | string | null; // For backwards compatibility
   }
 }
 
@@ -56,8 +58,9 @@ const getMiddleware = (app: Express, client: ApitallyClient) => {
           if (req.route) {
             const responseTime = performance.now() - startTime;
             const consumer = getConsumer(req);
+            client.consumerRegistry.addOrUpdateConsumer(consumer);
             client.requestCounter.addRequest({
-              consumer: consumer,
+              consumer: consumer?.identifier,
               method: req.method,
               path: req.route.path,
               statusCode: res.statusCode,
@@ -87,7 +90,7 @@ const getMiddleware = (app: Express, client: ApitallyClient) => {
               }
               validationErrors.forEach((error) => {
                 client.validationErrorCounter.addValidationError({
-                  consumer: consumer,
+                  consumer: consumer?.identifier,
                   method: req.method,
                   path: req.route.path,
                   ...error,
@@ -97,7 +100,7 @@ const getMiddleware = (app: Express, client: ApitallyClient) => {
             if (res.statusCode === 500 && res.locals.serverError) {
               const serverError = res.locals.serverError as Error;
               client.serverErrorCounter.addServerError({
-                consumer: consumer,
+                consumer: consumer?.identifier,
                 method: req.method,
                 path: req.route.path,
                 type: serverError.name,
@@ -127,10 +130,14 @@ const getMiddleware = (app: Express, client: ApitallyClient) => {
 
 const getConsumer = (req: Request) => {
   if (req.apitallyConsumer) {
-    return String(req.apitallyConsumer);
+    return consumerFromStringOrObject(req.apitallyConsumer);
   } else if (req.consumerIdentifier) {
     // For backwards compatibility
-    return String(req.consumerIdentifier);
+    process.emitWarning(
+      "The consumerIdentifier property on the request object is deprecated. Use apitallyConsumer instead.",
+      "DeprecationWarning",
+    );
+    return consumerFromStringOrObject(req.consumerIdentifier);
   }
   return null;
 };

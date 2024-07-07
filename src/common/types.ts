@@ -8,6 +8,12 @@ export type ApitallyConfig = {
   logger?: Logger;
 };
 
+export type ApitallyConsumer = {
+  identifier: string;
+  name?: string | null;
+  group?: string | null;
+};
+
 export type PathInfo = {
   method: string;
   path: string;
@@ -74,6 +80,8 @@ export type ServerErrorsItem = ConsumerMethodPath & {
   error_count: number;
 };
 
+export type ConsumerItem = ApitallyConsumer;
+
 export type SyncPayload = {
   time_offset: number;
   instance_uuid: string;
@@ -81,4 +89,5 @@ export type SyncPayload = {
   requests: Array<RequestsItem>;
   validation_errors: Array<ValidationErrorsItem>;
   server_errors: Array<ServerErrorsItem>;
+  consumers: Array<ConsumerItem>;
 };
