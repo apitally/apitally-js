@@ -1,4 +1,4 @@
-import type { Express, NextFunction, Request, Response } from "express";
+import type { Express, NextFunction, Request, Response, Router } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
@@ -19,7 +19,7 @@ declare module "express" {
   }
 }
 
-export const useApitally = (app: Express, config: ApitallyConfig) => {
+export const useApitally = (app: Express | Router, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(app, client);
   app.use(middleware);
@@ -28,7 +28,7 @@ export const useApitally = (app: Express, config: ApitallyConfig) => {
   }, 1000);
 };
 
-const getMiddleware = (app: Express, client: ApitallyClient) => {
+const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
   const validatorInstalled = getPackageVersion("express-validator") !== null;
   const celebrateInstalled = getPackageVersion("celebrate") !== null;
   const nestInstalled = getPackageVersion("@nestjs/core") !== null;
@@ -206,7 +206,10 @@ const subsetJoiMessage = (message: string, key: string) => {
   return messageWithKey ? messageWithKey : message;
 };
 
-const getAppInfo = (app: Express, appVersion?: string): StartupData => {
+const getAppInfo = (
+  app: Express | Router,
+  appVersion?: string,
+): StartupData => {
   const versions: Array<[string, string]> = [
     ["nodejs", process.version.replace(/^v/, "")],
   ];

@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
-import { getAppWithCelebrate, getAppWithValidator } from "./app.js";
+import {
+  getAppWithCelebrate,
+  getAppWithRouter,
+  getAppWithValidator,
+} from "./app.js";
 
 const testCases = [
   {
@@ -109,7 +113,7 @@ testCases.forEach(({ name, getApp }) => {
         },
         {
           method: "GET",
-          path: "/hello/:id(\\d+)",
+          path: "/hello/:id",
         },
         {
           method: "GET",
@@ -123,5 +127,49 @@ testCases.forEach(({ name, getApp }) => {
         await client.handleShutdown();
       }
     });
+  });
+});
+
+describe("Middleware for Express router", () => {
+  let app: Express;
+  let appTest: request.Agent;
+  let client: ApitallyClient;
+
+  beforeEach(async () => {
+    mockApitallyHub();
+    app = getAppWithRouter();
+    appTest = request(app);
+    client = ApitallyClient.getInstance();
+
+    // Wait for 1.2 seconds for startup data to be set
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  });
+
+  it("Request logger", async () => {
+    await appTest.get("/api/hello").expect(200);
+
+    const requests = client.requestCounter.getAndResetRequests();
+    expect(requests.length).toBe(1);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" && r.path === "/hello" && r.status_code === 200,
+      ),
+    ).toBe(true);
+  });
+
+  it("List endpoints", async () => {
+    expect(client.startupData?.paths).toEqual([
+      {
+        method: "GET",
+        path: "/hello",
+      },
+    ]);
+  });
+
+  afterEach(async () => {
+    if (client) {
+      await client.handleShutdown();
+    }
   });
 });
