@@ -108,36 +108,21 @@ export const getAppWithValidator = () => {
   return app;
 };
 
-export const getNestJsApp = () => {
+export const getAppWithRouter = () => {
   const app = express();
+  const router = express.Router();
 
-  useApitally(app, {
+  useApitally(router, {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
   });
 
-  app.get(
-    "/hello",
-    query("name").isString().isLength({ min: 2 }),
-    query("age").isInt({ min: 18 }),
-    (req, res) => {
-      const result = validationResult(req);
-      if (result.isEmpty()) {
-        return res.send(
-          `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
-        );
-      }
-      res.status(400).send({ errors: result.array() });
-    },
-  );
-  app.get("/hello/:id(\\d+)", (req, res) => {
-    res.send(`Hello ID ${req.params.id}!`);
-  });
-  app.get("/error", () => {
-    throw new Error("Error");
+  router.get("/hello", (req, res) => {
+    res.send("Hello!");
   });
 
+  app.use("/api", router);
   app.use(errors());
   return app;
 };
