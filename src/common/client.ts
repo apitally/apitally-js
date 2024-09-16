@@ -197,7 +197,7 @@ export class ApitallyClient {
     };
     this.syncDataQueue.push([Date.now(), newPayload]);
 
-    const failedItems: [number, SyncPayload][] = [];
+    let i = 0;
     while (this.syncDataQueue.length > 0) {
       const queueItem = this.syncDataQueue.shift();
       if (queueItem) {
@@ -205,8 +205,13 @@ export class ApitallyClient {
         try {
           const timeOffset = Date.now() - time;
           if (timeOffset <= MAX_QUEUE_TIME) {
-            payload.time_offset = timeOffset / 1000.0; // In seconds
+            if (i > 0) {
+              const waitMs = 100 + Math.random() * 200;
+              await new Promise((resolve) => setTimeout(resolve, waitMs));
+            }
+            payload.time_offset = timeOffset / 1000.0; // in seconds
             await this.sendData("sync", payload);
+            i += 1;
           }
         } catch (error) {
           const handled = this.handleHubError(error);
@@ -215,12 +220,12 @@ export class ApitallyClient {
               "Error while synchronizing data with Apitally Hub (will retry)",
               { error },
             );
-            failedItems.push(queueItem);
+            this.syncDataQueue.push(queueItem);
+            break;
           }
         }
       }
     }
-    this.syncDataQueue = failedItems;
   }
 
   private handleHubError(error: unknown) {
