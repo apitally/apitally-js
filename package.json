@@ -163,7 +163,7 @@
     }
   },
   "devDependencies": {
-    "@koa/router": "^12.0.1",
+    "@koa/router": "^13.0.0",
     "@nestjs/common": "^10.2.9",
     "@nestjs/core": "^10.2.9",
     "@nestjs/platform-express": "^10.2.9",
