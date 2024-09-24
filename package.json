@@ -132,8 +132,8 @@
     "@nestjs/platform-express": "^8 || ^9 || ^10",
     "@sentry/node": "^8.1.0",
     "express": "^4",
-    "fastify": "^3 || ^4",
-    "fastify-plugin": "^3 || ^4",
+    "fastify": "^3 || ^4 || ^5",
+    "fastify-plugin": "^3 || ^4 || ^5",
     "koa": "^2"
   },
   "peerDependenciesMeta": {
@@ -186,8 +186,8 @@
     "eslint": "^8.54.0",
     "express": "^4.18.2",
     "express-validator": "^7.0.1",
-    "fastify": "^4.24.3",
-    "fastify-plugin": "^4.5.1",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.1",
     "install": "^0.13.0",
     "koa": "^2.14.2",
     "koa-bodyparser": "^4.4.1",
