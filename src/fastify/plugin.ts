@@ -130,9 +130,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 };
 
 const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
-  const versions: Array<[string, string]> = [
-    ["nodejs", process.version.replace(/^v/, "")],
-  ];
+  const versions = [["nodejs", process.version.replace(/^v/, "")]];
   const fastifyVersion = getPackageVersion("fastify");
   const apitallyVersion = getPackageVersion("../..");
   if (fastifyVersion) {
@@ -168,8 +166,8 @@ const getConsumer = (request: FastifyRequest) => {
 const getResponseTime = (reply: FastifyReply) => {
   if (reply.elapsedTime !== undefined) {
     return reply.elapsedTime;
-  } else if (reply.getResponseTime !== undefined) {
-    return reply.getResponseTime();
+  } else if ((reply as any).getResponseTime !== undefined) {
+    return (reply as any).getResponseTime();
   }
   return 0;
 };
