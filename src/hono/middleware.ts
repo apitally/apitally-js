@@ -1,8 +1,8 @@
 import { Context, Hono } from "hono";
 import { MiddlewareHandler } from "hono/types";
+import { isMiddleware } from "hono/utils/handler";
 import { performance } from "perf_hooks";
 
-import { isMiddleware } from "hono/utils/handler";
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
@@ -33,6 +33,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
     const startTime = performance.now();
     await next();
     const responseTime = performance.now() - startTime;
+    const [responseSize, response] = await measureResponseSize(c.res);
     const consumer = getConsumer(c);
     client.consumerRegistry.addOrUpdateConsumer(consumer);
     client.requestCounter.addRequest({
@@ -42,7 +43,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
       statusCode: c.res.status,
       responseTime,
       requestSize: c.req.header("Content-Length"),
-      responseSize: undefined,
+      responseSize,
     });
     if (c.error) {
       client.serverErrorCounter.addServerError({
@@ -54,6 +55,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
         traceback: c.error.stack || "",
       });
     }
+    c.res = response;
   };
 };
 
@@ -63,6 +65,37 @@ const getConsumer = (c: Context) => {
     return consumerFromStringOrObject(consumer);
   }
   return null;
+};
+
+const measureResponseSize = async (
+  response: Response,
+): Promise<[number, Response]> => {
+  if (!response.body) {
+    return [0, response];
+  }
+
+  const [stream1, stream2] = response.body.tee();
+
+  // Create a new response with the first stream
+  const newResponse = new Response(stream1, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+
+  // Read the second stream to measure it
+  const reader = stream2.getReader();
+  let size = 0;
+  let done = false;
+  while (!done) {
+    const result = await reader.read();
+    done = result.done;
+    if (!done && result.value) {
+      size += result.value.byteLength;
+    }
+  }
+
+  return [size, newResponse];
 };
 
 const getAppInfo = (app: Hono, appVersion?: string): StartupData => {
