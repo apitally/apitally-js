@@ -39,8 +39,8 @@ export type ConsumerMethodPath = {
 export type RequestInfo = ConsumerMethodPath & {
   statusCode: number;
   responseTime: number;
-  requestSize?: string | number;
-  responseSize?: string | number;
+  requestSize?: string | number | null;
+  responseSize?: string | number | null;
 };
 
 export type RequestsItem = ConsumerMethodPath & {
