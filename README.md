@@ -29,6 +29,7 @@ frameworks:
 - [NestJS](https://docs.apitally.io/frameworks/nestjs) (with Express)
 - [Fastify](https://docs.apitally.io/frameworks/fastify)
 - [Koa](https://docs.apitally.io/frameworks/koa)
+- [Hono](https://docs.apitally.io/frameworks/hono)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out
 the 📚 [documentation](https://docs.apitally.io).
@@ -145,6 +146,24 @@ const Koa = require("koa");
 const { useApitally } = require("apitally/koa");
 
 const app = new Koa();
+
+useApitally(app, {
+  clientId: "your-client-id",
+  env: "dev", // or "prod" etc.
+});
+```
+
+### Hono
+
+This is an example of how to use the Apitally middleware with a Hono application.
+For further instructions, see our
+[setup guide for Koa](https://docs.apitally.io/frameworks/hono).
+
+```javascript
+import { Hono } from "hono";
+import { useApitally } from "apitally/hono";
+
+const app = new Hono();
 
 useApitally(app, {
   clientId: "your-client-id",
