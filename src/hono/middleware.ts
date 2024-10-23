@@ -2,6 +2,7 @@ import { Context, Hono } from "hono";
 import { MiddlewareHandler } from "hono/types";
 import { isMiddleware } from "hono/utils/handler";
 import { performance } from "perf_hooks";
+import type { ZodError } from "zod";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
@@ -11,6 +12,7 @@ import {
   ApitallyConsumer,
   PathInfo,
   StartupData,
+  ValidationError,
 } from "../common/types.js";
 
 declare module "hono" {
@@ -29,11 +31,14 @@ export const useApitally = (app: Hono, config: ApitallyConfig) => {
 };
 
 const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
+  const zodInstalled = getPackageVersion("zod") !== null;
+
   return async (c, next) => {
     const startTime = performance.now();
     await next();
+    let response;
     const responseTime = performance.now() - startTime;
-    const [responseSize, response] = await measureResponseSize(c.res);
+    const [responseSize, newResponse] = await measureResponseSize(c.res);
     const consumer = getConsumer(c);
     client.consumerRegistry.addOrUpdateConsumer(consumer);
     client.requestCounter.addRequest({
@@ -45,6 +50,20 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
       requestSize: c.req.header("Content-Length"),
       responseSize,
     });
+    response = newResponse;
+    if (c.res.status === 400 && zodInstalled) {
+      const [responseJson, newResponse] = await getResponseJson(response);
+      const validationErrors = extractZodErrors(responseJson);
+      validationErrors.forEach((error) => {
+        client.validationErrorCounter.addValidationError({
+          consumer: consumer?.identifier,
+          method: c.req.method,
+          path: c.req.path,
+          ...error,
+        });
+      });
+      response = newResponse;
+    }
     if (c.error) {
       client.serverErrorCounter.addServerError({
         consumer: consumer?.identifier,
@@ -70,32 +89,72 @@ const getConsumer = (c: Context) => {
 const measureResponseSize = async (
   response: Response,
 ): Promise<[number, Response]> => {
-  if (!response.body) {
-    return [0, response];
+  const [newResponse1, newResponse2] = await teeResponse(response);
+  let size = 0;
+  if (newResponse2.body) {
+    let done = false;
+    const reader = newResponse2.body.getReader();
+    while (!done) {
+      const result = await reader.read();
+      done = result.done;
+      if (!done && result.value) {
+        size += result.value.byteLength;
+      }
+    }
   }
+  return [size, newResponse1];
+};
 
+const getResponseJson = async (
+  response: Response,
+): Promise<[any, Response]> => {
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    const [newResponse1, newResponse2] = await teeResponse(response);
+    const responseJson = await newResponse2.json();
+    return [responseJson, newResponse1];
+  }
+  return [null, response];
+};
+
+const teeResponse = async (
+  response: Response,
+): Promise<[Response, Response]> => {
+  if (!response.body) {
+    return [response, response];
+  }
   const [stream1, stream2] = response.body.tee();
-
-  // Create a new response with the first stream
-  const newResponse = new Response(stream1, {
+  const newResponse1 = new Response(stream1, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
   });
+  const newResponse2 = new Response(stream2, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+  return [newResponse1, newResponse2];
+};
 
-  // Read the second stream to measure it
-  const reader = stream2.getReader();
-  let size = 0;
-  let done = false;
-  while (!done) {
-    const result = await reader.read();
-    done = result.done;
-    if (!done && result.value) {
-      size += result.value.byteLength;
-    }
+const extractZodErrors = (responseJson: any) => {
+  const errors: ValidationError[] = [];
+  if (
+    responseJson &&
+    responseJson.success === false &&
+    responseJson.error &&
+    responseJson.error.name === "ZodError"
+  ) {
+    const zodError = responseJson.error as ZodError;
+    zodError.issues.forEach((zodIssue) => {
+      errors.push({
+        loc: zodIssue.path.join("."),
+        msg: zodIssue.message,
+        type: zodIssue.code,
+      });
+    });
   }
-
-  return [size, newResponse];
+  return errors;
 };
 
 const getAppInfo = (app: Hono, appVersion?: string): StartupData => {

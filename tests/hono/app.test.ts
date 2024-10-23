@@ -32,20 +32,25 @@ describe("Middleware for Hono", () => {
         "Content-Length": body.length.toString(),
       },
     });
+    const resText = await res.text();
     expect(res.status).toBe(200);
+    expect(resText).toBe("Hello John! You are 20 years old!");
 
-    // res = await app.request("/hello?name=Bob&age=17");
-    // expect(res.status).toBe(400); // invalid (age < 18)
+    res = await app.request("/hello?name=Bob&age=17");
+    const resJson = await res.json();
+    expect(res.status).toBe(400); // invalid (age < 18)
+    expect(resJson.success).toBe(false);
+    expect(resJson.error.name).toBe("ZodError");
 
-    // res = await app.request("/hello?name=X&age=1");
-    // expect(res.status).toBe(400); // invalid (name too short and age < 18)
+    res = await app.request("/hello?name=X&age=1");
+    expect(res.status).toBe(400); // invalid (name too short and age < 18)
 
     res = await app.request("/error");
     expect(res.status).toBe(500);
 
     const requests = client.requestCounter.getAndResetRequests();
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
-    expect(requests.length).toBe(3);
+    expect(requests.length).toBe(4);
     expect(
       requests.some(
         (r) =>
@@ -69,6 +74,9 @@ describe("Middleware for Hono", () => {
       ),
     ).toBe(true);
     expect(
+      requests.some((r) => r.status_code === 400 && r.request_count === 2),
+    ).toBe(true);
+    expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
     expect(serverErrors.length).toBe(1);
@@ -81,6 +89,22 @@ describe("Middleware for Hono", () => {
           e.error_count === 1,
       ),
     ).toBe(true);
+  });
+
+  it("Validation error logger", async () => {
+    await app.request("/hello?name=Bob&age=20");
+    await app.request("/hello?name=Bob&age=17");
+    await app.request("/hello?name=X&age=1");
+
+    const validationErrors =
+      client.validationErrorCounter.getAndResetValidationErrors();
+    expect(validationErrors.length).toBe(2);
+    expect(validationErrors.find((e) => e.loc[0] == "age")?.error_count).toBe(
+      2,
+    );
+    expect(validationErrors.find((e) => e.loc[0] == "name")?.error_count).toBe(
+      1,
+    );
   });
 
   it("List endpoints", async () => {
