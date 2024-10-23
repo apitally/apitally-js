@@ -157,7 +157,7 @@ useApitally(app, {
 
 This is an example of how to use the Apitally middleware with a Hono application.
 For further instructions, see our
-[setup guide for Koa](https://docs.apitally.io/frameworks/hono).
+[setup guide for Hono](https://docs.apitally.io/frameworks/hono).
 
 ```javascript
 import { Hono } from "hono";
