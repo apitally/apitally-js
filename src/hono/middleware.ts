@@ -44,7 +44,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
     client.requestCounter.addRequest({
       consumer: consumer?.identifier,
       method: c.req.method,
-      path: c.req.path,
+      path: c.req.routePath,
       statusCode: c.res.status,
       responseTime,
       requestSize: c.req.header("Content-Length"),
@@ -58,7 +58,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
         client.validationErrorCounter.addValidationError({
           consumer: consumer?.identifier,
           method: c.req.method,
-          path: c.req.path,
+          path: c.req.routePath,
           ...error,
         });
       });
@@ -68,7 +68,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
       client.serverErrorCounter.addServerError({
         consumer: consumer?.identifier,
         method: c.req.method,
-        path: c.req.path,
+        path: c.req.routePath,
         type: c.error.name,
         msg: c.error.message,
         traceback: c.error.stack || "",

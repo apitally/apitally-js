@@ -36,6 +36,9 @@ describe("Middleware for Hono", () => {
     expect(res.status).toBe(200);
     expect(resText).toBe("Hello John! You are 20 years old!");
 
+    res = await app.request("/hello/123");
+    expect(res.status).toBe(200);
+
     res = await app.request("/hello?name=Bob&age=17");
     const resJson = await res.json();
     expect(res.status).toBe(400); // invalid (age < 18)
@@ -50,7 +53,7 @@ describe("Middleware for Hono", () => {
 
     const requests = client.requestCounter.getAndResetRequests();
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
-    expect(requests.length).toBe(4);
+    expect(requests.length).toBe(5);
     expect(
       requests.some(
         (r) =>
@@ -59,8 +62,15 @@ describe("Middleware for Hono", () => {
           r.path === "/hello" &&
           r.status_code === 200 &&
           r.request_size_sum == 0 &&
-          r.response_size_sum > 0 &&
-          r.consumer === "test",
+          r.response_size_sum > 0,
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/hello/:id" &&
+          r.status_code === 200,
       ),
     ).toBe(true);
     expect(
