@@ -194,7 +194,7 @@ describe("Middleware for Express with nested routers", () => {
 
   it("Request logger", async () => {
     await appTest.get("/api/v1/hello/bob").expect(200);
-    await appTest.get("/api/v1/goodbye/world").expect(200);
+    await appTest.get("/api/v2/goodbye/world").expect(200);
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(2);
