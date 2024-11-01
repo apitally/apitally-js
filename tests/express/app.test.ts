@@ -6,6 +6,7 @@ import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
 import {
   getAppWithCelebrate,
+  getAppWithMiddlewareOnRouter,
   getAppWithRouter,
   getAppWithValidator,
 } from "./app.js";
@@ -137,7 +138,7 @@ describe("Middleware for Express router", () => {
 
   beforeEach(async () => {
     mockApitallyHub();
-    app = getAppWithRouter();
+    app = getAppWithMiddlewareOnRouter();
     appTest = request(app);
     client = ApitallyClient.getInstance();
 
@@ -153,7 +154,9 @@ describe("Middleware for Express router", () => {
     expect(
       requests.some(
         (r) =>
-          r.method === "GET" && r.path === "/hello" && r.status_code === 200,
+          r.method === "GET" &&
+          r.path === "/api/hello" &&
+          r.status_code === 200,
       ),
     ).toBe(true);
   });
@@ -162,7 +165,53 @@ describe("Middleware for Express router", () => {
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
-        path: "/hello",
+        path: "/api/hello",
+      },
+    ]);
+  });
+
+  afterEach(async () => {
+    if (client) {
+      await client.handleShutdown();
+    }
+  });
+});
+
+describe("Middleware for Express with router", () => {
+  let app: Express;
+  let appTest: request.Agent;
+  let client: ApitallyClient;
+
+  beforeEach(async () => {
+    mockApitallyHub();
+    app = getAppWithRouter();
+    appTest = request(app);
+    client = ApitallyClient.getInstance();
+
+    // Wait for 1.2 seconds for startup data to be set
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  });
+
+  it("Request logger", async () => {
+    await appTest.get("/api/hello/bob").expect(200);
+
+    const requests = client.requestCounter.getAndResetRequests();
+    expect(requests.length).toBe(1);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/api/hello/:name" &&
+          r.status_code === 200,
+      ),
+    ).toBe(true);
+  });
+
+  it("List endpoints", async () => {
+    expect(client.startupData?.paths).toEqual([
+      {
+        method: "GET",
+        path: "/api/hello/:name",
       },
     ]);
   });

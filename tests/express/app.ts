@@ -108,7 +108,7 @@ export const getAppWithValidator = () => {
   return app;
 };
 
-export const getAppWithRouter = () => {
+export const getAppWithMiddlewareOnRouter = () => {
   const app = express();
   const router = express.Router();
 
@@ -116,10 +116,30 @@ export const getAppWithRouter = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    basePath: "/api",
   });
 
   router.get("/hello", (req, res) => {
     res.send("Hello!");
+  });
+
+  app.use("/api", router);
+  app.use(errors());
+  return app;
+};
+
+export const getAppWithRouter = () => {
+  const app = express();
+  const router = express.Router();
+
+  useApitally(app, {
+    clientId: CLIENT_ID,
+    env: ENV,
+    appVersion: "1.2.3",
+  });
+
+  router.get("/hello/:name", (req, res) => {
+    res.send(`Hello ${req.params.name}!`);
   });
 
   app.use("/api", router);
