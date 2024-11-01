@@ -10,7 +10,7 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
-import listEndpoints from "./listEndpoints.js";
+import { getEndpoints, parseExpressPath } from "./utils.js";
 
 declare module "express" {
   interface Request {
@@ -138,27 +138,27 @@ const getRoutePath = (req: Request) => {
   }
   if (req.baseUrl) {
     const routerPaths = getRouterPaths(req.app._router.stack, req.baseUrl);
-    if (!routerPaths) {
-      return;
-    }
     return routerPaths.join("") + req.route.path;
   }
   return req.route.path;
 };
 
 const getRouterPaths = (stack: any[], baseUrl: string) => {
-  let routerLayer;
   const routerPaths: string[] = [];
   while (stack && stack.length > 0) {
-    routerLayer = stack.find(
+    const routerLayer = stack.find(
       (layer) => layer.name === "router" && layer.regexp?.test(baseUrl),
     );
     if (routerLayer) {
-      if (Object.keys(routerLayer.params).length > 0) {
-        // Routers mounted with path parameters are not supported yet
-        return;
+      if (routerLayer.keys.length > 0) {
+        const parsedPath = parseExpressPath(
+          routerLayer.regexp,
+          routerLayer.keys,
+        );
+        routerPaths.push("/" + parsedPath);
+      } else {
+        routerPaths.push(routerLayer.path);
       }
-      routerPaths.push(routerLayer.path);
       stack = routerLayer.handle?.stack;
       baseUrl = baseUrl.slice(routerLayer.path.length);
     } else {
@@ -266,7 +266,7 @@ const getAppInfo = (
     versions.push(["app", appVersion]);
   }
   return {
-    paths: listEndpoints(app, basePath || ""),
+    paths: getEndpoints(app, basePath || ""),
     versions: Object.fromEntries(versions),
     client: "js:express",
   };

@@ -193,8 +193,8 @@ describe("Middleware for Express with nested routers", () => {
   });
 
   it("Request logger", async () => {
-    await appTest.get("/api/hello/bob").expect(200);
-    await appTest.get("/api/goodbye/world").expect(200);
+    await appTest.get("/api/v1/hello/bob").expect(200);
+    await appTest.get("/api/v1/goodbye/world").expect(200);
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(2);
@@ -202,7 +202,7 @@ describe("Middleware for Express with nested routers", () => {
       requests.some(
         (r) =>
           r.method === "GET" &&
-          r.path === "/api/hello/:name" &&
+          r.path === "/api/:version/hello/:name" &&
           r.status_code === 200,
       ),
     ).toBe(true);
@@ -210,7 +210,7 @@ describe("Middleware for Express with nested routers", () => {
       requests.some(
         (r) =>
           r.method === "GET" &&
-          r.path === "/api/goodbye/world" &&
+          r.path === "/api/:version/goodbye/world" &&
           r.status_code === 200,
       ),
     ).toBe(true);
@@ -220,11 +220,11 @@ describe("Middleware for Express with nested routers", () => {
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
-        path: "/api/hello/:name",
+        path: "/api/:version/hello/:name",
       },
       {
         method: "GET",
-        path: "/api/goodbye/world",
+        path: "/api/:version/goodbye/world",
       },
     ]);
   });

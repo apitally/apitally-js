@@ -130,7 +130,7 @@ export const getAppWithMiddlewareOnRouter = () => {
 
 export const getAppWithNestedRouters = () => {
   const app = express();
-  const router1 = express.Router();
+  const router1 = express.Router({ mergeParams: true });
   const router2 = express.Router();
 
   useApitally(app, {
@@ -148,7 +148,7 @@ export const getAppWithNestedRouters = () => {
   });
 
   router1.use("/goodbye", router2);
-  app.use("/api", router1);
+  app.use("/api/:version", router1);
   app.use(errors());
   return app;
 };
