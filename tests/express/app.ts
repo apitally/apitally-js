@@ -128,9 +128,10 @@ export const getAppWithMiddlewareOnRouter = () => {
   return app;
 };
 
-export const getAppWithRouter = () => {
+export const getAppWithNestedRouters = () => {
   const app = express();
-  const router = express.Router();
+  const router1 = express.Router();
+  const router2 = express.Router();
 
   useApitally(app, {
     clientId: CLIENT_ID,
@@ -138,11 +139,16 @@ export const getAppWithRouter = () => {
     appVersion: "1.2.3",
   });
 
-  router.get("/hello/:name", (req, res) => {
+  router1.get("/hello/:name", (req, res) => {
     res.send(`Hello ${req.params.name}!`);
   });
 
-  app.use("/api", router);
+  router2.get("/world", (req, res) => {
+    res.send("World!");
+  });
+
+  router1.use("/goodbye", router2);
+  app.use("/api", router1);
   app.use(errors());
   return app;
 };

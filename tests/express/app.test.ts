@@ -7,7 +7,7 @@ import { mockApitallyHub } from "../utils.js";
 import {
   getAppWithCelebrate,
   getAppWithMiddlewareOnRouter,
-  getAppWithRouter,
+  getAppWithNestedRouters,
   getAppWithValidator,
 } from "./app.js";
 
@@ -177,14 +177,14 @@ describe("Middleware for Express router", () => {
   });
 });
 
-describe("Middleware for Express with router", () => {
+describe("Middleware for Express with nested routers", () => {
   let app: Express;
   let appTest: request.Agent;
   let client: ApitallyClient;
 
   beforeEach(async () => {
     mockApitallyHub();
-    app = getAppWithRouter();
+    app = getAppWithNestedRouters();
     appTest = request(app);
     client = ApitallyClient.getInstance();
 
@@ -194,14 +194,23 @@ describe("Middleware for Express with router", () => {
 
   it("Request logger", async () => {
     await appTest.get("/api/hello/bob").expect(200);
+    await appTest.get("/api/goodbye/world").expect(200);
 
     const requests = client.requestCounter.getAndResetRequests();
-    expect(requests.length).toBe(1);
+    expect(requests.length).toBe(2);
     expect(
       requests.some(
         (r) =>
           r.method === "GET" &&
           r.path === "/api/hello/:name" &&
+          r.status_code === 200,
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/api/goodbye/world" &&
           r.status_code === 200,
       ),
     ).toBe(true);
@@ -212,6 +221,10 @@ describe("Middleware for Express with router", () => {
       {
         method: "GET",
         path: "/api/hello/:name",
+      },
+      {
+        method: "GET",
+        path: "/api/goodbye/world",
       },
     ]);
   });

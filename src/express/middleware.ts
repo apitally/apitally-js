@@ -1,6 +1,4 @@
-import type { Express, NextFunction, Request, Response } from "express";
-import { Router } from "express";
-import type { ILayer } from "express-serve-static-core";
+import type { Express, NextFunction, Request, Response, Router } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
@@ -139,18 +137,35 @@ const getRoutePath = (req: Request) => {
     return;
   }
   if (req.baseUrl) {
-    const router = req.app._router.stack.findLast((layer: ILayer) => {
-      return layer.name === "router" && layer.regexp.test(req.baseUrl);
-    });
-    if (router && router.path) {
-      if (Object.keys(router.params).length > 0) {
+    const routerPaths = getRouterPaths(req.app._router.stack, req.baseUrl);
+    if (!routerPaths) {
+      return;
+    }
+    return routerPaths.join("") + req.route.path;
+  }
+  return req.route.path;
+};
+
+const getRouterPaths = (stack: any[], baseUrl: string) => {
+  let routerLayer;
+  const routerPaths: string[] = [];
+  while (stack && stack.length > 0) {
+    routerLayer = stack.find(
+      (layer) => layer.name === "router" && layer.regexp?.test(baseUrl),
+    );
+    if (routerLayer) {
+      if (Object.keys(routerLayer.params).length > 0) {
         // Routers mounted with path parameters are not supported yet
         return;
       }
-      return router.path + req.route.path;
+      routerPaths.push(routerLayer.path);
+      stack = routerLayer.handle?.stack;
+      baseUrl = baseUrl.slice(routerLayer.path.length);
+    } else {
+      break;
     }
   }
-  return req.route.path;
+  return routerPaths;
 };
 
 const getConsumer = (req: Request) => {
