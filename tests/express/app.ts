@@ -116,6 +116,7 @@ export const getAppWithMiddlewareOnRouter = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    basePath: "/api",
   });
 
   router.get("/hello", (req, res) => {

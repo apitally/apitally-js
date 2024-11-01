@@ -154,7 +154,9 @@ describe("Middleware for Express router", () => {
     expect(
       requests.some(
         (r) =>
-          r.method === "GET" && r.path === "/hello" && r.status_code === 200,
+          r.method === "GET" &&
+          r.path === "/api/hello" &&
+          r.status_code === 200,
       ),
     ).toBe(true);
   });
@@ -163,7 +165,7 @@ describe("Middleware for Express router", () => {
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
-        path: "/hello",
+        path: "/api/hello",
       },
     ]);
   });

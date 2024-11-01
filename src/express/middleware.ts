@@ -1,4 +1,5 @@
-import type { Express, NextFunction, Request, Response, Router } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
+import { Router } from "express";
 import type { ILayer } from "express-serve-static-core";
 import { performance } from "perf_hooks";
 
@@ -20,12 +21,15 @@ declare module "express" {
   }
 }
 
-export const useApitally = (app: Express | Router, config: ApitallyConfig) => {
+export const useApitally = (
+  app: Express | Router,
+  config: ApitallyConfig & { basePath?: string },
+) => {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(app, client);
   app.use(middleware);
   setTimeout(() => {
-    client.setStartupData(getAppInfo(app, config.appVersion));
+    client.setStartupData(getAppInfo(app, config.basePath, config.appVersion));
   }, 1000);
 };
 
@@ -229,6 +233,7 @@ const subsetJoiMessage = (message: string, key: string) => {
 
 const getAppInfo = (
   app: Express | Router,
+  basePath?: string,
   appVersion?: string,
 ): StartupData => {
   const versions: Array<[string, string]> = [
@@ -246,7 +251,7 @@ const getAppInfo = (
     versions.push(["app", appVersion]);
   }
   return {
-    paths: listEndpoints(app),
+    paths: listEndpoints(app, basePath || ""),
     versions: Object.fromEntries(versions),
     client: "js:express",
   };
