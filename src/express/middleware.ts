@@ -1,4 +1,5 @@
 import type { Express, NextFunction, Request, Response, Router } from "express";
+import type { ILayer } from "express-serve-static-core";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
@@ -55,14 +56,15 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
       };
       res.on("finish", () => {
         try {
-          if (req.route) {
+          const path = getRoutePath(req);
+          if (path) {
             const responseTime = performance.now() - startTime;
             const consumer = getConsumer(req);
             client.consumerRegistry.addOrUpdateConsumer(consumer);
             client.requestCounter.addRequest({
               consumer: consumer?.identifier,
               method: req.method,
-              path: req.route.path,
+              path,
               statusCode: res.statusCode,
               responseTime: responseTime,
               requestSize: req.get("content-length"),
@@ -126,6 +128,25 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
       next();
     }
   };
+};
+
+const getRoutePath = (req: Request) => {
+  if (!req.route) {
+    return;
+  }
+  if (req.baseUrl) {
+    const router = req.app._router.stack.findLast((layer: ILayer) => {
+      return layer.name === "router" && layer.regexp.test(req.baseUrl);
+    });
+    if (router && router.path) {
+      if (Object.keys(router.params).length > 0) {
+        // Routers mounted with path parameters are not supported yet
+        return;
+      }
+      return router.path + req.route.path;
+    }
+  }
+  return req.route.path;
 };
 
 const getConsumer = (req: Request) => {
