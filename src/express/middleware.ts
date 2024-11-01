@@ -1,6 +1,4 @@
-import type { Express, NextFunction, Request, Response } from "express";
-import { Router } from "express";
-import type { ILayer } from "express-serve-static-core";
+import type { Express, NextFunction, Request, Response, Router } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
@@ -12,7 +10,7 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
-import listEndpoints from "./listEndpoints.js";
+import { getEndpoints, parseExpressPath } from "./utils.js";
 
 declare module "express" {
   interface Request {
@@ -139,18 +137,35 @@ const getRoutePath = (req: Request) => {
     return;
   }
   if (req.baseUrl) {
-    const router = req.app._router.stack.findLast((layer: ILayer) => {
-      return layer.name === "router" && layer.regexp.test(req.baseUrl);
-    });
-    if (router && router.path) {
-      if (Object.keys(router.params).length > 0) {
-        // Routers mounted with path parameters are not supported yet
-        return;
-      }
-      return router.path + req.route.path;
-    }
+    const routerPath = getRouterPath(req.app._router.stack, req.baseUrl);
+    return routerPath + req.route.path;
   }
   return req.route.path;
+};
+
+const getRouterPath = (stack: any[], baseUrl: string) => {
+  const routerPaths: string[] = [];
+  while (stack && stack.length > 0) {
+    const routerLayer = stack.find(
+      (layer) => layer.name === "router" && layer.regexp?.test(baseUrl),
+    );
+    if (routerLayer) {
+      if (routerLayer.keys.length > 0) {
+        const parsedPath = parseExpressPath(
+          routerLayer.regexp,
+          routerLayer.keys,
+        );
+        routerPaths.push("/" + parsedPath);
+      } else {
+        routerPaths.push(routerLayer.path);
+      }
+      stack = routerLayer.handle?.stack;
+      baseUrl = baseUrl.slice(routerLayer.path.length);
+    } else {
+      break;
+    }
+  }
+  return routerPaths.join("");
 };
 
 const getConsumer = (req: Request) => {
@@ -251,7 +266,7 @@ const getAppInfo = (
     versions.push(["app", appVersion]);
   }
   return {
-    paths: listEndpoints(app, basePath || ""),
+    paths: getEndpoints(app, basePath || ""),
     versions: Object.fromEntries(versions),
     client: "js:express",
   };

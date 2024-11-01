@@ -1,4 +1,5 @@
 // Adapted from https://github.com/AlbertoFdzM/express-list-endpoints/blob/305535d43008b46f34e18b01947762e039af6d2d/src/index.js
+// and also incorporated changes from https://github.com/AlbertoFdzM/express-list-endpoints/pull/96
 
 /**
  * @typedef {Object} Route
@@ -13,9 +14,9 @@
  */
 
 const regExpToParseExpressPathRegExp =
-  /^\/\^\\\/(?:(:?[\w\\.-]*(?:\\\/:?[\w\\.-]*)*)|(\(\?:\([^)]+\)\)))\\\/.*/;
-const regExpToReplaceExpressPathRegExpParams = /\(\?:\([^)]+\)\)/;
-const regexpExpressParamRegexp = /\(\?:\([^)]+\)\)/g;
+  /^\/\^\\?\/?(?:(:?[\w\\.-]*(?:\\\/:?[\w\\.-]*)*)|(\(\?:\\?\/?\([^)]+\)\)))\\\/.*/;
+const regExpToReplaceExpressPathRegExpParams = /\(\?:\\?\/?\([^)]+\)\)/;
+const regexpExpressParamRegexp = /\(\?:\\?\\?\/?\([^)]+\)\)/g;
 const regexpExpressPathParamRegexp = /(:[^)]+)\([^)]+\)/g;
 
 const EXPRESS_ROOT_PATH_REGEXP_VALUE = "/^\\/?(?=\\/|$)/i";
@@ -92,7 +93,7 @@ const parseExpressRoute = function (route, basePath) {
  * @param {any[]} params
  * @returns {string}
  */
-const parseExpressPath = function (expressPathRegExp, params) {
+export const parseExpressPath = function (expressPathRegExp, params) {
   let parsedRegExp = expressPathRegExp.toString();
   let expressPathRegExpExec = regExpToParseExpressPathRegExp.exec(parsedRegExp);
   let paramIndex = 0;
@@ -103,7 +104,17 @@ const parseExpressPath = function (expressPathRegExp, params) {
 
     parsedRegExp = parsedRegExp.replace(
       regExpToReplaceExpressPathRegExpParams,
-      paramId,
+      (str) => {
+        // Express >= 4.20.0 uses a different RegExp for parameters: it
+        // captures the slash as part of the parameter. We need to check
+        // for this case and add the slash to the value that will replace
+        // the parameter in the path.
+        if (str.startsWith("(?:\\/")) {
+          return `\\/${paramId}`;
+        }
+
+        return paramId;
+      },
     );
 
     paramIndex++;
@@ -216,7 +227,7 @@ const parseStack = function (stack, basePath, endpoints) {
   return endpoints;
 };
 
-const getEndpoints = function (app, basePath) {
+export const getEndpoints = function (app, basePath) {
   const endpoints = parseEndpoints(app);
   return endpoints.flatMap((route) =>
     route.methods
@@ -227,5 +238,3 @@ const getEndpoints = function (app, basePath) {
       })),
   );
 };
-
-export default getEndpoints;
