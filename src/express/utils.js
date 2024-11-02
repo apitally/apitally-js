@@ -234,7 +234,7 @@ export const getEndpoints = function (app, basePath) {
       .filter((method) => !["HEAD", "OPTIONS"].includes(method.toUpperCase()))
       .map((method) => ({
         method,
-        path: basePath + route.path,
+        path: (basePath + route.path).replace(/\/\//g, "/"),
       })),
   );
 };
