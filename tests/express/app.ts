@@ -104,7 +104,6 @@ export const getAppWithValidator = () => {
     throw new Error("test");
   });
 
-  app.use(errors());
   return app;
 };
 
@@ -124,14 +123,15 @@ export const getAppWithMiddlewareOnRouter = () => {
   });
 
   app.use("/api", router);
-  app.use(errors());
   return app;
 };
 
 export const getAppWithNestedRouters = () => {
   const app = express();
-  const router1 = express.Router({ mergeParams: true });
-  const router2 = express.Router();
+  const router1 = express.Router();
+  const router2 = express.Router({ mergeParams: true });
+  const router3 = express.Router();
+  const router4 = express.Router();
 
   useApitally(app, {
     clientId: CLIENT_ID,
@@ -139,16 +139,25 @@ export const getAppWithNestedRouters = () => {
     appVersion: "1.2.3",
   });
 
-  router1.get("/hello/:name", (req, res) => {
+  router1.get("/health", (req, res) => {
+    res.send("OK");
+  });
+
+  router2.get("/hello/:name", (req, res) => {
     res.send(`Hello ${req.params.name}!`);
   });
 
-  router2.get("/world", (req, res) => {
+  router3.get("/world", (req, res) => {
     res.send("World!");
   });
 
-  router1.use("/goodbye", router2);
-  app.use("/api/:version", router1);
-  app.use(errors());
+  router4.get("/", (req, res) => {
+    res.send("Success!");
+  });
+
+  router2.use("/goodbye", router3);
+  app.use("/", router1);
+  app.use("/api/:version", router2);
+  app.use("/test", router4);
   return app;
 };

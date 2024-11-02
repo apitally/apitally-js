@@ -138,7 +138,7 @@ const getRoutePath = (req: Request) => {
   }
   if (req.baseUrl) {
     const routerPath = getRouterPath(req.app._router.stack, req.baseUrl);
-    return routerPath + req.route.path;
+    return req.route.path === "/" ? routerPath : routerPath + req.route.path;
   }
   return req.route.path;
 };
@@ -147,7 +147,8 @@ const getRouterPath = (stack: any[], baseUrl: string) => {
   const routerPaths: string[] = [];
   while (stack && stack.length > 0) {
     const routerLayer = stack.find(
-      (layer) => layer.name === "router" && layer.regexp?.test(baseUrl),
+      (layer) =>
+        layer.name === "router" && layer.path && layer.regexp?.test(baseUrl),
     );
     if (routerLayer) {
       if (routerLayer.keys.length > 0) {
@@ -165,7 +166,7 @@ const getRouterPath = (stack: any[], baseUrl: string) => {
       break;
     }
   }
-  return routerPaths.join("");
+  return routerPaths.filter((path) => path !== "/").join("");
 };
 
 const getConsumer = (req: Request) => {
