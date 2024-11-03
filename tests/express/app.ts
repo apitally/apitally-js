@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Joi, Segments, celebrate, errors } from "celebrate";
 import type { Request } from "express";
 import express from "express";
@@ -132,6 +133,13 @@ export const getAppWithNestedRouters = () => {
   const router2 = express.Router({ mergeParams: true });
   const router3 = express.Router();
   const router4 = express.Router();
+
+  Sentry.init({
+    dsn: "https://cdc58ec203a0406e5fdfb895e4cd136d@o4505969460969472.ingest.us.sentry.io/4507387575402496",
+    environment: "express-test",
+    integrations: [new Sentry.Integrations.Express({ app })],
+    tracesSampleRate: 1.0,
+  });
 
   useApitally(app, {
     clientId: CLIENT_ID,
