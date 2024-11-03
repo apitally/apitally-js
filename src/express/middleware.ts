@@ -3,7 +3,10 @@ import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
-import { getPackageVersion } from "../common/packageVersions.js";
+import {
+  getPackageVersion,
+  isPackageInstalled,
+} from "../common/packageVersions.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -32,10 +35,10 @@ export const useApitally = (
 };
 
 const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
-  const validatorInstalled = getPackageVersion("express-validator") !== null;
-  const celebrateInstalled = getPackageVersion("celebrate") !== null;
-  const nestInstalled = getPackageVersion("@nestjs/core") !== null;
-  const classValidatorInstalled = getPackageVersion("class-validator") !== null;
+  const validatorInstalled = isPackageInstalled("express-validator");
+  const celebrateInstalled = isPackageInstalled("celebrate");
+  const nestInstalled = isPackageInstalled("@nestjs/core");
+  const classValidatorInstalled = isPackageInstalled("class-validator");
   let errorHandlerConfigured = false;
 
   return (req: Request, res: Response, next: NextFunction) => {
@@ -256,9 +259,13 @@ const getAppInfo = (
     ["nodejs", process.version.replace(/^v/, "")],
   ];
   const expressVersion = getPackageVersion("express");
+  const nestjsVersion = getPackageVersion("@nestjs/core");
   const apitallyVersion = getPackageVersion("../..");
   if (expressVersion) {
     versions.push(["express", expressVersion]);
+  }
+  if (nestjsVersion) {
+    versions.push(["nestjs", nestjsVersion]);
   }
   if (apitallyVersion) {
     versions.push(["apitally", apitallyVersion]);
