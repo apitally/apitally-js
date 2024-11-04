@@ -98,3 +98,6 @@ jobs:
       - name: Run tests for NestJS
         run: npm test -- tests/nestjs
         if: contains(matrix.deps, 'nestjs')
+      - name: Run tests for Hono
+        run: npm test -- tests/hono
+        if: contains(matrix.deps, 'hono')

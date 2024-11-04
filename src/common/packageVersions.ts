@@ -13,18 +13,3 @@ export function getPackageVersion(name: string): string | null {
     }
   }
 }
-
-export function isPackageInstalled(name: string): boolean {
-  try {
-    require.resolve(name);
-    return true;
-  } catch (error) {
-    const _require = createRequire(import.meta.url);
-    try {
-      _require.resolve(name);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-}
