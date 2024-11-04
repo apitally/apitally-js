@@ -3,10 +3,7 @@ import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
-import {
-  getPackageVersion,
-  isPackageInstalled,
-} from "../common/packageVersions.js";
+import { getPackageVersion } from "../common/packageVersions.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -35,10 +32,6 @@ export const useApitally = (
 };
 
 const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
-  const validatorInstalled = isPackageInstalled("express-validator");
-  const celebrateInstalled = isPackageInstalled("celebrate");
-  const nestInstalled = isPackageInstalled("@nestjs/core");
-  const classValidatorInstalled = isPackageInstalled("class-validator");
   let errorHandlerConfigured = false;
 
   return (req: Request, res: Response, next: NextFunction) => {
@@ -80,17 +73,17 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               res.locals.body
             ) {
               const validationErrors: ValidationError[] = [];
-              if (validatorInstalled) {
+              if (validationErrors.length === 0) {
                 validationErrors.push(
                   ...extractExpressValidatorErrors(res.locals.body),
                 );
               }
-              if (celebrateInstalled) {
+              if (validationErrors.length === 0) {
                 validationErrors.push(
                   ...extractCelebrateErrors(res.locals.body),
                 );
               }
-              if (nestInstalled && classValidatorInstalled) {
+              if (validationErrors.length === 0) {
                 validationErrors.push(
                   ...extractNestValidationErrors(res.locals.body),
                 );
@@ -187,60 +180,72 @@ const getConsumer = (req: Request) => {
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {
-  const errors: ValidationError[] = [];
-  if (
-    responseBody &&
-    responseBody.errors &&
-    Array.isArray(responseBody.errors)
-  ) {
-    responseBody.errors.forEach((error: any) => {
-      if (error.location && error.path && error.msg && error.type) {
-        errors.push({
-          loc: `${error.location}.${error.path}`,
-          msg: error.msg,
-          type: error.type,
-        });
-      }
-    });
+  try {
+    const errors: ValidationError[] = [];
+    if (
+      responseBody &&
+      responseBody.errors &&
+      Array.isArray(responseBody.errors)
+    ) {
+      responseBody.errors.forEach((error: any) => {
+        if (error.location && error.path && error.msg && error.type) {
+          errors.push({
+            loc: `${error.location}.${error.path}`,
+            msg: error.msg,
+            type: error.type,
+          });
+        }
+      });
+    }
+    return errors;
+  } catch (error) {
+    return [];
   }
-  return errors;
 };
 
 const extractCelebrateErrors = (responseBody: any) => {
-  const errors: ValidationError[] = [];
-  if (responseBody && responseBody.validation) {
-    Object.values(responseBody.validation).forEach((error: any) => {
-      if (
-        error.source &&
-        error.keys &&
-        Array.isArray(error.keys) &&
-        error.message
-      ) {
-        error.keys.forEach((key: string) => {
-          errors.push({
-            loc: `${error.source}.${key}`,
-            msg: subsetJoiMessage(error.message, key),
-            type: "",
+  try {
+    const errors: ValidationError[] = [];
+    if (responseBody && responseBody.validation) {
+      Object.values(responseBody.validation).forEach((error: any) => {
+        if (
+          error.source &&
+          error.keys &&
+          Array.isArray(error.keys) &&
+          error.message
+        ) {
+          error.keys.forEach((key: string) => {
+            errors.push({
+              loc: `${error.source}.${key}`,
+              msg: subsetJoiMessage(error.message, key),
+              type: "",
+            });
           });
-        });
-      }
-    });
+        }
+      });
+    }
+    return errors;
+  } catch (error) {
+    return [];
   }
-  return errors;
 };
 
 const extractNestValidationErrors = (responseBody: any) => {
-  const errors: ValidationError[] = [];
-  if (responseBody && Array.isArray(responseBody.message)) {
-    responseBody.message.forEach((message: any) => {
-      errors.push({
-        loc: "",
-        msg: message,
-        type: "",
+  try {
+    const errors: ValidationError[] = [];
+    if (responseBody && Array.isArray(responseBody.message)) {
+      responseBody.message.forEach((message: any) => {
+        errors.push({
+          loc: "",
+          msg: message,
+          type: "",
+        });
       });
-    });
+    }
+    return errors;
+  } catch (error) {
+    return [];
   }
-  return errors;
 };
 
 const subsetJoiMessage = (message: string, key: string) => {
