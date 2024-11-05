@@ -10,9 +10,8 @@ export async function getApp() {
     providers: [],
   }).compile();
   const app = moduleFixture.createNestApplication();
-  const expressInstance = app.getHttpAdapter().getInstance();
 
-  useApitally(expressInstance, {
+  useApitally(app, {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
