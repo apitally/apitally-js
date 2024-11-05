@@ -52,7 +52,6 @@ describe("Middleware for Hono", () => {
     expect(res.status).toBe(500);
 
     const requests = client.requestCounter.getAndResetRequests();
-    const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(requests.length).toBe(5);
     expect(
       requests.some(
@@ -89,6 +88,8 @@ describe("Middleware for Hono", () => {
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
+
+    const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(serverErrors.length).toBe(1);
     expect(
       serverErrors.some(
