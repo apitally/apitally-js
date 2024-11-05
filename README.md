@@ -93,9 +93,8 @@ const { useApitally } = require("apitally/nestjs");
 const { AppModule } = require("./app.module");
 
 const app = await NestFactory.create(AppModule);
-const expressInstance = app.getHttpAdapter().getInstance();
 
-useApitally(expressInstance, {
+useApitally(app, {
   clientId: "your-client-id",
   env: "dev", // or "prod" etc.
 });
