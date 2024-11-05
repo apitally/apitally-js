@@ -48,7 +48,6 @@ testCases.forEach(({ name, router, getApp }) => {
       consoleSpy.mockRestore();
 
       const requests = client.requestCounter.getAndResetRequests();
-      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(requests.length).toBe(3);
       expect(
         requests.some(
@@ -73,6 +72,8 @@ testCases.forEach(({ name, router, getApp }) => {
         ),
       ).toBe(true);
       expect(requests.some((r) => r.status_code === 500)).toBe(true);
+
+      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(serverErrors.length).toBe(1);
       expect(
         serverErrors.some(

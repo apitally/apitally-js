@@ -46,7 +46,6 @@ testCases.forEach(({ name, getApp }) => {
       await appTest.get("/error").expect(500);
 
       const requests = client.requestCounter.getAndResetRequests();
-      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(requests.length).toBe(4);
       expect(
         requests.some(
@@ -76,6 +75,8 @@ testCases.forEach(({ name, getApp }) => {
       expect(
         requests.some((r) => r.status_code === 500 && r.request_count === 1),
       ).toBe(true);
+
+      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(serverErrors.length).toBe(1);
       expect(
         serverErrors.some(

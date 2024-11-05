@@ -50,6 +50,18 @@ describe("Middleware for NestJS", () => {
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
+
+    const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
+    expect(serverErrors.length).toBe(1);
+    expect(
+      serverErrors.some(
+        (e) =>
+          e.type === "Error" &&
+          e.msg === "test" &&
+          e.traceback &&
+          e.error_count === 1,
+      ),
+    ).toBe(true);
   });
 
   it("Validation error logger", async () => {

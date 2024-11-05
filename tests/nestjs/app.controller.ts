@@ -40,6 +40,6 @@ export class AppController {
 
   @Get("/error")
   getError() {
-    throw new Error("Error");
+    throw new Error("test");
   }
 }
