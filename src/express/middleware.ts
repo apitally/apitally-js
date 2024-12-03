@@ -1,4 +1,5 @@
 import type { Express, NextFunction, Request, Response, Router } from "express";
+import { IncomingHttpHeaders, OutgoingHttpHeaders } from "http";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
@@ -47,18 +48,19 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
     }
     try {
       const startTime = performance.now();
-      const originalJson = res.json;
-      res.json = (body) => {
+      const originalSend = res.send;
+      res.send = (body) => {
         res.locals.body = body;
-        return originalJson.call(res, body);
+        return originalSend.call(res, body);
       };
+
       res.on("finish", () => {
         try {
+          const responseTime = performance.now() - startTime;
           const path = getRoutePath(req);
+          const consumer = getConsumer(req);
+          client.consumerRegistry.addOrUpdateConsumer(consumer);
           if (path) {
-            const responseTime = performance.now() - startTime;
-            const consumer = getConsumer(req);
-            client.consumerRegistry.addOrUpdateConsumer(consumer);
             client.requestCounter.addRequest({
               consumer: consumer?.identifier,
               method: req.method,
@@ -108,6 +110,31 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 traceback: serverError.stack || "",
               });
             }
+          }
+          if (client.requestLogger.enabled) {
+            client.requestLogger.logRequest(
+              {
+                timestamp: Date.now() / 1000,
+                method: req.method,
+                path,
+                url: req.originalUrl,
+                headers: convertHeaders(req.headers),
+                size: req.get("content-length")
+                  ? parseInt(req.get("content-length") ?? "0")
+                  : undefined,
+                consumer: consumer?.identifier,
+                body: req.body,
+              },
+              {
+                statusCode: res.statusCode,
+                responseTime: responseTime,
+                headers: convertHeaders(res.getHeaders()),
+                size: res.hasHeader("content-length")
+                  ? parseInt(res.get("content-length") ?? "0")
+                  : undefined,
+                body: res.locals.body,
+              },
+            );
           }
         } catch (error) {
           client.logger.error(
@@ -177,6 +204,18 @@ const getConsumer = (req: Request) => {
     return consumerFromStringOrObject(req.consumerIdentifier);
   }
   return null;
+};
+
+const convertHeaders = (headers: IncomingHttpHeaders | OutgoingHttpHeaders) => {
+  return Object.entries(headers).flatMap(([key, value]) => {
+    if (value === undefined) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value.map((v) => [key, v]);
+    }
+    return [[key, value.toString()]];
+  }) as [string, string][];
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {

@@ -1,8 +1,10 @@
 import { Logger } from "./logging.js";
+import { RequestLoggingConfig } from "./requestLogger.js";
 
 export type ApitallyConfig = {
   clientId: string;
   env?: string;
+  requestLoggingConfig?: Partial<RequestLoggingConfig>;
   openApiUrl?: string;
   appVersion?: string;
   logger?: Logger;
