@@ -74,30 +74,36 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               (res.statusCode === 400 || res.statusCode === 422) &&
               res.locals.body
             ) {
-              const validationErrors: ValidationError[] = [];
-              if (validationErrors.length === 0) {
-                validationErrors.push(
-                  ...extractExpressValidatorErrors(res.locals.body),
-                );
+              let jsonBody: any;
+              try {
+                jsonBody = JSON.parse(res.locals.body);
+              } catch {
+                // Ignore
               }
-              if (validationErrors.length === 0) {
-                validationErrors.push(
-                  ...extractCelebrateErrors(res.locals.body),
-                );
-              }
-              if (validationErrors.length === 0) {
-                validationErrors.push(
-                  ...extractNestValidationErrors(res.locals.body),
-                );
-              }
-              validationErrors.forEach((error) => {
-                client.validationErrorCounter.addValidationError({
-                  consumer: consumer?.identifier,
-                  method: req.method,
-                  path: req.route.path,
-                  ...error,
+              if (jsonBody) {
+                const validationErrors: ValidationError[] = [];
+                if (validationErrors.length === 0) {
+                  validationErrors.push(
+                    ...extractExpressValidatorErrors(jsonBody),
+                  );
+                }
+                if (validationErrors.length === 0) {
+                  validationErrors.push(...extractCelebrateErrors(jsonBody));
+                }
+                if (validationErrors.length === 0) {
+                  validationErrors.push(
+                    ...extractNestValidationErrors(jsonBody),
+                  );
+                }
+                validationErrors.forEach((error) => {
+                  client.validationErrorCounter.addValidationError({
+                    consumer: consumer?.identifier,
+                    method: req.method,
+                    path: req.route.path,
+                    ...error,
+                  });
                 });
-              });
+              }
             }
             if (res.statusCode === 500 && res.locals.serverError) {
               const serverError = res.locals.serverError as Error;
@@ -117,13 +123,13 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 timestamp: Date.now() / 1000,
                 method: req.method,
                 path,
-                url: req.originalUrl,
+                url: `${req.protocol}://${req.headers["host"]}${req.originalUrl}`,
                 headers: convertHeaders(req.headers),
                 size: req.get("content-length")
                   ? parseInt(req.get("content-length") ?? "0")
                   : undefined,
                 consumer: consumer?.identifier,
-                body: req.body,
+                body: convertBody(req.body, req.get("content-type")),
               },
               {
                 statusCode: res.statusCode,
@@ -132,7 +138,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 size: res.hasHeader("content-length")
                   ? parseInt(res.get("content-length") ?? "0")
                   : undefined,
-                body: res.locals.body,
+                body: convertBody(res.locals.body, res.get("content-type")),
               },
             );
           }
@@ -216,6 +222,38 @@ const convertHeaders = (headers: IncomingHttpHeaders | OutgoingHttpHeaders) => {
     }
     return [[key, value.toString()]];
   }) as [string, string][];
+};
+
+const convertBody = (body: any, contentType?: string) => {
+  if (!body || !contentType) {
+    return;
+  }
+  try {
+    if (contentType.startsWith("application/json")) {
+      if (isValidJsonString(body)) {
+        return Buffer.from(body);
+      } else {
+        return Buffer.from(JSON.stringify(body));
+      }
+    }
+    if (contentType.startsWith("text/") && typeof body === "string") {
+      return Buffer.from(body);
+    }
+  } catch (error) {
+    return;
+  }
+};
+
+const isValidJsonString = (body: any) => {
+  if (typeof body !== "string") {
+    return false;
+  }
+  try {
+    JSON.parse(body);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {

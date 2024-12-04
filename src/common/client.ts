@@ -5,7 +5,7 @@ import ConsumerRegistry from "./consumerRegistry.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
-import { RequestLogger } from "./requestLogger.js";
+import RequestLogger from "./requestLogger.js";
 import ServerErrorCounter from "./serverErrorCounter.js";
 import {
   ApitallyConfig,
@@ -103,7 +103,7 @@ export class ApitallyClient {
     this.stopSync();
     await this.sendSyncData();
     await this.sendLogData();
-    this.requestLogger.close();
+    await this.requestLogger.close();
     ApitallyClient.instance = undefined;
   }
 
@@ -240,7 +240,7 @@ export class ApitallyClient {
 
   private async sendLogData() {
     this.logger.debug("Sending request log data to Apitally Hub");
-    this.requestLogger.rotateFile();
+    await this.requestLogger.rotateFile();
 
     const fetchWithRetry = fetchRetry(fetch, {
       retries: 3,
@@ -260,7 +260,7 @@ export class ApitallyClient {
           `${this.getHubUrlPrefix()}log?uuid=${logFile.uuid}`,
           {
             method: "POST",
-            body: logFile.getReadStream().read(),
+            body: await logFile.getContent(),
           },
         );
 

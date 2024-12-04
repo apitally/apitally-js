@@ -1,14 +1,15 @@
 import { Buffer } from "buffer";
 import { randomUUID } from "crypto";
-import { createReadStream, createWriteStream, unlinkSync } from "fs";
+import { unlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { createGzip } from "zlib";
+
+import TempGzipFile from "./tempGzipFile.js";
 
 const MAX_BODY_SIZE = 50_000; // 50 KB (uncompressed)
 const MAX_FILE_SIZE = 1_000_000; // 1 MB (compressed)
-const MAX_REQUESTS_IN_DEQUE = 100;
-const MAX_FILES_IN_DEQUE = 50;
+const MAX_FILES = 50;
+const MAX_PENDING_WRITES = 100;
 const BODY_TOO_LARGE = Buffer.from("<body too large>");
 const BODY_MASKED = Buffer.from("<masked>");
 const MASKED = "******";
@@ -91,7 +92,7 @@ const DEFAULT_CONFIG: RequestLoggingConfig = {
   excludePaths: [],
 };
 
-export class RequestLogger {
+export default class RequestLogger {
   public config: RequestLoggingConfig;
   public enabled: boolean;
   public suspendUntil: number | null = null;
@@ -103,6 +104,7 @@ export class RequestLogger {
   constructor(config?: Partial<RequestLoggingConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.enabled = this.config.enabled && checkWritableFs();
+
     if (this.enabled) {
       this.maintainIntervalId = setInterval(() => {
         this.maintain();
@@ -231,13 +233,26 @@ export class RequestLogger {
       request: skipEmptyValues(request),
       response: skipEmptyValues(response),
     };
+    if (item.request.body) {
+      // @ts-expect-error Different return type
+      item.request.body.toJSON = function () {
+        return this.toString("base64");
+      };
+    }
+    if (item.response.body) {
+      // @ts-expect-error Different return type
+      item.response.body.toJSON = function () {
+        return this.toString("base64");
+      };
+    }
     this.pendingWrites.push(JSON.stringify(item));
-    if (this.pendingWrites.length > MAX_REQUESTS_IN_DEQUE) {
+
+    if (this.pendingWrites.length > MAX_PENDING_WRITES) {
       this.pendingWrites.shift();
     }
   }
 
-  writeToFile() {
+  async writeToFile() {
     if (!this.enabled || this.pendingWrites.length === 0) {
       return;
     }
@@ -247,7 +262,7 @@ export class RequestLogger {
     while (this.pendingWrites.length > 0) {
       const item = this.pendingWrites.shift();
       if (item) {
-        this.currentFile.writeLine(Buffer.from(item));
+        await this.currentFile.writeLine(Buffer.from(item));
       }
     }
   }
@@ -260,9 +275,9 @@ export class RequestLogger {
     this.files.unshift(file);
   }
 
-  rotateFile() {
+  async rotateFile() {
     if (this.currentFile) {
-      this.currentFile.close();
+      await this.currentFile.close();
       this.files.push(this.currentFile);
       this.currentFile = null;
     }
@@ -272,7 +287,7 @@ export class RequestLogger {
     if (this.currentFile && this.currentFile.size > MAX_FILE_SIZE) {
       this.rotateFile();
     }
-    while (this.files.length > MAX_FILES_IN_DEQUE) {
+    while (this.files.length > MAX_FILES) {
       const file = this.files.shift();
       file?.delete();
     }
@@ -281,61 +296,20 @@ export class RequestLogger {
     }
   }
 
-  clear() {
+  async clear() {
     this.pendingWrites = [];
-    this.rotateFile();
-    for (const file of this.files) {
+    await this.rotateFile();
+    this.files.forEach((file) => {
       file.delete();
-    }
+    });
     this.files = [];
   }
 
-  close() {
+  async close() {
     this.enabled = false;
-    this.clear();
+    await this.clear();
     if (this.maintainIntervalId) {
       clearInterval(this.maintainIntervalId);
-    }
-  }
-}
-
-class TempGzipFile {
-  public uuid: string;
-  private filePath: string;
-  private gzipStream: ReturnType<typeof createGzip>;
-  private writeStream: ReturnType<typeof createWriteStream>;
-
-  constructor() {
-    this.uuid = randomUUID();
-    this.filePath = join(tmpdir(), `apitally-${this.uuid}.gz`);
-    this.writeStream = createWriteStream(this.filePath);
-    this.gzipStream = createGzip();
-    this.gzipStream.pipe(this.writeStream);
-  }
-
-  get size() {
-    return this.writeStream.bytesWritten;
-  }
-
-  writeLine(data: Buffer) {
-    this.gzipStream.write(Buffer.concat([data, Buffer.from("\n")]));
-  }
-
-  getReadStream() {
-    return createReadStream(this.filePath);
-  }
-
-  close() {
-    this.gzipStream.end();
-    this.writeStream.end();
-  }
-
-  delete() {
-    this.close();
-    try {
-      unlinkSync(this.filePath);
-    } catch {
-      // Ignore errors when deleting file
     }
   }
 }
@@ -359,12 +333,13 @@ function skipEmptyValues<T extends Record<string, any>>(data: T) {
 }
 
 function checkWritableFs() {
-  const testPath = join(tmpdir(), `apitally-${randomUUID()}`);
   try {
-    createWriteStream(testPath).end();
+    const testPath = join(tmpdir(), `apitally-${randomUUID()}`);
+    writeFileSync(testPath, "test");
     unlinkSync(testPath);
     return true;
   } catch (error) {
+    console.error(error);
     return false;
   }
 }
