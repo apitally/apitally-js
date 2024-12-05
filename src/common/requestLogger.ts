@@ -1,6 +1,7 @@
 import { Buffer } from "buffer";
 import { randomUUID } from "crypto";
 import { unlinkSync, writeFileSync } from "fs";
+import { IncomingHttpHeaders, OutgoingHttpHeaders } from "http";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -311,6 +312,52 @@ export default class RequestLogger {
     if (this.maintainIntervalId) {
       clearInterval(this.maintainIntervalId);
     }
+  }
+}
+
+export function convertHeaders(
+  headers: IncomingHttpHeaders | OutgoingHttpHeaders,
+) {
+  return Object.entries(headers).flatMap(([key, value]) => {
+    if (value === undefined) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value.map((v) => [key, v]);
+    }
+    return [[key, value.toString()]];
+  }) as [string, string][];
+}
+
+export function convertBody(body: any, contentType?: string) {
+  if (!body || !contentType) {
+    return;
+  }
+  try {
+    if (contentType.startsWith("application/json")) {
+      if (isValidJsonString(body)) {
+        return Buffer.from(body);
+      } else {
+        return Buffer.from(JSON.stringify(body));
+      }
+    }
+    if (contentType.startsWith("text/") && typeof body === "string") {
+      return Buffer.from(body);
+    }
+  } catch (error) {
+    return;
+  }
+}
+
+function isValidJsonString(body: any) {
+  if (typeof body !== "string") {
+    return false;
+  }
+  try {
+    JSON.parse(body);
+    return true;
+  } catch {
+    return false;
   }
 }
 

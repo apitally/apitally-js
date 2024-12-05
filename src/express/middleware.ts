@@ -1,10 +1,10 @@
 import type { Express, NextFunction, Request, Response, Router } from "express";
-import { IncomingHttpHeaders, OutgoingHttpHeaders } from "http";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -133,7 +133,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               },
               {
                 statusCode: res.statusCode,
-                responseTime: responseTime,
+                responseTime,
                 headers: convertHeaders(res.getHeaders()),
                 size: res.hasHeader("content-length")
                   ? parseInt(res.get("content-length") ?? "0")
@@ -210,50 +210,6 @@ const getConsumer = (req: Request) => {
     return consumerFromStringOrObject(req.consumerIdentifier);
   }
   return null;
-};
-
-const convertHeaders = (headers: IncomingHttpHeaders | OutgoingHttpHeaders) => {
-  return Object.entries(headers).flatMap(([key, value]) => {
-    if (value === undefined) {
-      return [];
-    }
-    if (Array.isArray(value)) {
-      return value.map((v) => [key, v]);
-    }
-    return [[key, value.toString()]];
-  }) as [string, string][];
-};
-
-const convertBody = (body: any, contentType?: string) => {
-  if (!body || !contentType) {
-    return;
-  }
-  try {
-    if (contentType.startsWith("application/json")) {
-      if (isValidJsonString(body)) {
-        return Buffer.from(body);
-      } else {
-        return Buffer.from(JSON.stringify(body));
-      }
-    }
-    if (contentType.startsWith("text/") && typeof body === "string") {
-      return Buffer.from(body);
-    }
-  } catch (error) {
-    return;
-  }
-};
-
-const isValidJsonString = (body: any) => {
-  if (typeof body !== "string") {
-    return false;
-  }
-  try {
-    JSON.parse(body);
-    return true;
-  } catch {
-    return false;
-  }
 };
 
 const extractExpressValidatorErrors = (responseBody: any) => {
