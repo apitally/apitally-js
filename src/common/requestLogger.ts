@@ -316,8 +316,15 @@ export default class RequestLogger {
 }
 
 export function convertHeaders(
-  headers: IncomingHttpHeaders | OutgoingHttpHeaders,
+  headers:
+    | Headers
+    | IncomingHttpHeaders
+    | OutgoingHttpHeaders
+    | Record<string, string | string[] | number | undefined>,
 ) {
+  if (headers instanceof Headers) {
+    return Array.from(headers.entries());
+  }
   return Object.entries(headers).flatMap(([key, value]) => {
     if (value === undefined) {
       return [];
@@ -329,7 +336,7 @@ export function convertHeaders(
   }) as [string, string][];
 }
 
-export function convertBody(body: any, contentType?: string) {
+export function convertBody(body: any, contentType?: string | null) {
   if (!body || !contentType) {
     return;
   }
@@ -370,7 +377,7 @@ function matchPatterns(value: string, patterns: RegExp[]) {
 function skipEmptyValues<T extends Record<string, any>>(data: T) {
   return Object.fromEntries(
     Object.entries(data).filter(([_, v]) => {
-      if (v == null) return false;
+      if (v == null || Number.isNaN(v)) return false;
       if (Array.isArray(v) || Buffer.isBuffer(v) || typeof v === "string") {
         return v.length > 0;
       }
@@ -386,7 +393,6 @@ function checkWritableFs() {
     unlinkSync(testPath);
     return true;
   } catch (error) {
-    console.error(error);
     return false;
   }
 }

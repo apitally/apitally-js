@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
@@ -14,11 +14,11 @@ describe("Middleware for Hono", () => {
     app = await getApp();
     client = ApitallyClient.getInstance();
 
-    // Wait for 1.2 seconds for startup data to be set
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    // Wait for 1.1 seconds for startup data to be set
+    await new Promise((resolve) => setTimeout(resolve, 1100));
   });
 
-  it("Request logger", async () => {
+  it("Request counter", async () => {
     let res;
     res = await app.request("/hello?name=John&age=20");
     expect(res.status).toBe(200);
@@ -26,7 +26,7 @@ describe("Middleware for Hono", () => {
     const body = JSON.stringify({ name: "John", age: 20 });
     res = await app.request("/hello", {
       method: "POST",
-      body: body,
+      body,
       headers: {
         "Content-Type": "application/json",
         "Content-Length": body.length.toString(),
@@ -88,21 +88,57 @@ describe("Middleware for Hono", () => {
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
-
-    const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
-    expect(serverErrors.length).toBe(1);
-    expect(
-      serverErrors.some(
-        (e) =>
-          e.type === "Error" &&
-          e.msg === "test" &&
-          e.traceback &&
-          e.error_count === 1,
-      ),
-    ).toBe(true);
   });
 
-  it("Validation error logger", async () => {
+  it("Request logger", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+    let call;
+    let res;
+
+    res = await app.request("/hello?name=John&age=20");
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledOnce();
+    call = spy.mock.calls[0];
+    expect(call[0].method).toBe("GET");
+    expect(call[0].path).toBe("/hello");
+    expect(call[0].url).toBe("http://localhost/hello?name=John&age=20");
+    expect(call[0].consumer).toBe("test");
+    expect(call[1].statusCode).toBe(200);
+    expect(call[1].responseTime).toBeGreaterThan(0);
+    expect(call[1].size).toBeGreaterThan(0);
+    expect(call[1].headers).toContainEqual([
+      "content-type",
+      "text/plain;charset=UTF-8",
+    ]);
+    expect(call[1].body).toBeInstanceOf(Buffer);
+    expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    spy.mockReset();
+
+    const body = JSON.stringify({ name: "John", age: 20 });
+    res = await app.request("/hello", {
+      method: "POST",
+      body,
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": body.length.toString(),
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledOnce();
+    call = spy.mock.calls[0];
+    expect(call[0].method).toBe("POST");
+    expect(call[0].path).toBe("/hello");
+    expect(call[0].headers).toContainEqual([
+      "content-type",
+      "application/json",
+    ]);
+    expect(call[0].body).toBeInstanceOf(Buffer);
+    expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
+    expect(call[1].body).toBeInstanceOf(Buffer);
+    expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+  });
+
+  it("Validation error counter", async () => {
     await app.request("/hello?name=Bob&age=20");
     await app.request("/hello?name=Bob&age=17");
     await app.request("/hello?name=X&age=1");
@@ -116,6 +152,23 @@ describe("Middleware for Hono", () => {
     expect(validationErrors.find((e) => e.loc[0] == "name")?.error_count).toBe(
       1,
     );
+  });
+
+  it("Server error counter", async () => {
+    const res = await app.request("/error");
+    expect(res.status).toBe(500);
+
+    const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
+    expect(serverErrors.length).toBe(1);
+    expect(
+      serverErrors.some(
+        (e) =>
+          e.type === "Error" &&
+          e.msg === "test" &&
+          e.traceback &&
+          e.error_count === 1,
+      ),
+    ).toBe(true);
   });
 
   it("List endpoints", async () => {

@@ -15,6 +15,14 @@ export async function getApp() {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    requestLoggingConfig: {
+      enabled: true,
+      logQueryParams: true,
+      logRequestHeaders: true,
+      logRequestBody: true,
+      logResponseHeaders: true,
+      logResponseBody: true,
+    },
   });
 
   await app.init();

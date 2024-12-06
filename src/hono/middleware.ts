@@ -7,6 +7,7 @@ import type { ZodError } from "zod";
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import { convertHeaders } from "../common/requestLogger.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -31,14 +32,13 @@ export const useApitally = (app: Hono, config: ApitallyConfig) => {
 };
 
 const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
-  const zodInstalled = getPackageVersion("zod") !== null;
-
   return async (c, next) => {
     const startTime = performance.now();
     await next();
     let response;
     const responseTime = performance.now() - startTime;
     const [responseSize, newResponse] = await measureResponseSize(c.res);
+    const requestSize = c.req.header("Content-Length");
     const consumer = getConsumer(c);
     client.consumerRegistry.addOrUpdateConsumer(consumer);
     client.requestCounter.addRequest({
@@ -47,11 +47,11 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
       path: c.req.routePath,
       statusCode: c.res.status,
       responseTime,
-      requestSize: c.req.header("Content-Length"),
+      requestSize,
       responseSize,
     });
     response = newResponse;
-    if (c.res.status === 400 && zodInstalled) {
+    if (c.res.status === 400) {
       const [responseJson, newResponse] = await getResponseJson(response);
       const validationErrors = extractZodErrors(responseJson);
       validationErrors.forEach((error) => {
@@ -73,6 +73,37 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
         msg: c.error.message,
         traceback: c.error.stack || "",
       });
+    }
+    if (client.requestLogger.enabled) {
+      let requestBody;
+      let responseBody;
+      let newResponse = response;
+      if (client.requestLogger.config.logRequestBody) {
+        requestBody = Buffer.from(await c.req.arrayBuffer());
+      }
+      if (client.requestLogger.config.logResponseBody) {
+        [responseBody, newResponse] = await getResponseBody(response);
+        response = newResponse;
+      }
+      client.requestLogger.logRequest(
+        {
+          timestamp: Date.now() / 1000,
+          method: c.req.method,
+          path: c.req.routePath,
+          url: c.req.url,
+          headers: convertHeaders(c.req.header()),
+          size: Number(requestSize),
+          consumer: consumer?.identifier,
+          body: requestBody,
+        },
+        {
+          statusCode: c.res.status,
+          responseTime,
+          headers: convertHeaders(c.res.headers),
+          size: responseSize,
+          body: responseBody,
+        },
+      );
     }
     c.res = response;
   };
@@ -103,6 +134,14 @@ const measureResponseSize = async (
     }
   }
   return [size, newResponse1];
+};
+
+const getResponseBody = async (
+  response: Response,
+): Promise<[Buffer, Response]> => {
+  const [newResponse1, newResponse2] = await teeResponse(response);
+  const responseBuffer = Buffer.from(await newResponse2.arrayBuffer());
+  return [responseBuffer, newResponse1];
 };
 
 const getResponseJson = async (

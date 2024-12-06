@@ -12,6 +12,14 @@ export const getApp = async () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    requestLoggingConfig: {
+      enabled: true,
+      logQueryParams: true,
+      logRequestHeaders: true,
+      logRequestBody: true,
+      logResponseHeaders: true,
+      logResponseBody: true,
+    },
   });
 
   app.get(

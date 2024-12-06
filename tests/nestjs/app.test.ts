@@ -22,8 +22,9 @@ describe("Middleware for NestJS", () => {
     await new Promise((resolve) => setTimeout(resolve, 1200));
   });
 
-  it("Request logger", async () => {
+  it("Request counter", async () => {
     await appTest.get("/hello?name=John&age=20").expect(200);
+    await appTest.post("/hello").send({ name: "John", age: 20 }).expect(201);
     await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
     await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
 
@@ -34,7 +35,7 @@ describe("Middleware for NestJS", () => {
     loggerSpy.mockRestore();
 
     const requests = client.requestCounter.getAndResetRequests();
-    expect(requests.length).toBe(3);
+    expect(requests.length).toBe(4);
     expect(
       requests.some(
         (r) =>
@@ -45,11 +46,81 @@ describe("Middleware for NestJS", () => {
       ),
     ).toBe(true);
     expect(
+      requests.some(
+        (r) =>
+          r.method === "POST" &&
+          r.path === "/hello" &&
+          r.status_code === 201 &&
+          r.request_size_sum > 0 &&
+          r.response_size_sum > 0,
+      ),
+    ).toBe(true);
+    expect(
       requests.some((r) => r.status_code === 400 && r.request_count === 2),
     ).toBe(true);
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
+  });
+
+  it("Request logger", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+    let call;
+
+    await appTest.get("/hello?name=John&age=20").expect(200);
+    expect(spy).toHaveBeenCalledOnce();
+    call = spy.mock.calls[0];
+    expect(call[0].method).toBe("GET");
+    expect(call[0].path).toBe("/hello");
+    expect(call[0].url).toMatch(
+      /^http:\/\/127\.0\.0\.1:\d+\/hello\?name=John&age=20$/,
+    );
+    expect(call[0].consumer).toBe("test");
+    expect(call[1].statusCode).toBe(200);
+    expect(call[1].responseTime).toBeGreaterThan(0);
+    expect(call[1].size).toBeGreaterThan(0);
+    expect(call[1].headers).toContainEqual([
+      "content-type",
+      "text/plain; charset=utf-8",
+    ]);
+    expect(call[1].body).toBeInstanceOf(Buffer);
+    expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    spy.mockReset();
+
+    await appTest.post("/hello").send({ name: "John", age: 20 }).expect(201);
+    expect(spy).toHaveBeenCalledOnce();
+    call = spy.mock.calls[0];
+    expect(call[0].method).toBe("POST");
+    expect(call[0].path).toBe("/hello");
+    expect(call[0].headers).toContainEqual([
+      "content-type",
+      "application/json",
+    ]);
+    expect(call[0].body).toBeInstanceOf(Buffer);
+    expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
+    expect(call[1].body).toBeInstanceOf(Buffer);
+    expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+  });
+
+  it("Validation error counter", async () => {
+    await appTest.get("/hello?name=John&age=20").expect(200);
+    await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
+    await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
+
+    const validationErrors =
+      client.validationErrorCounter.getAndResetValidationErrors();
+    expect(validationErrors.length).toBe(2);
+    expect(
+      validationErrors.find((e) => e.msg.startsWith("age"))?.error_count,
+    ).toBe(2);
+  });
+
+  it("Server error counter", async () => {
+    const loggerSpy = vi
+      .spyOn((BaseExceptionFilter as any).logger, "error")
+      .mockImplementation(() => {});
+    await appTest.get("/error").expect(500);
+    loggerSpy.mockRestore();
 
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(serverErrors.length).toBe(1);
@@ -64,23 +135,14 @@ describe("Middleware for NestJS", () => {
     ).toBe(true);
   });
 
-  it("Validation error logger", async () => {
-    await appTest.get("/hello?name=John&age=20").expect(200);
-    await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
-    await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
-
-    const validationErrors =
-      client.validationErrorCounter.getAndResetValidationErrors();
-    expect(validationErrors.length).toBe(2);
-    expect(
-      validationErrors.find((e) => e.msg.startsWith("age"))?.error_count,
-    ).toBe(2);
-  });
-
   it("List endpoints", async () => {
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
+        path: "/hello",
+      },
+      {
+        method: "POST",
         path: "/hello",
       },
       {

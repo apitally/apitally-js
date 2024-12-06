@@ -75,18 +75,6 @@ testCases.forEach(({ name, getApp }) => {
       expect(
         requests.some((r) => r.status_code === 500 && r.request_count === 1),
       ).toBe(true);
-
-      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
-      expect(serverErrors.length).toBe(1);
-      expect(
-        serverErrors.some(
-          (e) =>
-            e.type === "Error" &&
-            e.msg === "test" &&
-            e.traceback &&
-            e.error_count === 1,
-        ),
-      ).toBe(true);
     });
 
     it("Request logger", async () => {
@@ -142,6 +130,22 @@ testCases.forEach(({ name, getApp }) => {
       ).toBe(2);
     });
 
+    it("Server error counter", async () => {
+      await appTest.get("/error").expect(500);
+
+      const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
+      expect(serverErrors.length).toBe(1);
+      expect(
+        serverErrors.some(
+          (e) =>
+            e.type === "Error" &&
+            e.msg === "test" &&
+            e.traceback &&
+            e.error_count === 1,
+        ),
+      ).toBe(true);
+    });
+
     it("List endpoints", async () => {
       expect(client.startupData?.paths).toEqual([
         {
@@ -186,7 +190,7 @@ describe("Middleware for Express router", () => {
     await new Promise((resolve) => setTimeout(resolve, 1200));
   });
 
-  it("Request logger", async () => {
+  it("Request counter", async () => {
     await appTest.get("/api/hello").expect(200);
 
     const requests = client.requestCounter.getAndResetRequests();
@@ -232,7 +236,7 @@ describe("Middleware for Express with nested routers", () => {
     await new Promise((resolve) => setTimeout(resolve, 1200));
   });
 
-  it("Request logger", async () => {
+  it("Request counter", async () => {
     await appTest.get("/health").expect(200);
     await appTest.get("/api/v1/hello/bob").expect(200);
     await appTest.get("/api/v2/goodbye/world").expect(200);

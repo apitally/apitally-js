@@ -9,6 +9,7 @@ import fp from "fastify-plugin";
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -62,9 +63,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   });
 
   fastify.addHook("onSend", (request, reply, payload: any, done) => {
-    try {
-      reply.payload = JSON.parse(payload);
-    } catch (error) {} // eslint-disable-line no-empty
+    reply.payload = payload;
     done();
   });
 
@@ -88,31 +87,39 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       if (Array.isArray(responseSize)) {
         responseSize = responseSize[0];
       }
+      const responseTime = getResponseTime(reply);
       client.consumerRegistry.addOrUpdateConsumer(consumer);
       client.requestCounter.addRequest({
         consumer: consumer?.identifier,
         method: request.method,
-        path: path,
+        path,
         statusCode: reply.statusCode,
-        responseTime: getResponseTime(reply),
+        responseTime,
         requestSize: requestSize,
         responseSize: responseSize,
       });
       if (
         (reply.statusCode === 400 || reply.statusCode === 422) &&
-        reply.payload &&
-        (!reply.payload.code || reply.payload.code === "FST_ERR_VALIDATION") &&
-        typeof reply.payload.message === "string"
+        reply.payload
       ) {
-        const validationErrors = extractAjvErrors(reply.payload.message);
-        validationErrors.forEach((error) => {
-          client.validationErrorCounter.addValidationError({
-            consumer: consumer?.identifier,
-            method: request.method,
-            path: path,
-            ...error,
-          });
-        });
+        try {
+          const parsedPayload = JSON.parse(reply.payload);
+          if (
+            (!parsedPayload.code ||
+              parsedPayload.code === "FST_ERR_VALIDATION") &&
+            typeof parsedPayload.message === "string"
+          ) {
+            const validationErrors = extractAjvErrors(parsedPayload.message);
+            validationErrors.forEach((error) => {
+              client.validationErrorCounter.addValidationError({
+                consumer: consumer?.identifier,
+                method: request.method,
+                path: path,
+                ...error,
+              });
+            });
+          }
+        } catch (error) {} // eslint-disable-line no-empty
       }
       if (reply.statusCode === 500 && reply.serverError) {
         client.serverErrorCounter.addServerError({
@@ -123,6 +130,30 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
           msg: reply.serverError.message,
           traceback: reply.serverError.stack || "",
         });
+      }
+      if (client.requestLogger.enabled) {
+        client.requestLogger.logRequest(
+          {
+            timestamp: Date.now() / 1000,
+            method: request.method,
+            path,
+            url: `${request.protocol}://${request.host}${request.url}`,
+            headers: convertHeaders(request.headers),
+            size: Number(requestSize),
+            consumer: consumer?.identifier,
+            body: convertBody(request.body, request.headers["content-type"]),
+          },
+          {
+            statusCode: reply.statusCode,
+            responseTime,
+            headers: convertHeaders(reply.getHeaders()),
+            size: Number(responseSize),
+            body: convertBody(
+              reply.payload,
+              reply.getHeader("content-type")?.toString(),
+            ),
+          },
+        );
       }
     }
     done();

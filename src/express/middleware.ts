@@ -125,9 +125,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 path,
                 url: `${req.protocol}://${req.headers["host"]}${req.originalUrl}`,
                 headers: convertHeaders(req.headers),
-                size: req.get("content-length")
-                  ? parseInt(req.get("content-length") ?? "0")
-                  : undefined,
+                size: Number(req.get("content-length")),
                 consumer: consumer?.identifier,
                 body: convertBody(req.body, req.get("content-type")),
               },
@@ -135,9 +133,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 statusCode: res.statusCode,
                 responseTime,
                 headers: convertHeaders(res.getHeaders()),
-                size: res.hasHeader("content-length")
-                  ? parseInt(res.get("content-length") ?? "0")
-                  : undefined,
+                size: Number(res.get("content-length")),
                 body: convertBody(res.locals.body, res.get("content-type")),
               },
             );
