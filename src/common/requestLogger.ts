@@ -67,16 +67,11 @@ export type RequestLoggingConfig = {
   logResponseBody: boolean;
   maskQueryParams: RegExp[];
   maskHeaders: RegExp[];
-  maskRequestBodyCallback?: (
-    method: string,
-    path: string,
-    body: Buffer,
-  ) => Buffer | null;
+  maskRequestBodyCallback?: (request: Request) => Buffer | null | undefined;
   maskResponseBodyCallback?: (
-    method: string,
-    path: string,
-    body: Buffer,
-  ) => Buffer | null;
+    request: Request,
+    response: Response,
+  ) => Buffer | null | undefined;
   excludePaths: RegExp[];
   excludeCallback?: (request: Request, response: Response) => boolean;
 };
@@ -142,6 +137,9 @@ export default class RequestLogger {
   }
 
   private maskQueryParams(url: URL) {
+    if (!this.config.logQueryParams) {
+      return "";
+    }
     const params = new URLSearchParams(url.search);
     for (const [key] of params) {
       if (this.shouldMaskQueryParam(key)) {
@@ -169,11 +167,8 @@ export default class RequestLogger {
     }
 
     // Process query params
-    if (this.config.logQueryParams) {
-      const maskedQuery = this.maskQueryParams(url);
-      url.search = maskedQuery;
-      request.url = url.toString();
-    }
+    url.search = this.maskQueryParams(url);
+    request.url = url.toString();
 
     // Process headers
     request.headers = this.config.logRequestHeaders
@@ -195,11 +190,7 @@ export default class RequestLogger {
       } else if (this.config.maskRequestBodyCallback) {
         try {
           request.body =
-            this.config.maskRequestBodyCallback(
-              request.method,
-              path,
-              request.body,
-            ) ?? BODY_MASKED;
+            this.config.maskRequestBodyCallback(request) ?? BODY_MASKED;
         } catch {
           request.body = undefined;
         }
@@ -218,11 +209,8 @@ export default class RequestLogger {
       } else if (this.config.maskResponseBodyCallback) {
         try {
           response.body =
-            this.config.maskResponseBodyCallback(
-              request.method,
-              path,
-              response.body,
-            ) ?? BODY_MASKED;
+            this.config.maskResponseBodyCallback(request, response) ??
+            BODY_MASKED;
         } catch {
           response.body = undefined;
         }
@@ -234,18 +222,14 @@ export default class RequestLogger {
       request: skipEmptyValues(request),
       response: skipEmptyValues(response),
     };
-    if (item.request.body) {
-      // @ts-expect-error Different return type
-      item.request.body.toJSON = function () {
-        return this.toString("base64");
-      };
-    }
-    if (item.response.body) {
-      // @ts-expect-error Different return type
-      item.response.body.toJSON = function () {
-        return this.toString("base64");
-      };
-    }
+    [item.request.body, item.response.body].forEach((body) => {
+      if (body) {
+        // @ts-expect-error Different return type
+        body.toJSON = function () {
+          return this.toString("base64");
+        };
+      }
+    });
     this.pendingWrites.push(JSON.stringify(item));
 
     if (this.pendingWrites.length > MAX_PENDING_WRITES) {
