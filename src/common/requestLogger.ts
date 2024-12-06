@@ -136,11 +136,8 @@ export default class RequestLogger {
     );
   }
 
-  private maskQueryParams(url: URL) {
-    if (!this.config.logQueryParams) {
-      return "";
-    }
-    const params = new URLSearchParams(url.search);
+  private maskQueryParams(search: string) {
+    const params = new URLSearchParams(search);
     for (const [key] of params) {
       if (this.shouldMaskQueryParam(key)) {
         params.set(key, MASKED);
@@ -167,7 +164,9 @@ export default class RequestLogger {
     }
 
     // Process query params
-    url.search = this.maskQueryParams(url);
+    url.search = this.config.logQueryParams
+      ? this.maskQueryParams(url.search)
+      : "";
     request.url = url.toString();
 
     // Process headers
@@ -191,6 +190,9 @@ export default class RequestLogger {
         try {
           request.body =
             this.config.maskRequestBodyCallback(request) ?? BODY_MASKED;
+          if (request.body.length > MAX_BODY_SIZE) {
+            request.body = BODY_TOO_LARGE;
+          }
         } catch {
           request.body = undefined;
         }
@@ -211,6 +213,9 @@ export default class RequestLogger {
           response.body =
             this.config.maskResponseBodyCallback(request, response) ??
             BODY_MASKED;
+          if (response.body.length > MAX_BODY_SIZE) {
+            response.body = BODY_TOO_LARGE;
+          }
         } catch {
           response.body = undefined;
         }
