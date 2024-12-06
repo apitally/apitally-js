@@ -123,7 +123,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 timestamp: Date.now() / 1000,
                 method: req.method,
                 path,
-                url: `${req.protocol}://${req.headers["host"]}${req.originalUrl}`,
+                url: `${req.protocol}://${req.host}${req.originalUrl}`,
                 headers: convertHeaders(req.headers),
                 size: Number(req.get("content-length")),
                 consumer: consumer?.identifier,

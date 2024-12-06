@@ -73,7 +73,7 @@ describe("Middleware for NestJS", () => {
     expect(call[0].method).toBe("GET");
     expect(call[0].path).toBe("/hello");
     expect(call[0].url).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/hello\?name=John&age=20$/,
+      /^http:\/\/127\.0\.0\.1(:\d+)?\/hello\?name=John&age=20$/,
     );
     expect(call[0].consumer).toBe("test");
     expect(call[1].statusCode).toBe(200);

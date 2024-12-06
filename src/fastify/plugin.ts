@@ -137,7 +137,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
             timestamp: Date.now() / 1000,
             method: request.method,
             path,
-            url: `${request.protocol}://${request.host}${request.url}`,
+            url: `${request.protocol}://${request.host ?? request.hostname}${request.originalUrl}`,
             headers: convertHeaders(request.headers),
             size: Number(requestSize),
             consumer: consumer?.identifier,
