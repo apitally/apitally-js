@@ -37,7 +37,7 @@ testCases.forEach(({ name, router, getApp }) => {
       await new Promise((resolve) => setTimeout(resolve, 1200));
     });
 
-    it("Request logger", async () => {
+    it("Request counter", async () => {
       await appTest.get("/hello?name=John&age=20").expect(200);
       await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
 
@@ -72,6 +72,54 @@ testCases.forEach(({ name, router, getApp }) => {
         ),
       ).toBe(true);
       expect(requests.some((r) => r.status_code === 500)).toBe(true);
+    });
+
+    it("Request logger", async () => {
+      const spy = vi.spyOn(client.requestLogger, "logRequest");
+      let call;
+
+      await appTest.get("/hello?name=John&age=20").expect(200);
+      expect(spy).toHaveBeenCalledOnce();
+      call = spy.mock.calls[0];
+      expect(call[0].method).toBe("GET");
+      expect(call[0].path).toBe("/hello");
+      expect(call[0].url).toMatch(
+        /^http:\/\/127\.0\.0\.1:\d+\/hello\?name=John&age=20$/,
+      );
+      expect(call[0].consumer).toBe("test");
+      expect(call[1].statusCode).toBe(200);
+      expect(call[1].responseTime).toBeGreaterThan(0);
+      expect(call[1].responseTime).toBeLessThan(1);
+      expect(call[1].size).toBeGreaterThan(0);
+      expect(call[1].headers).toContainEqual([
+        "content-type",
+        "text/plain; charset=utf-8",
+      ]);
+      expect(call[1].body).toBeInstanceOf(Buffer);
+      expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+      spy.mockReset();
+
+      await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
+      expect(spy).toHaveBeenCalledOnce();
+      call = spy.mock.calls[0];
+      expect(call[0].method).toBe("POST");
+      expect(call[0].path).toBe("/hello");
+      expect(call[0].headers).toContainEqual([
+        "content-type",
+        "application/json",
+      ]);
+      expect(call[0].body).toBeInstanceOf(Buffer);
+      expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
+      expect(call[1].body).toBeInstanceOf(Buffer);
+      expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    });
+
+    it("Server error counter", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      await appTest.get("/error").expect(500);
+      consoleSpy.mockRestore();
 
       const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(serverErrors.length).toBe(1);

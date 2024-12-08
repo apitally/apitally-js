@@ -3,6 +3,7 @@ import Koa from "koa";
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 
 export const useApitally = (app: Koa, config: ApitallyConfig) => {
@@ -36,19 +37,20 @@ const getMiddleware = (client: ApitallyClient) => {
       }
       throw error;
     } finally {
+      const responseTime = performance.now() - startTime;
+      const consumer = getConsumer(ctx);
+      client.consumerRegistry.addOrUpdateConsumer(consumer);
       if (!path) {
         path = getPath(ctx);
       }
       if (path) {
         try {
-          const consumer = getConsumer(ctx);
-          client.consumerRegistry.addOrUpdateConsumer(consumer);
           client.requestCounter.addRequest({
             consumer: consumer?.identifier,
             method: ctx.request.method,
             path,
             statusCode: statusCode || ctx.response.status,
-            responseTime: performance.now() - startTime,
+            responseTime,
             requestSize: ctx.request.length,
             responseSize: ctx.response.length,
           });
@@ -58,6 +60,33 @@ const getMiddleware = (client: ApitallyClient) => {
             { context: ctx, error },
           );
         }
+      }
+      if (client.requestLogger.enabled) {
+        client.requestLogger.logRequest(
+          {
+            timestamp: Date.now() / 1000,
+            method: ctx.request.method,
+            path,
+            url: ctx.request.href,
+            headers: convertHeaders(ctx.request.headers),
+            size: Number(ctx.request.headers["content-length"]),
+            consumer: consumer?.identifier,
+            body: convertBody(
+              ctx.request.body,
+              ctx.request.get("content-type"),
+            ),
+          },
+          {
+            statusCode: statusCode || ctx.response.status,
+            responseTime: responseTime / 1000,
+            headers: convertHeaders(ctx.response.headers),
+            size: Number(ctx.response.headers["content-length"]),
+            body: convertBody(
+              ctx.response.body,
+              ctx.response.get("content-type"),
+            ),
+          },
+        );
       }
     }
   };

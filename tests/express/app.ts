@@ -6,12 +6,23 @@ import { body, query, validationResult } from "express-validator";
 import { useApitally } from "../../src/express/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
+const requestLoggingConfig = {
+  enabled: true,
+  logQueryParams: true,
+  logRequestHeaders: true,
+  logRequestBody: true,
+  logResponseHeaders: true,
+  logResponseBody: true,
+};
+
 export const getAppWithCelebrate = () => {
   const app = express();
+  app.use(express.json());
 
   useApitally(app, {
     clientId: CLIENT_ID,
     env: ENV,
+    requestLoggingConfig,
   });
 
   app.get(
@@ -27,6 +38,7 @@ export const getAppWithCelebrate = () => {
     ),
     (req: Request, res) => {
       req.apitallyConsumer = "test";
+      res.type("txt");
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
       );
@@ -47,6 +59,7 @@ export const getAppWithCelebrate = () => {
       { abortEarly: false },
     ),
     (req, res) => {
+      res.type("txt");
       res.send(`Hello ${req.body?.name}! You are ${req.body?.age} years old!`);
     },
   );
@@ -66,6 +79,7 @@ export const getAppWithValidator = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    requestLoggingConfig,
   });
 
   app.get(
@@ -76,6 +90,7 @@ export const getAppWithValidator = () => {
       req.apitallyConsumer = "test";
       const result = validationResult(req);
       if (result.isEmpty()) {
+        res.type("txt");
         return res.send(
           `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
         );
@@ -93,6 +108,7 @@ export const getAppWithValidator = () => {
     (req, res) => {
       const result = validationResult(req);
       if (result.isEmpty()) {
+        res.type("txt");
         return res.send(
           `Hello ${req.body?.name}! You are ${req.body?.age} years old!`,
         );
@@ -116,6 +132,7 @@ export const getAppWithMiddlewareOnRouter = () => {
     env: ENV,
     appVersion: "1.2.3",
     basePath: "/api",
+    requestLoggingConfig,
   });
 
   router.get("/hello", (req, res) => {
@@ -137,6 +154,7 @@ export const getAppWithNestedRouters = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    requestLoggingConfig,
   });
 
   router1.get("/health", (req, res) => {

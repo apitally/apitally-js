@@ -1,6 +1,6 @@
 import { Express } from "express";
 import request from "supertest";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
@@ -34,11 +34,11 @@ testCases.forEach(({ name, getApp }) => {
       appTest = request(app);
       client = ApitallyClient.getInstance();
 
-      // Wait for 1.2 seconds for startup data to be set
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      // Wait for 1.1 seconds for startup data to be set
+      await new Promise((resolve) => setTimeout(resolve, 1100));
     });
 
-    it("Request logger", async () => {
+    it("Request counter", async () => {
       await appTest.get("/hello?name=John&age=20").expect(200);
       await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
       await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
@@ -75,6 +75,64 @@ testCases.forEach(({ name, getApp }) => {
       expect(
         requests.some((r) => r.status_code === 500 && r.request_count === 1),
       ).toBe(true);
+    });
+
+    it("Request logger", async () => {
+      const spy = vi.spyOn(client.requestLogger, "logRequest");
+      let call;
+
+      await appTest.get("/hello?name=John&age=20").expect(200);
+      expect(spy).toHaveBeenCalledOnce();
+      call = spy.mock.calls[0];
+      expect(call[0].method).toBe("GET");
+      expect(call[0].path).toBe("/hello");
+      expect(call[0].url).toMatch(
+        /^http:\/\/127\.0\.0\.1(:\d+)?\/hello\?name=John&age=20$/,
+      );
+      expect(call[0].consumer).toBe("test");
+      expect(call[1].statusCode).toBe(200);
+      expect(call[1].responseTime).toBeGreaterThan(0);
+      expect(call[1].responseTime).toBeLessThan(1);
+      expect(call[1].size).toBeGreaterThan(0);
+      expect(call[1].headers).toContainEqual([
+        "content-type",
+        "text/plain; charset=utf-8",
+      ]);
+      expect(call[1].body).toBeInstanceOf(Buffer);
+      expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+      spy.mockReset();
+
+      await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
+      expect(spy).toHaveBeenCalledOnce();
+      call = spy.mock.calls[0];
+      expect(call[0].method).toBe("POST");
+      expect(call[0].path).toBe("/hello");
+      expect(call[0].headers).toContainEqual([
+        "content-type",
+        "application/json",
+      ]);
+      expect(call[0].body).toBeInstanceOf(Buffer);
+      expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
+      expect(call[1].body).toBeInstanceOf(Buffer);
+      expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    });
+
+    it("Validation error counter", async () => {
+      await appTest.get("/hello?name=John&age=20").expect(200);
+      await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
+      await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
+
+      const validationErrors =
+        client.validationErrorCounter.getAndResetValidationErrors();
+      expect(validationErrors.length).toBe(2);
+      expect(
+        validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
+          ?.error_count,
+      ).toBe(2);
+    });
+
+    it("Server error counter", async () => {
+      await appTest.get("/error").expect(500);
 
       const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
       expect(serverErrors.length).toBe(1);
@@ -87,20 +145,6 @@ testCases.forEach(({ name, getApp }) => {
             e.error_count === 1,
         ),
       ).toBe(true);
-    });
-
-    it("Validation error logger", async () => {
-      await appTest.get("/hello?name=John&age=20").expect(200);
-      await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
-      await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
-
-      const validationErrors =
-        client.validationErrorCounter.getAndResetValidationErrors();
-      expect(validationErrors.length).toBe(2);
-      expect(
-        validationErrors.find((e) => e.loc[0] == "query" && e.loc[1] == "age")
-          ?.error_count,
-      ).toBe(2);
     });
 
     it("List endpoints", async () => {
@@ -147,7 +191,7 @@ describe("Middleware for Express router", () => {
     await new Promise((resolve) => setTimeout(resolve, 1200));
   });
 
-  it("Request logger", async () => {
+  it("Request counter", async () => {
     await appTest.get("/api/hello").expect(200);
 
     const requests = client.requestCounter.getAndResetRequests();
@@ -193,7 +237,7 @@ describe("Middleware for Express with nested routers", () => {
     await new Promise((resolve) => setTimeout(resolve, 1200));
   });
 
-  it("Request logger", async () => {
+  it("Request counter", async () => {
     await appTest.get("/health").expect(200);
     await appTest.get("/api/v1/hello/bob").expect(200);
     await appTest.get("/api/v2/goodbye/world").expect(200);

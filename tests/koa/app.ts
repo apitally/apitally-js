@@ -6,6 +6,15 @@ import route from "koa-route";
 import { useApitally } from "../../src/koa/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
+const requestLoggingConfig = {
+  enabled: true,
+  logQueryParams: true,
+  logRequestHeaders: true,
+  logRequestBody: true,
+  logResponseHeaders: true,
+  logResponseBody: true,
+};
+
 export const getAppWithKoaRouter = () => {
   const app = new Koa();
   const router = new Router();
@@ -14,6 +23,7 @@ export const getAppWithKoaRouter = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    requestLoggingConfig,
   });
 
   router.get("/hello", async (ctx) => {
@@ -45,6 +55,7 @@ export const getAppWithKoaRoute = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
+    requestLoggingConfig,
   });
 
   app.use(bodyParser());

@@ -1,9 +1,11 @@
 import { randomUUID } from "crypto";
 import fetchRetry from "fetch-retry";
+
 import ConsumerRegistry from "./consumerRegistry.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
+import RequestLogger from "./requestLogger.js";
 import ServerErrorCounter from "./serverErrorCounter.js";
 import {
   ApitallyConfig,
@@ -42,12 +44,18 @@ export class ApitallyClient {
   private startupDataSent: boolean = false;
 
   public requestCounter: RequestCounter;
+  public requestLogger: RequestLogger;
   public validationErrorCounter: ValidationErrorCounter;
   public serverErrorCounter: ServerErrorCounter;
   public consumerRegistry: ConsumerRegistry;
   public logger: Logger;
 
-  constructor({ clientId, env = "dev", logger }: ApitallyConfig) {
+  constructor({
+    clientId,
+    env = "dev",
+    requestLoggingConfig,
+    logger,
+  }: ApitallyConfig) {
     if (ApitallyClient.instance) {
       throw new Error("Apitally client is already initialized");
     }
@@ -68,6 +76,7 @@ export class ApitallyClient {
     this.instanceUuid = randomUUID();
     this.syncDataQueue = [];
     this.requestCounter = new RequestCounter();
+    this.requestLogger = new RequestLogger(requestLoggingConfig);
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
     this.consumerRegistry = new ConsumerRegistry();
@@ -93,6 +102,8 @@ export class ApitallyClient {
   public async handleShutdown() {
     this.stopSync();
     await this.sendSyncData();
+    await this.sendLogData();
+    await this.requestLogger.close();
     ApitallyClient.instance = undefined;
   }
 
@@ -134,7 +145,7 @@ export class ApitallyClient {
 
   private async sync() {
     try {
-      const promises = [this.sendSyncData()];
+      const promises = [this.sendSyncData(), this.sendLogData()];
       if (!this.startupDataSent) {
         promises.push(this.sendStartupData());
       }
@@ -206,8 +217,7 @@ export class ApitallyClient {
           const timeOffset = Date.now() - time;
           if (timeOffset <= MAX_QUEUE_TIME) {
             if (i > 0) {
-              const waitMs = 100 + Math.random() * 200;
-              await new Promise((resolve) => setTimeout(resolve, waitMs));
+              await this.randomDelay();
             }
             payload.time_offset = timeOffset / 1000.0; // in seconds
             await this.sendData("sync", payload);
@@ -228,6 +238,58 @@ export class ApitallyClient {
     }
   }
 
+  private async sendLogData() {
+    this.logger.debug("Sending request log data to Apitally Hub");
+    await this.requestLogger.rotateFile();
+
+    const fetchWithRetry = fetchRetry(fetch, {
+      retries: 3,
+      retryDelay: 1000,
+      retryOn: [408, 429, 500, 502, 503, 504],
+    });
+
+    let i = 0;
+    let logFile;
+    while ((logFile = this.requestLogger.getFile())) {
+      if (i > 0) {
+        await this.randomDelay();
+      }
+
+      try {
+        const response = await fetchWithRetry(
+          `${this.getHubUrlPrefix()}log?uuid=${logFile.uuid}`,
+          {
+            method: "POST",
+            body: await logFile.getContent(),
+          },
+        );
+
+        if (response.status === 402 && response.headers.has("Retry-After")) {
+          const retryAfter = parseInt(
+            response.headers.get("Retry-After") ?? "0",
+          );
+          if (retryAfter > 0) {
+            this.requestLogger.suspendUntil = Date.now() + retryAfter * 1000;
+            this.requestLogger.clear();
+            return;
+          }
+        }
+
+        if (!response.ok) {
+          throw new HTTPError(response);
+        }
+
+        logFile.delete();
+      } catch (error) {
+        this.requestLogger.retryFileLater(logFile);
+        break;
+      }
+
+      i++;
+      if (i >= 10) break;
+    }
+  }
+
   private handleHubError(error: unknown) {
     if (error instanceof HTTPError) {
       if (error.response.status === 404) {
@@ -241,5 +303,10 @@ export class ApitallyClient {
       }
     }
     return false;
+  }
+
+  private async randomDelay() {
+    const delay = 100 + Math.random() * 200;
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 }
