@@ -98,7 +98,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
         },
         {
           statusCode: c.res.status,
-          responseTime,
+          responseTime: responseTime / 1000,
           headers: convertHeaders(c.res.headers),
           size: responseSize,
           body: responseBody,

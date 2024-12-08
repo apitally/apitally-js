@@ -78,7 +78,7 @@ const getMiddleware = (client: ApitallyClient) => {
           },
           {
             statusCode: statusCode || ctx.response.status,
-            responseTime,
+            responseTime: responseTime / 1000,
             headers: convertHeaders(ctx.response.headers),
             size: Number(ctx.response.headers["content-length"]),
             body: convertBody(

@@ -273,9 +273,10 @@ export default class RequestLogger {
     }
   }
 
-  maintain() {
+  async maintain() {
+    await this.writeToFile();
     if (this.currentFile && this.currentFile.size > MAX_FILE_SIZE) {
-      this.rotateFile();
+      await this.rotateFile();
     }
     while (this.files.length > MAX_FILES) {
       const file = this.files.shift();

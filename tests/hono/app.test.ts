@@ -105,6 +105,7 @@ describe("Middleware for Hono", () => {
     expect(call[0].consumer).toBe("test");
     expect(call[1].statusCode).toBe(200);
     expect(call[1].responseTime).toBeGreaterThan(0);
+    expect(call[1].responseTime).toBeLessThan(1);
     expect(call[1].size).toBeGreaterThan(0);
     expect(call[1].headers).toContainEqual([
       "content-type",

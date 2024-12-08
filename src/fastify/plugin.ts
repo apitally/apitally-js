@@ -145,7 +145,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
           },
           {
             statusCode: reply.statusCode,
-            responseTime,
+            responseTime: responseTime / 1000,
             headers: convertHeaders(reply.getHeaders()),
             size: Number(responseSize),
             body: convertBody(

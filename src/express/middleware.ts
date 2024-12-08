@@ -131,7 +131,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               },
               {
                 statusCode: res.statusCode,
-                responseTime,
+                responseTime: responseTime / 1000,
                 headers: convertHeaders(res.getHeaders()),
                 size: Number(res.get("content-length")),
                 body: convertBody(res.locals.body, res.get("content-type")),
