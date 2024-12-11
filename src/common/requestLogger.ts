@@ -16,12 +16,12 @@ const BODY_MASKED = Buffer.from("<masked>");
 const MASKED = "******";
 const ALLOWED_CONTENT_TYPES = ["application/json", "text/plain"];
 const EXCLUDE_PATH_PATTERNS = [
-  /\/_?healthz?$/,
-  /\/_?health[_-]?checks?$/,
-  /\/_?heart[_-]?beats?$/,
-  /\/ping$/,
-  /\/ready$/,
-  /\/live$/,
+  /\/_?healthz?$/i,
+  /\/_?health[_-]?checks?$/i,
+  /\/_?heart[_-]?beats?$/i,
+  /\/ping$/i,
+  /\/ready$/i,
+  /\/live$/i,
 ];
 const MASK_QUERY_PARAM_PATTERNS = [
   /auth/i,
