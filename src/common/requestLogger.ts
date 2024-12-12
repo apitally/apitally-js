@@ -23,6 +23,12 @@ const EXCLUDE_PATH_PATTERNS = [
   /\/ready$/i,
   /\/live$/i,
 ];
+const EXCLUDE_USER_AGENT_PATTERNS = [
+  /health[-_ ]?check/i,
+  /microsoft-azure-application-lb/i,
+  /googlehc/i,
+  /kube-probe/i,
+];
 const MASK_QUERY_PARAM_PATTERNS = [
   /auth/i,
   /api-?key/i,
@@ -113,6 +119,12 @@ export default class RequestLogger {
     return matchPatterns(urlPath, patterns);
   }
 
+  private shouldExcludeUserAgent(userAgent?: string) {
+    return userAgent
+      ? matchPatterns(userAgent, EXCLUDE_USER_AGENT_PATTERNS)
+      : false;
+  }
+
   private shouldMaskQueryParam(name: string) {
     const patterns = [
       ...this.config.maskQueryParams,
@@ -155,9 +167,13 @@ export default class RequestLogger {
 
     const url = new URL(request.url);
     const path = request.path ?? url.pathname;
+    const userAgent = request.headers.find(
+      ([k]) => k.toLowerCase() === "user-agent",
+    )?.[1];
 
     if (
       this.shouldExcludePath(path) ||
+      this.shouldExcludeUserAgent(userAgent) ||
       (this.config.excludeCallback?.(request, response) ?? false)
     ) {
       return;
