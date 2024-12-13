@@ -1,3 +1,4 @@
+import AsyncLock from "async-lock";
 import { Buffer } from "buffer";
 import { randomUUID } from "crypto";
 import { unlinkSync, writeFileSync } from "fs";
@@ -102,6 +103,7 @@ export default class RequestLogger {
   private currentFile: TempGzipFile | null = null;
   private files: TempGzipFile[] = [];
   private maintainIntervalId?: NodeJS.Timeout;
+  private lock = new AsyncLock();
 
   constructor(config?: Partial<RequestLoggingConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -262,15 +264,17 @@ export default class RequestLogger {
     if (!this.enabled || this.pendingWrites.length === 0) {
       return;
     }
-    if (!this.currentFile) {
-      this.currentFile = new TempGzipFile();
-    }
-    while (this.pendingWrites.length > 0) {
-      const item = this.pendingWrites.shift();
-      if (item) {
-        await this.currentFile.writeLine(Buffer.from(item));
+    return this.lock.acquire("file", async () => {
+      if (!this.currentFile) {
+        this.currentFile = new TempGzipFile();
       }
-    }
+      while (this.pendingWrites.length > 0) {
+        const item = this.pendingWrites.shift();
+        if (item) {
+          await this.currentFile.writeLine(Buffer.from(item));
+        }
+      }
+    });
   }
 
   getFile() {
@@ -282,11 +286,13 @@ export default class RequestLogger {
   }
 
   async rotateFile() {
-    if (this.currentFile) {
-      await this.currentFile.close();
-      this.files.push(this.currentFile);
-      this.currentFile = null;
-    }
+    return this.lock.acquire("file", async () => {
+      if (this.currentFile) {
+        await this.currentFile.close();
+        this.files.push(this.currentFile);
+        this.currentFile = null;
+      }
+    });
   }
 
   async maintain() {
