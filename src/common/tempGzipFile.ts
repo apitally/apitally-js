@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import { createWriteStream, readFile, unlinkSync, WriteStream } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-
 import { createGzip, Gzip } from "zlib";
 
 export default class TempGzipFile {
@@ -12,6 +11,7 @@ export default class TempGzipFile {
   private gzip: Gzip;
   private writeStream: WriteStream;
   private readyPromise: Promise<void>;
+  private closedPromise: Promise<void>;
 
   constructor() {
     this.uuid = randomUUID();
@@ -20,6 +20,10 @@ export default class TempGzipFile {
     this.readyPromise = new Promise<void>((resolve, reject) => {
       this.writeStream.once("ready", resolve);
       this.writeStream.once("error", reject);
+    });
+    this.closedPromise = new Promise<void>((resolve) => {
+      this.writeStream.once("close", resolve);
+      this.writeStream.once("error", resolve);
     });
     this.gzip = createGzip();
     this.gzip.pipe(this.writeStream);
@@ -55,11 +59,12 @@ export default class TempGzipFile {
   }
 
   async close() {
-    return new Promise<void>((resolve) => {
+    await new Promise<void>((resolve) => {
       this.gzip.end(() => {
         resolve();
       });
     });
+    await this.closedPromise;
   }
 
   async delete() {
