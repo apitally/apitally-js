@@ -85,7 +85,7 @@ export type ServerErrorsItem = ConsumerMethodPath & {
 export type ConsumerItem = ApitallyConsumer;
 
 export type SyncPayload = {
-  time_offset: number;
+  timestamp: number;
   instance_uuid: string;
   message_uuid: string;
   requests: Array<RequestsItem>;
