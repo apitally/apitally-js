@@ -38,7 +38,7 @@ export class ApitallyClient {
 
   private static instance?: ApitallyClient;
   private instanceUuid: string;
-  private syncDataQueue: Array<[number, SyncPayload]>;
+  private syncDataQueue: SyncPayload[];
   private syncIntervalId?: NodeJS.Timeout;
   public startupData?: StartupData;
   private startupDataSent: boolean = false;
@@ -197,7 +197,7 @@ export class ApitallyClient {
   private async sendSyncData() {
     this.logger.debug("Synchronizing data with Apitally Hub");
     const newPayload: SyncPayload = {
-      time_offset: 0,
+      timestamp: Date.now() / 1000,
       instance_uuid: this.instanceUuid,
       message_uuid: randomUUID(),
       requests: this.requestCounter.getAndResetRequests(),
@@ -206,20 +206,17 @@ export class ApitallyClient {
       server_errors: this.serverErrorCounter.getAndResetServerErrors(),
       consumers: this.consumerRegistry.getAndResetUpdatedConsumers(),
     };
-    this.syncDataQueue.push([Date.now(), newPayload]);
+    this.syncDataQueue.push(newPayload);
 
     let i = 0;
     while (this.syncDataQueue.length > 0) {
-      const queueItem = this.syncDataQueue.shift();
-      if (queueItem) {
-        const [time, payload] = queueItem;
+      const payload = this.syncDataQueue.shift();
+      if (payload) {
         try {
-          const timeOffset = Date.now() - time;
-          if (timeOffset <= MAX_QUEUE_TIME) {
+          if (Date.now() - payload.timestamp * 1000 <= MAX_QUEUE_TIME) {
             if (i > 0) {
               await this.randomDelay();
             }
-            payload.time_offset = timeOffset / 1000.0; // in seconds
             await this.sendData("sync", payload);
             i += 1;
           }
@@ -230,7 +227,7 @@ export class ApitallyClient {
               "Error while synchronizing data with Apitally Hub (will retry)",
               { error },
             );
-            this.syncDataQueue.push(queueItem);
+            this.syncDataQueue.push(payload);
             break;
           }
         }
@@ -306,7 +303,7 @@ export class ApitallyClient {
   }
 
   private async randomDelay() {
-    const delay = 100 + Math.random() * 200;
+    const delay = 100 + Math.random() * 400;
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
 }
