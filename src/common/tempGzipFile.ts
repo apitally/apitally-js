@@ -21,9 +21,9 @@ export default class TempGzipFile {
       this.writeStream.once("ready", resolve);
       this.writeStream.once("error", reject);
     });
-    this.closedPromise = new Promise<void>((resolve) => {
+    this.closedPromise = new Promise<void>((resolve, reject) => {
       this.writeStream.once("close", resolve);
-      this.writeStream.once("error", resolve);
+      this.writeStream.once("error", reject);
     });
     this.gzip = createGzip();
     this.gzip.pipe(this.writeStream);
