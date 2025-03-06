@@ -36,6 +36,10 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
   let errorHandlerConfigured = false;
 
   return (req: Request, res: Response, next: NextFunction) => {
+    if (!client.isEnabled()) {
+      next();
+      return;
+    }
     if (!errorHandlerConfigured) {
       // Add error handling middleware to the bottom of the stack when handling the first request
       app.use(

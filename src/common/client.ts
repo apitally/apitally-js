@@ -42,6 +42,7 @@ export class ApitallyClient {
   private syncIntervalId?: NodeJS.Timeout;
   public startupData?: StartupData;
   private startupDataSent: boolean = false;
+  private enabled: boolean = true;
 
   public requestCounter: RequestCounter;
   public requestLogger: RequestLogger;
@@ -93,6 +94,10 @@ export class ApitallyClient {
     return ApitallyClient.instance;
   }
 
+  public isEnabled() {
+    return this.enabled;
+  }
+
   public static async shutdown() {
     if (ApitallyClient.instance) {
       await ApitallyClient.instance.handleShutdown();
@@ -100,6 +105,7 @@ export class ApitallyClient {
   }
 
   public async handleShutdown() {
+    this.enabled = false;
     this.stopSync();
     await this.sendSyncData();
     await this.sendLogData();
@@ -291,6 +297,7 @@ export class ApitallyClient {
     if (error instanceof HTTPError) {
       if (error.response.status === 404) {
         this.logger.error(`Invalid Apitally client ID: '${this.clientId}'`);
+        this.enabled = false;
         this.stopSync();
         return true;
       }
