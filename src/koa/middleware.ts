@@ -17,6 +17,10 @@ export const useApitally = (app: Koa, config: ApitallyConfig) => {
 
 const getMiddleware = (client: ApitallyClient) => {
   return async (ctx: Koa.Context, next: Koa.Next) => {
+    if (!client.isEnabled()) {
+      await next();
+      return;
+    }
     let path: string | undefined;
     let statusCode: number | undefined;
     const startTime = performance.now();

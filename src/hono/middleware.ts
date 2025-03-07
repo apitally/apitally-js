@@ -33,6 +33,10 @@ export const useApitally = (app: Hono, config: ApitallyConfig) => {
 
 const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
   return async (c, next) => {
+    if (!client.isEnabled()) {
+      await next();
+      return;
+    }
     const startTime = performance.now();
     await next();
     let response;

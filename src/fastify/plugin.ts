@@ -75,7 +75,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   });
 
   fastify.addHook("onResponse", (request, reply, done) => {
-    if (request.method.toUpperCase() !== "OPTIONS") {
+    if (client.isEnabled() && request.method.toUpperCase() !== "OPTIONS") {
       // Get path from routeOptions if available (from v4), otherwise fallback to deprecated routerPath
       const consumer = getConsumer(request);
       const path =
