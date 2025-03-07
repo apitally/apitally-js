@@ -149,8 +149,6 @@ export default class RequestLogger {
 
   public isSupportedContentType(contentType?: string | null) {
     return (
-      contentType !== undefined &&
-      contentType !== null &&
       typeof contentType === "string" &&
       ALLOWED_CONTENT_TYPES.some((t) => contentType.startsWith(t))
     );
