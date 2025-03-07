@@ -63,7 +63,10 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   });
 
   fastify.addHook("onSend", (request, reply, payload: any, done) => {
-    reply.payload = payload;
+    const contentType = reply.getHeader("content-type") as string | undefined;
+    if (client.requestLogger.isSupportedContentType(contentType)) {
+      reply.payload = payload;
+    }
     done();
   });
 
