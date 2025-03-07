@@ -144,8 +144,12 @@ export default class RequestLogger {
     const contentType = headers.find(
       ([k]) => k.toLowerCase() === "content-type",
     )?.[1];
+    return this.isSupportedContentType(contentType);
+  }
+
+  public isSupportedContentType(contentType?: string | null) {
     return (
-      contentType !== undefined &&
+      typeof contentType === "string" &&
       ALLOWED_CONTENT_TYPES.some((t) => contentType.startsWith(t))
     );
   }
@@ -186,14 +190,6 @@ export default class RequestLogger {
       ? this.maskQueryParams(url.search)
       : "";
     request.url = url.toString();
-
-    // Process headers
-    request.headers = this.config.logRequestHeaders
-      ? this.maskHeaders(request.headers)
-      : [];
-    response.headers = this.config.logResponseHeaders
-      ? this.maskHeaders(response.headers)
-      : [];
 
     // Process request body
     if (
@@ -239,6 +235,14 @@ export default class RequestLogger {
         }
       }
     }
+
+    // Process headers
+    request.headers = this.config.logRequestHeaders
+      ? this.maskHeaders(request.headers)
+      : [];
+    response.headers = this.config.logResponseHeaders
+      ? this.maskHeaders(response.headers)
+      : [];
 
     const item = {
       uuid: randomUUID(),

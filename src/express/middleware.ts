@@ -54,7 +54,10 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
       const startTime = performance.now();
       const originalSend = res.send;
       res.send = (body) => {
-        res.locals.body = body;
+        const contentType = res.get("content-type");
+        if (client.requestLogger.isSupportedContentType(contentType)) {
+          res.locals.body = body;
+        }
         return originalSend.call(res, body);
       };
 

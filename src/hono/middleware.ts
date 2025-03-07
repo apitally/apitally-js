@@ -82,10 +82,14 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
       let requestBody;
       let responseBody;
       let newResponse = response;
+      const responseContentType = c.res.headers.get("content-type");
       if (client.requestLogger.config.logRequestBody) {
         requestBody = Buffer.from(await c.req.arrayBuffer());
       }
-      if (client.requestLogger.config.logResponseBody) {
+      if (
+        client.requestLogger.config.logResponseBody &&
+        client.requestLogger.isSupportedContentType(responseContentType)
+      ) {
         [responseBody, newResponse] = await getResponseBody(response);
         response = newResponse;
       }
