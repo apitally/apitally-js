@@ -23,6 +23,7 @@ const getMiddleware = (client: ApitallyClient) => {
     }
     let path: string | undefined;
     let statusCode: number | undefined;
+    let serverError: Error | undefined;
     const startTime = performance.now();
     try {
       await next();
@@ -30,6 +31,7 @@ const getMiddleware = (client: ApitallyClient) => {
       path = getPath(ctx);
       statusCode = error.statusCode || error.status || 500;
       if (path && statusCode === 500 && error instanceof Error) {
+        serverError = error;
         client.serverErrorCounter.addServerError({
           consumer: getConsumer(ctx)?.identifier,
           method: ctx.request.method,
@@ -90,6 +92,7 @@ const getMiddleware = (client: ApitallyClient) => {
               ctx.response.get("content-type"),
             ),
           },
+          serverError,
         );
       }
     }

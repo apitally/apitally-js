@@ -111,6 +111,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
           size: responseSize,
           body: responseBody,
         },
+        c.error,
       );
     }
     c.res = response;

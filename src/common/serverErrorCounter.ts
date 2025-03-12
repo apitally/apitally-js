@@ -38,8 +38,8 @@ export default class ServerErrorCounter {
           method: serverError.method,
           path: serverError.path,
           type: serverError.type,
-          msg: this.getTruncatedMessage(serverError.msg),
-          traceback: this.getTruncatedStack(serverError.traceback),
+          msg: truncateExceptionMessage(serverError.msg),
+          traceback: truncateExceptionStackTrace(serverError.traceback),
           sentry_event_id: this.sentryEventIds.get(key) || null,
           error_count: count,
         });
@@ -62,33 +62,6 @@ export default class ServerErrorCounter {
     return createHash("md5").update(hashInput).digest("hex");
   }
 
-  private getTruncatedMessage(msg: string) {
-    msg = msg.trim();
-    if (msg.length <= MAX_MSG_LENGTH) {
-      return msg;
-    }
-    const suffix = "... (truncated)";
-    const cutoff = MAX_MSG_LENGTH - suffix.length;
-    return msg.substring(0, cutoff) + suffix;
-  }
-
-  private getTruncatedStack(stack: string) {
-    const suffix = "... (truncated) ...";
-    const cutoff = MAX_STACKTRACE_LENGTH - suffix.length;
-    const lines = stack.trim().split("\n");
-    const truncatedLines: string[] = [];
-    let length = 0;
-    for (const line of lines) {
-      if (length + line.length + 1 > cutoff) {
-        truncatedLines.push(suffix);
-        break;
-      }
-      truncatedLines.push(line);
-      length += line.length + 1;
-    }
-    return truncatedLines.join("\n");
-  }
-
   private captureSentryEventId(serverErrorKey: string) {
     if (this.sentry && this.sentry.lastEventId) {
       const eventId = this.sentry.lastEventId();
@@ -105,4 +78,30 @@ export default class ServerErrorCounter {
       // Sentry SDK is not installed, ignore
     }
   }
+}
+
+export function truncateExceptionMessage(msg: string) {
+  if (msg.length <= MAX_MSG_LENGTH) {
+    return msg;
+  }
+  const suffix = "... (truncated)";
+  const cutoff = MAX_MSG_LENGTH - suffix.length;
+  return msg.substring(0, cutoff) + suffix;
+}
+
+export function truncateExceptionStackTrace(stack: string) {
+  const suffix = "... (truncated) ...";
+  const cutoff = MAX_STACKTRACE_LENGTH - suffix.length;
+  const lines = stack.trim().split("\n");
+  const truncatedLines: string[] = [];
+  let length = 0;
+  for (const line of lines) {
+    if (length + line.length + 1 > cutoff) {
+      truncatedLines.push(suffix);
+      break;
+    }
+    truncatedLines.push(line);
+    length += line.length + 1;
+  }
+  return truncatedLines.join("\n");
 }
