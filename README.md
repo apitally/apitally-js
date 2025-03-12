@@ -17,13 +17,13 @@
 
 ---
 
-# Apitally client library for Node.js
+# Apitally SDK for Node.js
 
 [![Tests](https://github.com/apitally/apitally-js/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/apitally-js/actions)
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-This client library for Apitally currently supports the following Node.js web
+This SDK for Apitally currently supports the following Node.js web
 frameworks:
 
 - [Express](https://docs.apitally.io/frameworks/express)
