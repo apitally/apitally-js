@@ -6,6 +6,7 @@ import { IncomingHttpHeaders, OutgoingHttpHeaders } from "http";
 import { tmpdir } from "os";
 import { join } from "path";
 
+import { getSentryEventId } from "./sentry.js";
 import {
   truncateExceptionMessage,
   truncateExceptionStackTrace,
@@ -260,6 +261,7 @@ export default class RequestLogger {
               type: error.name,
               message: truncateExceptionMessage(error.message),
               stacktrace: truncateExceptionStackTrace(error.stack || ""),
+              sentryEventId: getSentryEventId(),
             }
           : null,
     };

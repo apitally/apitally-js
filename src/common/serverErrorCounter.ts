@@ -1,6 +1,6 @@
-import type * as Sentry from "@sentry/node";
 import { createHash } from "crypto";
 
+import { getSentryEventId } from "./sentry.js";
 import { ConsumerMethodPath, ServerError, ServerErrorsItem } from "./types.js";
 
 const MAX_MSG_LENGTH = 2048;
@@ -10,13 +10,11 @@ export default class ServerErrorCounter {
   private errorCounts: Map<string, number>;
   private errorDetails: Map<string, ConsumerMethodPath & ServerError>;
   private sentryEventIds: Map<string, string>;
-  private sentry: typeof Sentry | undefined;
 
   constructor() {
     this.errorCounts = new Map();
     this.errorDetails = new Map();
     this.sentryEventIds = new Map();
-    this.tryImportSentry();
   }
 
   public addServerError(serverError: ConsumerMethodPath & ServerError) {
@@ -25,7 +23,11 @@ export default class ServerErrorCounter {
       this.errorDetails.set(key, serverError);
     }
     this.errorCounts.set(key, (this.errorCounts.get(key) || 0) + 1);
-    this.captureSentryEventId(key);
+
+    const sentryEventId = getSentryEventId();
+    if (sentryEventId) {
+      this.sentryEventIds.set(key, sentryEventId);
+    }
   }
 
   public getAndResetServerErrors() {
@@ -60,23 +62,6 @@ export default class ServerErrorCounter {
       serverError.traceback.trim(),
     ].join("|");
     return createHash("md5").update(hashInput).digest("hex");
-  }
-
-  private captureSentryEventId(serverErrorKey: string) {
-    if (this.sentry && this.sentry.lastEventId) {
-      const eventId = this.sentry.lastEventId();
-      if (eventId) {
-        this.sentryEventIds.set(serverErrorKey, eventId);
-      }
-    }
-  }
-
-  private async tryImportSentry() {
-    try {
-      this.sentry = await import("@sentry/node");
-    } catch (e) {
-      // Sentry SDK is not installed, ignore
-    }
   }
 }
 
