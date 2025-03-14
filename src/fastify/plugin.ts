@@ -156,6 +156,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
               reply.getHeader("content-type")?.toString(),
             ),
           },
+          reply.serverError,
         );
       }
     }

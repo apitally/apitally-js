@@ -45,6 +45,7 @@ describe("Request logger", () => {
           size: 4,
           body: Buffer.from("test"),
         },
+        new Error("test"),
       );
     }
 
@@ -70,6 +71,8 @@ describe("Request logger", () => {
     expect(atob(items[0].request.body)).toBe("test");
     expect(items[0].response.statusCode).toBe(200);
     expect(atob(items[0].response.body)).toBe("test");
+    expect(items[0].exception.type).toBe("Error");
+    expect(items[0].exception.message).toBe("test");
   });
 
   it("Log exclusions", async () => {

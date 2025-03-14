@@ -143,6 +143,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 size: Number(res.get("content-length")),
                 body: convertBody(res.locals.body, res.get("content-type")),
               },
+              res.locals.serverError,
             );
           }
         } catch (error) {

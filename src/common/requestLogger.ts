@@ -6,6 +6,11 @@ import { IncomingHttpHeaders, OutgoingHttpHeaders } from "http";
 import { tmpdir } from "os";
 import { join } from "path";
 
+import { getSentryEventId } from "./sentry.js";
+import {
+  truncateExceptionMessage,
+  truncateExceptionStackTrace,
+} from "./serverErrorCounter.js";
 import TempGzipFile from "./tempGzipFile.js";
 
 const MAX_BODY_SIZE = 50_000; // 50 KB (uncompressed)
@@ -72,6 +77,7 @@ export type RequestLoggingConfig = {
   logRequestBody: boolean;
   logResponseHeaders: boolean;
   logResponseBody: boolean;
+  logException: boolean;
   maskQueryParams: RegExp[];
   maskHeaders: RegExp[];
   maskRequestBodyCallback?: (request: Request) => Buffer | null | undefined;
@@ -90,6 +96,7 @@ const DEFAULT_CONFIG: RequestLoggingConfig = {
   logRequestBody: false,
   logResponseHeaders: true,
   logResponseBody: false,
+  logException: true,
   maskQueryParams: [],
   maskHeaders: [],
   excludePaths: [],
@@ -168,7 +175,7 @@ export default class RequestLogger {
     return headers.map(([k, v]) => [k, this.shouldMaskHeader(k) ? MASKED : v]);
   }
 
-  logRequest(request: Request, response: Response) {
+  logRequest(request: Request, response: Response, error?: Error) {
     if (!this.enabled || this.suspendUntil !== null) return;
 
     const url = new URL(request.url);
@@ -248,6 +255,15 @@ export default class RequestLogger {
       uuid: randomUUID(),
       request: skipEmptyValues(request),
       response: skipEmptyValues(response),
+      exception:
+        error && this.config.logException
+          ? {
+              type: error.name,
+              message: truncateExceptionMessage(error.message),
+              stacktrace: truncateExceptionStackTrace(error.stack || ""),
+              sentryEventId: getSentryEventId(),
+            }
+          : null,
     };
     [item.request.body, item.response.body].forEach((body) => {
       if (body) {
