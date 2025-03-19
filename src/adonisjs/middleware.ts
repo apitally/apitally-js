@@ -2,7 +2,7 @@ import { HttpContext } from "@adonisjs/core/http";
 import { NextFn } from "@adonisjs/core/types/http";
 import { performance } from "perf_hooks";
 
-import { getApitallyClient } from "./index.js";
+import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { convertHeaders } from "../common/requestLogger.js";
 import { ApitallyConsumer } from "../common/types.js";
@@ -15,11 +15,10 @@ declare module "@adonisjs/core/http" {
 }
 
 export class ApitallyMiddleware {
-  async handle(ctx: HttpContext, next: NextFn) {
-    const client = getApitallyClient();
-    const path = ctx.route?.pattern;
+  constructor(protected client: ApitallyClient) {}
 
-    if (!client || !client.isEnabled() || !path) {
+  async handle(ctx: HttpContext, next: NextFn) {
+    if (!this.client || !this.client.isEnabled()) {
       await next();
       return;
     }
@@ -27,35 +26,52 @@ export class ApitallyMiddleware {
     const startTime = performance.now();
     await next();
     const responseTime = performance.now() - startTime;
+    const requestSize = parseContentLength(
+      ctx.request.header("content-length"),
+    );
+    const responseSize = parseContentLength(
+      ctx.response.getHeader("content-length"),
+    );
+    const path = ctx.route?.pattern;
 
-    const requestSize = parseContentLength(ctx.request.header("content-length"));
-    const responseSize = parseContentLength(ctx.response.getHeader("content-length"));
-    const consumer = ctx.apitallyConsumer ? consumerFromStringOrObject(ctx.apitallyConsumer) : null;
+    const consumer = ctx.apitallyConsumer
+      ? consumerFromStringOrObject(ctx.apitallyConsumer)
+      : null;
+    this.client.consumerRegistry.addOrUpdateConsumer(consumer);
 
-    client.consumerRegistry.addOrUpdateConsumer(consumer);
-    client.requestCounter.addRequest({
-      consumer: consumer?.identifier,
-      method: ctx.request.method(),
-      path,
-      statusCode: ctx.response.getStatus(),
-      responseTime,
-      requestSize,
-      responseSize,
-    });
+    if (path) {
+      this.client.requestCounter.addRequest({
+        consumer: consumer?.identifier,
+        method: ctx.request.method(),
+        path,
+        statusCode: ctx.response.getStatus(),
+        responseTime,
+        requestSize,
+        responseSize,
+      });
+    }
 
-    if (client.requestLogger.enabled) {
+    if (this.client.requestLogger.enabled) {
       let requestBody;
       let responseBody;
       const requestContentType = ctx.request.header("content-type")?.toString();
-      const responseContentType = ctx.response.getHeader("content-type")?.toString();
-      if (client.requestLogger.config.logRequestBody && client.requestLogger.isSupportedContentType(requestContentType)) {
+      const responseContentType = ctx.response
+        .getHeader("content-type")
+        ?.toString();
+      if (
+        this.client.requestLogger.config.logRequestBody &&
+        this.client.requestLogger.isSupportedContentType(requestContentType)
+      ) {
         requestBody = ctx.request.raw();
       }
-      if (client.requestLogger.config.logResponseBody && client.requestLogger.isSupportedContentType(responseContentType)) {
+      if (
+        this.client.requestLogger.config.logResponseBody &&
+        this.client.requestLogger.isSupportedContentType(responseContentType)
+      ) {
         responseBody = ctx.response.getBody();
       }
 
-      client.requestLogger.logRequest(
+      this.client.requestLogger.logRequest(
         {
           timestamp: Date.now() / 1000,
           method: ctx.request.method(),
