@@ -62,7 +62,7 @@ export class ApitallyClient {
     }
     if (!isValidClientId(clientId)) {
       throw new Error(
-        `Invalid client ID '${clientId}' (expecting hexadeciaml UUID format)`,
+        `Invalid Apitally client ID '${clientId}' (expecting hexadeciaml UUID format)`,
       );
     }
     if (!isValidEnv(env)) {

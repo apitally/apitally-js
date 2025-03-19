@@ -99,10 +99,18 @@
       "import": {
         "default": "./dist/adonisjs/index.js",
         "types": "./dist/adonisjs/index.d.ts"
-      },
-      "require": {
-        "default": "./dist/adonisjs/index.cjs",
-        "types": "./dist/adonisjs/index.d.cts"
+      }
+    },
+    "./adonisjs/provider": {
+      "import": {
+        "default": "./dist/adonisjs/provider.js",
+        "types": "./dist/adonisjs/provider.d.ts"
+      }
+    },
+    "./adonisjs/middleware": {
+      "import": {
+        "default": "./dist/adonisjs/middleware.js",
+        "types": "./dist/adonisjs/middleware.d.ts"
       }
     },
     "./package.json": "./package.json"
@@ -126,6 +134,12 @@
       ],
       "adonisjs": [
         "./dist/adonisjs/index.d.ts"
+      ],
+      "adonisjs/provider": [
+        "./dist/adonisjs/provider.d.ts"
+      ],
+      "adonisjs/middleware": [
+        "./dist/adonisjs/middleware.d.ts"
       ]
     }
   },
