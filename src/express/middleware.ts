@@ -11,6 +11,7 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
+import { parseContentLength } from "../common/utils.js";
 import { getEndpoints, parseExpressPath } from "./utils.js";
 
 declare module "express" {
@@ -67,6 +68,10 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
           const path = getRoutePath(req);
           const consumer = getConsumer(req);
           client.consumerRegistry.addOrUpdateConsumer(consumer);
+
+          const requestSize = parseContentLength(req.get("content-length"));
+          const responseSize = parseContentLength(res.get("content-length"));
+
           if (path) {
             client.requestCounter.addRequest({
               consumer: consumer?.identifier,
@@ -74,8 +79,8 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               path,
               statusCode: res.statusCode,
               responseTime: responseTime,
-              requestSize: req.get("content-length"),
-              responseSize: res.get("content-length"),
+              requestSize,
+              responseSize,
             });
             if (
               (res.statusCode === 400 || res.statusCode === 422) &&
@@ -132,7 +137,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 path,
                 url: `${req.protocol}://${req.host}${req.originalUrl}`,
                 headers: convertHeaders(req.headers),
-                size: Number(req.get("content-length")),
+                size: requestSize,
                 consumer: consumer?.identifier,
                 body: convertBody(req.body, req.get("content-type")),
               },
@@ -140,7 +145,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 statusCode: res.statusCode,
                 responseTime: responseTime / 1000,
                 headers: convertHeaders(res.getHeaders()),
-                size: Number(res.get("content-length")),
+                size: responseSize,
                 body: convertBody(res.locals.body, res.get("content-type")),
               },
               res.locals.serverError,

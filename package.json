@@ -95,6 +95,16 @@
         "types": "./dist/nestjs/index.d.cts"
       }
     },
+    "./adonisjs": {
+      "import": {
+        "default": "./dist/adonisjs/index.js",
+        "types": "./dist/adonisjs/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/adonisjs/index.cjs",
+        "types": "./dist/adonisjs/index.d.cts"
+      }
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
@@ -113,6 +123,9 @@
       ],
       "nestjs": [
         "./dist/nestjs/index.d.ts"
+      ],
+      "adonisjs": [
+        "./dist/adonisjs/index.d.ts"
       ]
     }
   },
@@ -149,6 +162,7 @@
     "winston": "^3"
   },
   "peerDependencies": {
+    "@adonisjs/core": "^6",
     "@nestjs/common": "^8 || ^9 || ^10",
     "@nestjs/core": "^8 || ^9 || ^10",
     "@nestjs/platform-express": "^8 || ^9 || ^10",
@@ -172,6 +186,9 @@
     "@sentry/node": {
       "optional": true
     },
+    "@adonisjs/core": {
+      "optional": true
+    },
     "express": {
       "optional": true
     },
@@ -189,6 +206,7 @@
     }
   },
   "devDependencies": {
+    "@adonisjs/core": "^6.17.2",
     "@hono/zod-validator": "^0.4.1",
     "@koa/router": "^13.0.0",
     "@nestjs/common": "^10.2.9",
