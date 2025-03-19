@@ -11,14 +11,14 @@ import { parseContentLength } from "../common/utils.js";
 declare module "@adonisjs/core/http" {
   interface HttpContext {
     apitallyConsumer?: ApitallyConsumer | string;
+    apitallyError?: Error;
   }
 }
 
-export class ApitallyMiddleware {
-  constructor(protected client: ApitallyClient) {}
-
+export default class ApitallyMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
-    if (!this.client || !this.client.isEnabled()) {
+    const client = await ctx.containerResolver.make(ApitallyClient);
+    if (!client.isEnabled()) {
       await next();
       return;
     }
@@ -37,10 +37,10 @@ export class ApitallyMiddleware {
     const consumer = ctx.apitallyConsumer
       ? consumerFromStringOrObject(ctx.apitallyConsumer)
       : null;
-    this.client.consumerRegistry.addOrUpdateConsumer(consumer);
+    client.consumerRegistry.addOrUpdateConsumer(consumer);
 
     if (path) {
-      this.client.requestCounter.addRequest({
+      client.requestCounter.addRequest({
         consumer: consumer?.identifier,
         method: ctx.request.method(),
         path,
@@ -49,9 +49,20 @@ export class ApitallyMiddleware {
         requestSize,
         responseSize,
       });
+
+      if (ctx.response.getStatus() === 500 && ctx.apitallyError) {
+        client.serverErrorCounter.addServerError({
+          consumer: consumer?.identifier,
+          method: ctx.request.method(),
+          path,
+          type: ctx.apitallyError.name,
+          msg: ctx.apitallyError.message,
+          traceback: ctx.apitallyError.stack || "",
+        });
+      }
     }
 
-    if (this.client.requestLogger.enabled) {
+    if (client.requestLogger.enabled) {
       let requestBody;
       let responseBody;
       const requestContentType = ctx.request.header("content-type")?.toString();
@@ -59,19 +70,19 @@ export class ApitallyMiddleware {
         .getHeader("content-type")
         ?.toString();
       if (
-        this.client.requestLogger.config.logRequestBody &&
-        this.client.requestLogger.isSupportedContentType(requestContentType)
+        client.requestLogger.config.logRequestBody &&
+        client.requestLogger.isSupportedContentType(requestContentType)
       ) {
         requestBody = ctx.request.raw();
       }
       if (
-        this.client.requestLogger.config.logResponseBody &&
-        this.client.requestLogger.isSupportedContentType(responseContentType)
+        client.requestLogger.config.logResponseBody &&
+        client.requestLogger.isSupportedContentType(responseContentType)
       ) {
         responseBody = ctx.response.getBody();
       }
 
-      this.client.requestLogger.logRequest(
+      client.requestLogger.logRequest(
         {
           timestamp: Date.now() / 1000,
           method: ctx.request.method(),

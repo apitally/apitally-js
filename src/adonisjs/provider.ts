@@ -4,7 +4,6 @@ import { ApplicationService } from "@adonisjs/core/types";
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
-import { ApitallyMiddleware } from "./middleware.js";
 
 export default class ApitallyProvider {
   constructor(protected app: ApplicationService) {}
@@ -15,11 +14,6 @@ export default class ApitallyProvider {
         clientId: this.app.config.get("apitally.clientId"),
       };
       return new ApitallyClient(config);
-    });
-
-    this.app.container.singleton(ApitallyMiddleware, async (resolver) => {
-      const client = await resolver.make(ApitallyClient);
-      return new ApitallyMiddleware(client);
     });
   }
 
