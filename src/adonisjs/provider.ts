@@ -1,29 +1,30 @@
 import { Router } from "@adonisjs/core/http";
 import { ApplicationService } from "@adonisjs/core/types";
+
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
-
-declare module "@adonisjs/core/types" {
-  interface ContainerBindings {
-    apitallyClient: ApitallyClient;
-  }
-}
+import { ApitallyMiddleware } from "./middleware.js";
 
 export default class ApitallyProvider {
   constructor(protected app: ApplicationService) {}
 
   register() {
-    this.app.container.singleton("apitallyClient", () => {
+    this.app.container.singleton(ApitallyClient, () => {
       const config: ApitallyConfig = {
         clientId: this.app.config.get("apitally.clientId"),
       };
       return new ApitallyClient(config);
     });
+
+    this.app.container.singleton(ApitallyMiddleware, async (resolver) => {
+      const client = await resolver.make(ApitallyClient);
+      return new ApitallyMiddleware(client);
+    });
   }
 
   async ready() {
-    const apitallyClient = await this.app.container.make("apitallyClient");
+    const client = await this.app.container.make(ApitallyClient);
     const router = await this.app.container.make("router");
     const paths = listRoutes(router);
     const versions = getVersions(this.app.config.get("apitally.appVersion"));
@@ -32,12 +33,12 @@ export default class ApitallyProvider {
       versions,
       client: "js:adonisjs",
     };
-    apitallyClient.setStartupData(startupData);
+    client.setStartupData(startupData);
   }
 
   async shutdown() {
-    const apitallyClient = await this.app.container.make("apitallyClient");
-    await apitallyClient.handleShutdown();
+    const client = await this.app.container.make(ApitallyClient);
+    await client.handleShutdown();
   }
 }
 
