@@ -5,16 +5,21 @@ import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 
+declare module "@adonisjs/core/types" {
+  interface ContainerBindings {
+    apitallyClient: ApitallyClient;
+  }
+}
+
 export default class ApitallyProvider {
   constructor(protected app: ApplicationService) {}
 
   register() {
     this.app.container.singleton(ApitallyClient, () => {
-      const config: ApitallyConfig = {
-        clientId: this.app.config.get("apitally.clientId"),
-      };
+      const config: ApitallyConfig = this.app.config.get("apitally");
       return new ApitallyClient(config);
     });
+    this.app.container.alias("apitallyClient", ApitallyClient);
   }
 
   async ready() {
