@@ -45,6 +45,36 @@
     "LICENSE"
   ],
   "exports": {
+    "./adonisjs": {
+      "import": {
+        "default": "./dist/adonisjs/index.js",
+        "types": "./dist/adonisjs/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/adonisjs/index.cjs",
+        "types": "./dist/adonisjs/index.d.cts"
+      }
+    },
+    "./adonisjs/middleware": {
+      "import": {
+        "default": "./dist/adonisjs/middleware.js",
+        "types": "./dist/adonisjs/middleware.d.ts"
+      },
+      "require": {
+        "default": "./dist/adonisjs/middleware.cjs",
+        "types": "./dist/adonisjs/middleware.d.cts"
+      }
+    },
+    "./adonisjs/provider": {
+      "import": {
+        "default": "./dist/adonisjs/provider.js",
+        "types": "./dist/adonisjs/provider.d.ts"
+      },
+      "require": {
+        "default": "./dist/adonisjs/provider.cjs",
+        "types": "./dist/adonisjs/provider.d.cts"
+      }
+    },
     "./express": {
       "import": {
         "default": "./dist/express/index.js",
@@ -95,40 +125,19 @@
         "types": "./dist/nestjs/index.d.cts"
       }
     },
-    "./adonisjs": {
-      "import": {
-        "default": "./dist/adonisjs/index.js",
-        "types": "./dist/adonisjs/index.d.ts"
-      },
-      "require": {
-        "default": "./dist/adonisjs/index.cjs",
-        "types": "./dist/adonisjs/index.d.cts"
-      }
-    },
-    "./adonisjs/provider": {
-      "import": {
-        "default": "./dist/adonisjs/provider.js",
-        "types": "./dist/adonisjs/provider.d.ts"
-      },
-      "require": {
-        "default": "./dist/adonisjs/provider.cjs",
-        "types": "./dist/adonisjs/provider.d.cts"
-      }
-    },
-    "./adonisjs/middleware": {
-      "import": {
-        "default": "./dist/adonisjs/middleware.js",
-        "types": "./dist/adonisjs/middleware.d.ts"
-      },
-      "require": {
-        "default": "./dist/adonisjs/middleware.cjs",
-        "types": "./dist/adonisjs/middleware.d.cts"
-      }
-    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
+      "adonisjs": [
+        "./dist/adonisjs/index.d.ts"
+      ],
+      "adonisjs/middleware": [
+        "./dist/adonisjs/middleware.d.ts"
+      ],
+      "adonisjs/provider": [
+        "./dist/adonisjs/provider.d.ts"
+      ],
       "express": [
         "./dist/express/index.d.ts"
       ],
@@ -143,15 +152,6 @@
       ],
       "nestjs": [
         "./dist/nestjs/index.d.ts"
-      ],
-      "adonisjs": [
-        "./dist/adonisjs/index.d.ts"
-      ],
-      "adonisjs/provider": [
-        "./dist/adonisjs/provider.d.ts"
-      ],
-      "adonisjs/middleware": [
-        "./dist/adonisjs/middleware.d.ts"
       ]
     }
   },
