@@ -200,6 +200,9 @@
     "koa": "^2"
   },
   "peerDependenciesMeta": {
+    "@adonisjs/core": {
+      "optional": true
+    },
     "@nestjs/common": {
       "optional": true
     },
@@ -210,9 +213,6 @@
       "optional": true
     },
     "@sentry/node": {
-      "optional": true
-    },
-    "@adonisjs/core": {
       "optional": true
     },
     "express": {
