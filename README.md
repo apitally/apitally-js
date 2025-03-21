@@ -31,6 +31,7 @@ frameworks:
 - [Fastify](https://docs.apitally.io/frameworks/fastify)
 - [Koa](https://docs.apitally.io/frameworks/koa)
 - [Hono](https://docs.apitally.io/frameworks/hono)
+- [AdonisJS](https://docs.apitally.io/frameworks/adonisjs)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out
 the 📚 [documentation](https://docs.apitally.io).
@@ -181,6 +182,46 @@ useApitally(app, {
   clientId: "your-client-id",
   env: "dev", // or "prod" etc.
 });
+```
+
+### AdonisJS
+
+This is an example of how to use the Apitally middleware with a AdonisJS application.
+For further instructions, see our
+[setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
+
+Create a configuration file at `config/apitally.ts`:
+
+```javascript
+import { defineConfig } from "apitally/adonisjs";
+
+const apitallyConfig = defineConfig({
+  clientId: "your-client-id",
+  env: "dev", // or "prod" etc.
+});
+
+export default apitallyConfig;
+```
+
+Register the Apitally provider in your `adonisrc.ts` file:
+
+```javascript
+export default defineConfig({
+  // ... existing code ...
+  providers: [
+    // ... existing providers ...
+    () => import("apitally/adonisjs/provider"),
+  ],
+});
+```
+
+Register the Apitally middleware in your `start/kernel.ts` file:
+
+```javascript
+router.use([
+  () => import("apitally/adonisjs/middleware"),
+  // ... other middleware ...
+]);
 ```
 
 ## Getting help
