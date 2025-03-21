@@ -76,8 +76,8 @@ jobs:
           - hono@4.6
           - hono@4.5
           - hono@4.4
-          - adonisjs@6.17
-          - adonisjs@6.12
+          - "@adonisjs/core@6.17"
+          - "@adonisjs/core@6.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
