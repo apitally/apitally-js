@@ -15,16 +15,16 @@ export default class ApitallyProvider {
   constructor(protected app: ApplicationService) {}
 
   register() {
-    this.app.container.singleton(ApitallyClient, () => {
+    this.app.container.singleton("apitallyClient", () => {
       const config: ApitallyConfig = this.app.config.get("apitally");
       return new ApitallyClient(config);
     });
-    this.app.container.alias("apitallyClient", ApitallyClient);
   }
 
   async ready() {
-    const client = await this.app.container.make(ApitallyClient);
+    const client = await this.app.container.make("apitallyClient");
     const router = await this.app.container.make("router");
+
     const paths = listRoutes(router);
     const versions = getVersions(this.app.config.get("apitally.appVersion"));
     const startupData: StartupData = {
@@ -36,7 +36,7 @@ export default class ApitallyProvider {
   }
 
   async shutdown() {
-    const client = await this.app.container.make(ApitallyClient);
+    const client = await this.app.container.make("apitallyClient");
     await client.handleShutdown();
   }
 }
@@ -47,10 +47,12 @@ const listRoutes = (router: Router) => {
   for (const domain in routes) {
     for (const route of routes[domain]) {
       for (const method of route.methods) {
-        paths.push({
-          method: method.toUpperCase(),
-          path: route.pattern,
-        });
+        if (!["HEAD", "OPTIONS"].includes(method.toUpperCase())) {
+          paths.push({
+            method: method.toUpperCase(),
+            path: route.pattern,
+          });
+        }
       }
     }
   }

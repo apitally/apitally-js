@@ -7,7 +7,7 @@ export const defineConfig = (config: ApitallyConfig) => {
   return config;
 };
 
-export const captureError = async (error: unknown, ctx: HttpContext) => {
+export const captureError = (error: unknown, ctx: HttpContext) => {
   if (error instanceof Error) {
     ctx.apitallyError = error;
   }
