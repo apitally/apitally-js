@@ -3,6 +3,7 @@ import BodyParserMiddleware from "@adonisjs/core/bodyparser_middleware";
 import { AppFactory } from "@adonisjs/core/factories/app";
 import { Router } from "@adonisjs/core/http";
 import { ApplicationService } from "@adonisjs/core/types";
+import vine from "@vinejs/vine";
 
 import {
   captureError,
@@ -46,6 +47,13 @@ export const createRoutes = (router: Router) => {
   const bodyParserHandle =
     bodyParserMiddleware.handle.bind(bodyParserMiddleware);
 
+  const helloValidator = vine.compile(
+    vine.object({
+      name: vine.string().trim().minLength(3),
+      age: vine.number().min(18),
+    }),
+  );
+
   router
     .get("/hello", async ({ request, response }) => {
       const name = request.qs().name;
@@ -64,10 +72,16 @@ export const createRoutes = (router: Router) => {
     .middleware(apitallyHandle);
 
   router
-    .post("/hello", async ({ request, response }) => {
-      const { name, age } = request.body();
-      response.type("txt");
-      return `Hello ${name}! You are ${age} years old!`;
+    .post("/hello", async (ctx) => {
+      const data = ctx.request.all();
+      try {
+        const { name, age } = await helloValidator.validate(data);
+        ctx.response.type("txt");
+        return `Hello ${name}! You are ${age} years old!`;
+      } catch (error) {
+        captureError(error, ctx);
+        throw error;
+      }
     })
     .middleware(bodyParserHandle)
     .middleware(apitallyHandle);

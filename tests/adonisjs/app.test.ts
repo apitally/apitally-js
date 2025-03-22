@@ -137,6 +137,25 @@ describe("Middleware for AdonisJS", () => {
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
   });
 
+  it("Validation error counter", async () => {
+    await testAgent.post("/hello").send({ name: "X", age: 1 }).expect(422);
+
+    const validationErrors =
+      client.validationErrorCounter.getAndResetValidationErrors();
+    expect(validationErrors.length).toBe(2);
+    expect(
+      validationErrors.some(
+        (e) =>
+          e.loc[0] == "name" && e.type == "minLength" && e.error_count == 1,
+      ),
+    ).toBe(true);
+    expect(
+      validationErrors.some(
+        (e) => e.loc[0] == "age" && e.type == "min" && e.error_count == 1,
+      ),
+    ).toBe(true);
+  });
+
   it("Server error counter", async () => {
     await testAgent.get("/error").expect(500);
 

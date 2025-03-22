@@ -1,12 +1,12 @@
 import { HttpContext } from "@adonisjs/core/http";
 import { NextFn } from "@adonisjs/core/types/http";
-import { OutgoingHttpHeaders } from "http";
+import type { OutgoingHttpHeaders } from "http";
 import { performance } from "perf_hooks";
 
-import { ApitallyClient } from "../common/client.js";
+import type { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { convertHeaders } from "../common/requestLogger.js";
-import { ApitallyConsumer } from "../common/types.js";
+import type { ApitallyConsumer } from "../common/types.js";
 import { parseContentLength } from "../common/utils.js";
 
 declare module "@adonisjs/core/http" {
@@ -62,6 +62,26 @@ export default class ApitallyMiddleware {
           requestSize,
           responseSize,
         });
+
+        if (
+          responseStatus === 422 &&
+          ctx.apitallyError &&
+          "code" in ctx.apitallyError &&
+          "messages" in ctx.apitallyError &&
+          ctx.apitallyError.code === "E_VALIDATION_ERROR" &&
+          Array.isArray(ctx.apitallyError.messages)
+        ) {
+          ctx.apitallyError.messages.forEach((message) => {
+            client.validationErrorCounter.addValidationError({
+              consumer: consumer?.identifier,
+              method: ctx.request.method(),
+              path,
+              loc: message.field,
+              msg: message.message,
+              type: message.rule,
+            });
+          });
+        }
 
         if (responseStatus === 500 && ctx.apitallyError) {
           client.serverErrorCounter.addServerError({
