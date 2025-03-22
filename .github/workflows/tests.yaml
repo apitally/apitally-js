@@ -76,6 +76,8 @@ jobs:
           - hono@4.6
           - hono@4.5
           - hono@4.4
+          - "@adonisjs/core@6.17"
+          - "@adonisjs/core@6.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -101,3 +103,6 @@ jobs:
       - name: Run tests for Hono
         run: npm test -- tests/hono
         if: contains(matrix.deps, 'hono')
+      - name: Run tests for AdonisJS
+        run: npm test -- tests/adonisjs
+        if: contains(matrix.deps, 'adonisjs')

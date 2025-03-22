@@ -16,6 +16,7 @@ import {
   PathInfo,
   ValidationError,
 } from "../common/types.js";
+import { parseContentLength } from "../common/utils.js";
 
 declare module "fastify" {
   interface FastifyReply {
@@ -85,11 +86,10 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         "routeOptions" in request
           ? (request as any).routeOptions.url
           : (request as any).routerPath;
-      const requestSize = request.headers["content-length"];
-      let responseSize = reply.getHeader("content-length");
-      if (Array.isArray(responseSize)) {
-        responseSize = responseSize[0];
-      }
+      const requestSize = parseContentLength(request.headers["content-length"]);
+      const responseSize = parseContentLength(
+        reply.getHeader("content-length"),
+      );
       const responseTime = getResponseTime(reply);
       client.consumerRegistry.addOrUpdateConsumer(consumer);
       client.requestCounter.addRequest({

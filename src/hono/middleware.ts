@@ -15,6 +15,7 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
+import { parseContentLength } from "../common/utils.js";
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -42,7 +43,7 @@ const getMiddleware = (client: ApitallyClient): MiddlewareHandler => {
     let response;
     const responseTime = performance.now() - startTime;
     const [responseSize, newResponse] = await measureResponseSize(c.res);
-    const requestSize = c.req.header("Content-Length");
+    const requestSize = parseContentLength(c.req.header("content-length"));
     const consumer = getConsumer(c);
     client.consumerRegistry.addOrUpdateConsumer(consumer);
     client.requestCounter.addRequest({
