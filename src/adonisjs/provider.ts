@@ -1,9 +1,9 @@
-import { Router } from "@adonisjs/core/http";
-import { ApplicationService } from "@adonisjs/core/types";
+import type { Router } from "@adonisjs/core/http";
+import type { ApplicationService } from "@adonisjs/core/types";
 
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
+import type { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 
 declare module "@adonisjs/core/types" {
   interface ContainerBindings {
