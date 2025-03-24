@@ -75,7 +75,7 @@ const getMiddleware = (client: ApitallyClient) => {
             path,
             url: ctx.request.href,
             headers: convertHeaders(ctx.request.headers),
-            size: Number(ctx.request.headers["content-length"]),
+            size: ctx.request.length,
             consumer: consumer?.identifier,
             body: convertBody(
               ctx.request.body,
@@ -86,7 +86,7 @@ const getMiddleware = (client: ApitallyClient) => {
             statusCode: statusCode || ctx.response.status,
             responseTime: responseTime / 1000,
             headers: convertHeaders(ctx.response.headers),
-            size: Number(ctx.response.headers["content-length"]),
+            size: ctx.response.length,
             body: convertBody(
               ctx.response.body,
               ctx.response.get("content-type"),
