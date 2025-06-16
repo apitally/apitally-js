@@ -44,7 +44,7 @@ export const getAppWithCelebrate = () => {
       );
     },
   );
-  app.get("/hello/:id(\\d+)", (req, res) => {
+  app.get("/hello/:id", (req, res) => {
     res.send(`Hello ID ${req.params.id}!`);
   });
   app.post(
@@ -91,14 +91,15 @@ export const getAppWithValidator = () => {
       const result = validationResult(req);
       if (result.isEmpty()) {
         res.type("txt");
-        return res.send(
+        res.send(
           `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
         );
+        return;
       }
       res.status(400).send({ errors: result.array() });
     },
   );
-  app.get("/hello/:id(\\d+)", (req, res) => {
+  app.get("/hello/:id", (req, res) => {
     res.send(`Hello ID ${req.params.id}!`);
   });
   app.post(
@@ -109,9 +110,10 @@ export const getAppWithValidator = () => {
       const result = validationResult(req);
       if (result.isEmpty()) {
         res.type("txt");
-        return res.send(
+        res.send(
           `Hello ${req.body?.name}! You are ${req.body?.age} years old!`,
         );
+        return;
       }
       res.status(400).send({ errors: result.array() });
     },
