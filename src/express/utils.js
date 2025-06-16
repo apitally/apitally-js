@@ -1,5 +1,6 @@
 // Adapted from https://github.com/AlbertoFdzM/express-list-endpoints/blob/305535d43008b46f34e18b01947762e039af6d2d/src/index.js
-// and also incorporated changes from https://github.com/AlbertoFdzM/express-list-endpoints/pull/96
+// and also incorporated https://github.com/AlbertoFdzM/express-list-endpoints/pull/96
+// and https://github.com/labithiotis/express-list-routes/blob/5432c83a67c2788c56a1cdfc067ec809961c0c05/index.js
 
 /**
  * @typedef {Object} Route
@@ -21,6 +22,20 @@ const regexpExpressPathParamRegexp = /(:[^)]+)\([^)]+\)/g;
 
 const EXPRESS_ROOT_PATH_REGEXP_VALUE = "/^\\/?(?=\\/|$)/i";
 const STACK_ITEM_VALID_NAMES = ["router", "bound dispatch", "mounted_app"];
+
+/**
+ * Detects Express version and returns router information
+ * @param {import('express').Express | import('express').Router | any} app
+ * @returns {{stack: any[] | null, version: 'v4' | 'v5'}}
+ */
+const getRouterInfo = function (app) {
+  if (app.router && app.router.stack) {
+    return { stack: app.router.stack, version: 'v5' };
+  } else {
+    return { stack: app.stack || (app._router && app._router.stack) || null, version: 'v4' };
+  }
+};
+
 
 /**
  * Returns all the verbs detected for the passed route
@@ -136,7 +151,9 @@ export const parseExpressPath = function (expressPathRegExp, params) {
  * @returns {Endpoint[]}
  */
 const parseEndpoints = function (app, basePath, endpoints) {
-  const stack = app.stack || (app._router && app._router.stack);
+  const routerInfo = getRouterInfo(app);
+  const stack = routerInfo.stack;
+  const version = routerInfo.version;
 
   endpoints = endpoints || [];
   basePath = basePath || "";
@@ -152,7 +169,7 @@ const parseEndpoints = function (app, basePath, endpoints) {
       ]);
     }
   } else {
-    endpoints = parseStack(stack, basePath, endpoints);
+    endpoints = parseStack(stack, basePath, endpoints, version);
   }
 
   return endpoints;
@@ -191,33 +208,39 @@ const addEndpoints = function (currentEndpoints, endpointsToAdd) {
  * @param {any[]} stack
  * @param {string} basePath
  * @param {Endpoint[]} endpoints
+ * @param {'v4' | 'v5'} [version]
  * @returns {Endpoint[]}
  */
-const parseStack = function (stack, basePath, endpoints) {
+const parseStack = function (stack, basePath, endpoints, version) {
   stack.forEach((stackItem) => {
     if (stackItem.route) {
       const newEndpoints = parseExpressRoute(stackItem.route, basePath);
 
       endpoints = addEndpoints(endpoints, newEndpoints);
     } else if (STACK_ITEM_VALID_NAMES.includes(stackItem.name)) {
-      const isExpressPathRegexp = regExpToParseExpressPathRegExp.test(
-        stackItem.regexp,
-      );
-
       let newBasePath = basePath;
 
-      if (isExpressPathRegexp) {
-        const parsedPath = parseExpressPath(stackItem.regexp, stackItem.keys);
-
-        newBasePath += `/${parsedPath}`;
-      } else if (
-        !stackItem.path &&
-        stackItem.regexp &&
-        stackItem.regexp.toString() !== EXPRESS_ROOT_PATH_REGEXP_VALUE
-      ) {
-        const regExpPath = ` RegExp(${stackItem.regexp}) `;
-
-        newBasePath += `/${regExpPath}`;
+      if (version === 'v4') {
+        const isExpressPathRegexp = regExpToParseExpressPathRegExp.test(
+          stackItem.regexp,
+        );
+        if (isExpressPathRegexp) {
+          const parsedPath = parseExpressPath(stackItem.regexp, stackItem.keys);
+          newBasePath += `/${parsedPath}`;
+        } else if (
+          !stackItem.path &&
+          stackItem.regexp &&
+          stackItem.regexp.toString() !== EXPRESS_ROOT_PATH_REGEXP_VALUE
+        ) {
+          const regExpPath = ` RegExp(${stackItem.regexp}) `;
+          newBasePath += `/${regExpPath}`;
+        }
+      } else if (version === 'v5') {
+        if (!stackItem.path) {
+          return;
+        } else if (stackItem.path !== '/') {
+          newBasePath += `/${stackItem.path}`;
+        }
       }
 
       endpoints = parseEndpoints(stackItem.handle, newBasePath, endpoints);

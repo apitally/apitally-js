@@ -61,6 +61,7 @@ jobs:
       matrix:
         node: ["18", "20", "22"]
         deps:
+          - express@5.1
           - express@4.21
           - express@4.19
           - express@4.18
