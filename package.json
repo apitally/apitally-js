@@ -167,10 +167,12 @@
     "rules": {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-var-requires": "off",
+      "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
-          "argsIgnorePattern": "^_$"
+          "argsIgnorePattern": "^_$",
+          "caughtErrorsIgnorePattern": "^(error|e)$"
         }
       ]
     },
@@ -249,8 +251,8 @@
     "@types/koa-route": "^3.2.8",
     "@types/node": "^20.9.0",
     "@types/supertest": "^6.0.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "@vinejs/vine": "^2.1.0 || ^3.0.1",
     "@vitest/coverage-v8": "^3.0.0",
     "celebrate": "^15.0.3",
