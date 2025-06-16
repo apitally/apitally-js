@@ -252,7 +252,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vinejs/vine": "^2.1.0 || ^3.0.1",
-    "@vitest/coverage-v8": "^1.5.0",
+    "@vitest/coverage-v8": "^3.0.0",
     "celebrate": "^15.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -273,7 +273,7 @@
     "tsup": "^8.1.0",
     "typescript": "^5.2.2",
     "unplugin-swc": "^1.5.1",
-    "vitest": "^1.5.0",
+    "vitest": "^3.0.0",
     "zod": "^3.23.8"
   }
 }
