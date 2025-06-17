@@ -276,11 +276,12 @@ describe("Middleware for Express with nested routers", () => {
     ).toBe(true);
   });
 
-  it("List endpoints", async () => {
+  it("List endpoints", async ({ skip }) => {
     const routerInfo = getRouterInfo(app);
     if (routerInfo.version === "v5") {
-      // Skip for Express v5 as endpoint listing with nested routers is not currently possible
-      return;
+      skip(
+        "Endpoint listing for nested routers is not yet supported on Express v5",
+      );
     }
 
     expect(client.startupData?.paths).toEqual([
