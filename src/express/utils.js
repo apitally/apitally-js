@@ -32,10 +32,10 @@ export const getRouterInfo = function (app) {
   if (app.stack) {
     // Express 4 router
     return { stack: app.stack, version: "v4" };
-  } else if (app._router && app._router.stack) {
+  } else if (app._router?.stack) {
     // Express 4
     return { stack: app._router.stack, version: "v4" };
-  } else if (app.router && app.router.stack) {
+  } else if (app.router?.stack) {
     // Express 5
     return { stack: app.router.stack, version: "v5" };
   }
@@ -251,14 +251,16 @@ const parseStack = function (stack, basePath, endpoints, version) {
           stackItem.regexp &&
           stackItem.regexp.toString() !== EXPRESS_ROOT_PATH_REGEXP_VALUE
         ) {
-          const regExpPath = ` RegExp(${stackItem.regexp}) `;
+          const regExpPath = `RegExp(${stackItem.regexp})`;
           newBasePath += `/${regExpPath}`;
         }
       } else if (version === "v5") {
         if (!stackItem.path) {
           return;
         } else if (stackItem.path !== "/") {
-          newBasePath += `/${stackItem.path}`;
+          newBasePath += stackItem.path.startsWith("/")
+            ? stackItem.path
+            : `/${stackItem.path}`;
         }
       }
 
