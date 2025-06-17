@@ -61,23 +61,24 @@ jobs:
       matrix:
         node: ["18", "20", "22"]
         deps:
+          - "@adonisjs/core@6.17"
+          - "@adonisjs/core@6.12"
           - express@5.1
           - express@4.21
           - express@4.18
           - fastify@5 fastify-plugin@5
           - fastify@4 fastify-plugin@4
           - fastify@3 fastify-plugin@3
+          - h3@1.15
+          - hono@4.6
+          - hono@4.5
+          - hono@4.4
           - koa@3.0
           - koa@2.16
           - koa@2.13
           - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11 @nestjs/testing@11"
           - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-express@10 @nestjs/testing@10"
           - "@nestjs/core@8 @nestjs/common@8 @nestjs/platform-express@8 @nestjs/testing@8"
-          - hono@4.6
-          - hono@4.5
-          - hono@4.4
-          - "@adonisjs/core@6.17"
-          - "@adonisjs/core@6.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -100,6 +101,9 @@ jobs:
       - name: Run tests for NestJS
         run: npm test -- tests/nestjs
         if: contains(matrix.deps, 'nestjs')
+      - name: Run tests for H3
+        run: npm test -- tests/h3
+        if: contains(matrix.deps, 'h3')
       - name: Run tests for Hono
         run: npm test -- tests/hono
         if: contains(matrix.deps, 'hono')

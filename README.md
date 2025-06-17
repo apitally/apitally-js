@@ -27,6 +27,7 @@ frameworks:
 - [Fastify](https://docs.apitally.io/frameworks/fastify)
 - [Koa](https://docs.apitally.io/frameworks/koa)
 - [Hono](https://docs.apitally.io/frameworks/hono)
+- [H3](https://docs.apitally.io/frameworks/h3)
 - [AdonisJS](https://docs.apitally.io/frameworks/adonisjs)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out
@@ -173,6 +174,24 @@ import { Hono } from "hono";
 import { useApitally } from "apitally/hono";
 
 const app = new Hono();
+
+useApitally(app, {
+  clientId: "your-client-id",
+  env: "dev", // or "prod" etc.
+});
+```
+
+### H3
+
+This is an example of how to use the Apitally middleware with a H3 application.
+For further instructions, see our
+[setup guide for H3](https://docs.apitally.io/frameworks/h3).
+
+```javascript
+import { H3 } from "h3";
+import { useApitally } from "apitally/h3";
+
+const app = new H3();
 
 useApitally(app, {
   clientId: "your-client-id",
