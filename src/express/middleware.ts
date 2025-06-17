@@ -214,7 +214,10 @@ const getRouterPath = (stack: any[], baseUrl: string) => {
           routerLayer.keys,
         );
         routerPaths.push("/" + parsedPath);
-      } else if (routerLayer.params && Object.keys(routerLayer.params).length > 0) {
+      } else if (
+        routerLayer.params &&
+        Object.keys(routerLayer.params).length > 0
+      ) {
         const parsedPath = parseExpressPath(
           routerLayer.path,
           routerLayer.params,
