@@ -12,7 +12,12 @@ import {
   ValidationError,
 } from "../common/types.js";
 import { parseContentLength } from "../common/utils.js";
-import { getEndpoints, parseExpressPath } from "./utils.js";
+import {
+  getEndpoints,
+  parseExpressPathRegExp,
+  getRouterInfo,
+  parseExpressPath,
+} from "./utils.js";
 
 declare module "express" {
   interface Request {
@@ -41,6 +46,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
       next();
       return;
     }
+
     if (!errorHandlerConfigured) {
       // Add error handling middleware to the bottom of the stack when handling the first request
       app.use(
@@ -51,6 +57,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
       );
       errorHandlerConfigured = true;
     }
+
     try {
       const startTime = performance.now();
       const originalSend = res.send;
@@ -62,7 +69,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
         return originalSend.call(res, body);
       };
 
-      res.on("finish", () => {
+      res.once("finish", () => {
         try {
           const responseTime = performance.now() - startTime;
           const path = getRoutePath(req);
@@ -82,6 +89,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               requestSize,
               responseSize,
             });
+
             if (
               (res.statusCode === 400 || res.statusCode === 422) &&
               res.locals.body
@@ -117,6 +125,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
                 });
               }
             }
+
             if (res.statusCode === 500 && res.locals.serverError) {
               const serverError = res.locals.serverError as Error;
               client.serverErrorCounter.addServerError({
@@ -129,6 +138,7 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
               });
             }
           }
+
           if (client.requestLogger.enabled) {
             client.requestLogger.logRequest(
               {
@@ -175,8 +185,11 @@ const getRoutePath = (req: Request) => {
     return;
   }
   if (req.baseUrl) {
-    const routerPath = getRouterPath(req.app._router.stack, req.baseUrl);
-    return req.route.path === "/" ? routerPath : routerPath + req.route.path;
+    const routerInfo = getRouterInfo(req.app);
+    if (routerInfo.stack) {
+      const routerPath = getRouterPath(routerInfo.stack, req.baseUrl);
+      return req.route.path === "/" ? routerPath : routerPath + req.route.path;
+    }
   }
   return req.route.path;
 };
@@ -186,15 +199,30 @@ const getRouterPath = (stack: any[], baseUrl: string) => {
   while (stack && stack.length > 0) {
     const routerLayer = stack.find(
       (layer) =>
-        layer.name === "router" && layer.path && layer.regexp?.test(baseUrl),
+        layer.name === "router" &&
+        layer.path &&
+        (baseUrl.startsWith(layer.path) || layer.regexp?.test(baseUrl)),
     );
     if (routerLayer) {
-      if (routerLayer.keys.length > 0) {
-        const parsedPath = parseExpressPath(
+      if (
+        routerLayer.regexp &&
+        routerLayer.keys &&
+        routerLayer.keys.length > 0
+      ) {
+        const parsedPath = parseExpressPathRegExp(
           routerLayer.regexp,
           routerLayer.keys,
         );
         routerPaths.push("/" + parsedPath);
+      } else if (
+        routerLayer.params &&
+        Object.keys(routerLayer.params).length > 0
+      ) {
+        const parsedPath = parseExpressPath(
+          routerLayer.path,
+          routerLayer.params,
+        );
+        routerPaths.push(parsedPath);
       } else {
         routerPaths.push(routerLayer.path);
       }
