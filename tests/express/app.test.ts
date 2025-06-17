@@ -3,6 +3,7 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
+import { getRouterInfo } from "../../src/express/utils.js";
 import { mockApitallyHub } from "../utils.js";
 import {
   getAppWithCelebrate,
@@ -276,6 +277,12 @@ describe("Middleware for Express with nested routers", () => {
   });
 
   it("List endpoints", async () => {
+    const routerInfo = getRouterInfo(app);
+    if (routerInfo.version === "v5") {
+      // Skip for Express v5 as endpoint listing with nested routers is not currently possible
+      return;
+    }
+
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",

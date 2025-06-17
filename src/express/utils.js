@@ -28,14 +28,19 @@ const STACK_ITEM_VALID_NAMES = ["router", "bound dispatch", "mounted_app"];
  * @param {import('express').Express | import('express').Router | any} app
  * @returns {{stack: any[] | null, version: 'v4' | 'v5'}}
  */
-const getRouterInfo = function (app) {
-  if (app.router && app.router.stack) {
-    return { stack: app.router.stack, version: 'v5' };
-  } else {
-    return { stack: app.stack || (app._router && app._router.stack) || null, version: 'v4' };
+export const getRouterInfo = function (app) {
+  if (app.stack) {
+    // Express 4 router
+    return { stack: app.stack, version: "v4" };
+  } else if (app._router && app._router.stack) {
+    // Express 4
+    return { stack: app._router.stack, version: "v4" };
+  } else if (app.router && app.router.stack) {
+    // Express 5
+    return { stack: app.router.stack, version: "v5" };
   }
+  return { stack: null, version: "v4" };
 };
-
 
 /**
  * Returns all the verbs detected for the passed route
@@ -105,16 +110,16 @@ const parseExpressRoute = function (route, basePath) {
 
 /**
  * @param {RegExp} expressPathRegExp
- * @param {any[]} params
+ * @param {any[]} keys
  * @returns {string}
  */
-export const parseExpressPath = function (expressPathRegExp, params) {
+export const parseExpressPathRegExp = function (expressPathRegExp, keys) {
   let parsedRegExp = expressPathRegExp.toString();
   let expressPathRegExpExec = regExpToParseExpressPathRegExp.exec(parsedRegExp);
   let paramIndex = 0;
 
   while (hasParams(parsedRegExp)) {
-    const paramName = params[paramIndex].name;
+    const paramName = keys[paramIndex].name;
     const paramId = `:${paramName}`;
 
     parsedRegExp = parsedRegExp.replace(
@@ -139,9 +144,20 @@ export const parseExpressPath = function (expressPathRegExp, params) {
     expressPathRegExpExec = regExpToParseExpressPathRegExp.exec(parsedRegExp);
   }
 
-  const parsedPath = expressPathRegExpExec[1].replace(/\\\//g, "/");
+  return expressPathRegExpExec[1].replace(/\\\//g, "/");
+};
 
-  return parsedPath;
+/**
+ * @param {string} expressPath
+ * @param {Object.<string, string>} params
+ * @returns {string}
+ */
+export const parseExpressPath = function (expressPath, params) {
+  let result = expressPath;
+  for (const [paramName, paramValue] of Object.entries(params)) {
+    result = result.replace(paramValue, `:${paramName}`);
+  }
+  return result;
 };
 
 /**
@@ -220,12 +236,15 @@ const parseStack = function (stack, basePath, endpoints, version) {
     } else if (STACK_ITEM_VALID_NAMES.includes(stackItem.name)) {
       let newBasePath = basePath;
 
-      if (version === 'v4') {
-        const isExpressPathRegexp = regExpToParseExpressPathRegExp.test(
+      if (version === "v4") {
+        const isExpressPathRegExp = regExpToParseExpressPathRegExp.test(
           stackItem.regexp,
         );
-        if (isExpressPathRegexp) {
-          const parsedPath = parseExpressPath(stackItem.regexp, stackItem.keys);
+        if (isExpressPathRegExp) {
+          const parsedPath = parseExpressPathRegExp(
+            stackItem.regexp,
+            stackItem.keys,
+          );
           newBasePath += `/${parsedPath}`;
         } else if (
           !stackItem.path &&
@@ -235,10 +254,10 @@ const parseStack = function (stack, basePath, endpoints, version) {
           const regExpPath = ` RegExp(${stackItem.regexp}) `;
           newBasePath += `/${regExpPath}`;
         }
-      } else if (version === 'v5') {
+      } else if (version === "v5") {
         if (!stackItem.path) {
           return;
-        } else if (stackItem.path !== '/') {
+        } else if (stackItem.path !== "/") {
           newBasePath += `/${stackItem.path}`;
         }
       }
