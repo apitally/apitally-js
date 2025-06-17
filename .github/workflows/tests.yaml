@@ -67,8 +67,8 @@ jobs:
           - fastify@5 fastify-plugin@5
           - fastify@4 fastify-plugin@4
           - fastify@3 fastify-plugin@3
-          - koa@2.15
-          - koa@2.14
+          - koa@3.0
+          - koa@2.16
           - koa@2.13
           - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11 @nestjs/testing@11"
           - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-express@10 @nestjs/testing@10"
