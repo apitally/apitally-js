@@ -1,4 +1,4 @@
-import { H3 } from "h3";
+import type { H3 } from "h3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";

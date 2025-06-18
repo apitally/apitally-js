@@ -1,11 +1,5 @@
-import {
-  definePlugin,
-  H3Event,
-  HTTPError,
-  onError,
-  onRequest,
-  onResponse,
-} from "h3";
+import type { H3Event, HTTPError } from "h3";
+import { definePlugin, onError, onRequest, onResponse } from "h3";
 import { performance } from "perf_hooks";
 import type { ZodError } from "zod";
 
