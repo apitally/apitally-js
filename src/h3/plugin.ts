@@ -20,7 +20,9 @@ import { getAppInfo } from "./utils.js";
 declare module "h3" {
   interface H3EventContext {
     apitallyConsumer?: ApitallyConsumer | string;
-    apitallyRequestTimestamp?: number;
+
+    _apitallyRequestTimestamp?: number;
+    _apitallyRequestBody?: Buffer<ArrayBuffer>;
   }
 }
 
@@ -46,7 +48,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
     response?: Response,
     error?: HTTPError,
   ) => {
-    const startTime = event.context.apitallyRequestTimestamp;
+    const startTime = event.context._apitallyRequestTimestamp;
     const responseTime = startTime ? performance.now() - startTime : 0;
     const path = event.context.matchedRoute?.route;
     const statusCode = response?.status || error?.status || 500;
@@ -101,18 +103,13 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
     }
 
     if (client.requestLogger.enabled) {
-      let requestBody;
-      let responseBody;
       const responseHeaders = response
         ? response.headers
         : error?.headers
           ? mergeHeaders(jsonHeaders, error.headers)
           : jsonHeaders;
       const responseContentType = responseHeaders.get("content-type");
-
-      // if (client.requestLogger.config.logRequestBody) {
-      //   requestBody = Buffer.from(await event.req.arrayBuffer());
-      // }
+      let responseBody;
 
       if (
         newResponse &&
@@ -135,7 +132,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
           ),
           size: Number(requestSize),
           consumer: consumer?.identifier,
-          body: requestBody,
+          body: event.context._apitallyRequestBody,
         },
         {
           statusCode,
@@ -154,8 +151,19 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
 
   app
     .use(
-      onRequest((event) => {
-        event.context.apitallyRequestTimestamp = performance.now();
+      onRequest(async (event) => {
+        event.context._apitallyRequestTimestamp = performance.now();
+        const requestContentType = event.req.headers.get("content-type");
+
+        if (
+          client.requestLogger.enabled &&
+          client.requestLogger.config.logRequestBody &&
+          client.requestLogger.isSupportedContentType(requestContentType)
+        ) {
+          const clonedRequest = event.req.clone();
+          const requestBody = Buffer.from(await clonedRequest.arrayBuffer());
+          event.context._apitallyRequestBody = requestBody;
+        }
       }),
     )
     .use(
