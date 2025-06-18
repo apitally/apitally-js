@@ -60,7 +60,7 @@ describe("Middleware for Hono", () => {
           r.method === "GET" &&
           r.path === "/hello" &&
           r.status_code === 200 &&
-          r.request_size_sum == 0 &&
+          r.request_size_sum === 0 &&
           r.response_size_sum > 0,
       ),
     ).toBe(true);

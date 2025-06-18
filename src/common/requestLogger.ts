@@ -123,6 +123,10 @@ export default class RequestLogger {
     }
   }
 
+  get maxBodySize() {
+    return MAX_BODY_SIZE;
+  }
+
   private shouldExcludePath(urlPath: string) {
     const patterns = [...this.config.excludePaths, ...EXCLUDE_PATH_PATTERNS];
     return matchPatterns(urlPath, patterns);

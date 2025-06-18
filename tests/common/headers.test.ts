@@ -10,6 +10,7 @@ describe("Header utils", () => {
     expect(parseContentLength(undefined)).toBeUndefined();
     expect(parseContentLength(null)).toBeUndefined();
     expect(parseContentLength("")).toBeUndefined();
+    expect(parseContentLength("abc")).toBeUndefined();
   });
 
   it("Merge headers", async () => {

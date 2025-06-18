@@ -29,7 +29,7 @@ export async function getResponseJson(
   response: Response,
 ): Promise<[any, Response]> {
   const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
+  if (contentType?.includes("application/json")) {
     const [newResponse1, newResponse2] = await teeResponse(response);
     const responseJson = await newResponse2.json();
     return [responseJson, newResponse1];

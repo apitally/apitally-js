@@ -148,11 +148,14 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       onRequest(async (event) => {
         event.context._apitallyRequestTimestamp = performance.now();
         const requestContentType = event.req.headers.get("content-type");
+        const requestSize =
+          parseContentLength(event.req.headers.get("content-length")) ?? 0;
 
         if (
           client.requestLogger.enabled &&
           client.requestLogger.config.logRequestBody &&
-          client.requestLogger.isSupportedContentType(requestContentType)
+          client.requestLogger.isSupportedContentType(requestContentType) &&
+          requestSize <= client.requestLogger.maxBodySize
         ) {
           const clonedRequest = event.req.clone();
           const requestBody = Buffer.from(await clonedRequest.arrayBuffer());
