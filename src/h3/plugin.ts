@@ -16,7 +16,7 @@ declare module "h3" {
     apitallyConsumer?: ApitallyConsumer | string;
 
     _apitallyRequestTimestamp?: number;
-    _apitallyRequestBody?: Buffer<ArrayBuffer>;
+    _apitallyRequestBody?: Buffer;
   }
 }
 
