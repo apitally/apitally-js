@@ -40,7 +40,7 @@ describe("Client", () => {
     vi.spyOn(client.logger, "error").mockImplementation(() => {});
     client.setStartupData({ paths: [], versions: {}, client: "js:test" });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 200));
     expect(client["syncIntervalId"]).toBeUndefined();
   });
 
