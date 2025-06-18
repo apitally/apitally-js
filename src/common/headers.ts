@@ -18,3 +18,11 @@ export function parseContentLength(
   }
   return undefined;
 }
+
+export function mergeHeaders(base: Headers, merge: Headers) {
+  const mergedHeaders = new Headers(base);
+  for (const [name, value] of merge)
+    if (name === "set-cookie") mergedHeaders.append(name, value);
+    else mergedHeaders.set(name, value);
+  return mergedHeaders;
+}

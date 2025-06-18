@@ -10,9 +10,16 @@ export const useApitally = (app: Koa, config: ApitallyConfig) => {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(client);
   app.use(middleware);
-  setTimeout(() => {
-    client.setStartupData(getAppInfo(app, config.appVersion));
-  }, 1000);
+
+  const setStartupData = (attempt: number = 1) => {
+    const appInfo = getAppInfo(app, config.appVersion);
+    if (appInfo.paths.length > 0 || attempt >= 10) {
+      client.setStartupData(appInfo);
+    } else {
+      setTimeout(() => setStartupData(attempt + 1), 500);
+    }
+  };
+  setTimeout(() => setStartupData(), 500);
 };
 
 const getMiddleware = (client: ApitallyClient) => {

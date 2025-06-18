@@ -1,12 +1,12 @@
-import { Hono } from "hono";
+import type { H3 } from "h3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
 import { getApp } from "./app.js";
 
-describe("Middleware for Hono", () => {
-  let app: Hono;
+describe("Middleware for H3", () => {
+  let app: H3;
   let client: ApitallyClient;
 
   beforeEach(async () => {
@@ -20,11 +20,11 @@ describe("Middleware for Hono", () => {
 
   it("Request counter", async () => {
     let res;
-    res = await app.request("/hello?name=John&age=20");
+    res = await app.fetch("/hello?name=John&age=20", { method: "GET" });
     expect(res.status).toBe(200);
 
     const body = JSON.stringify({ name: "John", age: 20 });
-    res = await app.request("/hello", {
+    res = await app.fetch("/hello", {
       method: "POST",
       body,
       headers: {
@@ -36,19 +36,19 @@ describe("Middleware for Hono", () => {
     expect(res.status).toBe(200);
     expect(resText).toBe("Hello John! You are 20 years old!");
 
-    res = await app.request("/hello/123");
+    res = await app.fetch("/hello/123", { method: "GET" });
     expect(res.status).toBe(200);
 
-    res = await app.request("/hello?name=Bob&age=17");
+    res = await app.fetch("/hello?name=Bob&age=17", { method: "GET" });
     const resJson = await res.json();
     expect(res.status).toBe(400); // invalid (age < 18)
-    expect(resJson.success).toBe(false);
-    expect(resJson.error.name).toBe("ZodError");
+    expect(resJson.statusText).toBe("Validation failed");
+    expect(resJson.data.name).toBe("ZodError");
 
-    res = await app.request("/hello?name=X&age=1");
+    res = await app.fetch("/hello?name=X&age=1", { method: "GET" });
     expect(res.status).toBe(400); // invalid (name too short and age < 18)
 
-    res = await app.request("/error");
+    res = await app.fetch("/error", { method: "GET" });
     expect(res.status).toBe(500);
 
     const requests = client.requestCounter.getAndResetRequests();
@@ -95,7 +95,7 @@ describe("Middleware for Hono", () => {
     let call;
     let res;
 
-    res = await app.request("/hello?name=John&age=20");
+    res = await app.fetch("/hello?name=John&age=20", { method: "GET" });
     expect(res.status).toBe(200);
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
@@ -116,7 +116,7 @@ describe("Middleware for Hono", () => {
     spy.mockReset();
 
     const body = JSON.stringify({ name: "John", age: 20 });
-    res = await app.request("/hello", {
+    res = await app.fetch("/hello", {
       method: "POST",
       body,
       headers: {
@@ -140,9 +140,9 @@ describe("Middleware for Hono", () => {
   });
 
   it("Validation error counter", async () => {
-    await app.request("/hello?name=Bob&age=20");
-    await app.request("/hello?name=Bob&age=17");
-    await app.request("/hello?name=X&age=1");
+    await app.fetch("/hello?name=Bob&age=20", { method: "GET" });
+    await app.fetch("/hello?name=Bob&age=17", { method: "GET" });
+    await app.fetch("/hello?name=X&age=1", { method: "GET" });
 
     const validationErrors =
       client.validationErrorCounter.getAndResetValidationErrors();
@@ -156,7 +156,7 @@ describe("Middleware for Hono", () => {
   });
 
   it("Server error counter", async () => {
-    const res = await app.request("/error");
+    const res = await app.fetch("/error", { method: "GET" });
     expect(res.status).toBe(500);
 
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
@@ -179,12 +179,12 @@ describe("Middleware for Hono", () => {
         path: "/hello",
       },
       {
-        method: "GET",
-        path: "/hello/:id",
-      },
-      {
         method: "POST",
         path: "/hello",
+      },
+      {
+        method: "GET",
+        path: "/hello/:id",
       },
       {
         method: "GET",

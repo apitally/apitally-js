@@ -5,9 +5,9 @@ import { performance } from "perf_hooks";
 
 import type { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
+import { parseContentLength } from "../common/headers.js";
 import { convertHeaders } from "../common/requestLogger.js";
 import type { ApitallyConsumer } from "../common/types.js";
-import { parseContentLength } from "../common/utils.js";
 
 declare module "@adonisjs/core/http" {
   interface HttpContext {

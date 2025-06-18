@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, Hono, Koa, and NestJS.",
+  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, Hono, H3, Koa, and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -10,6 +10,7 @@
     "apitally",
     "express",
     "fastify",
+    "h3",
     "hono",
     "koa",
     "logging",
@@ -95,6 +96,16 @@
         "types": "./dist/fastify/index.d.cts"
       }
     },
+    "./h3": {
+      "import": {
+        "default": "./dist/h3/index.js",
+        "types": "./dist/h3/index.d.ts"
+      },
+      "require": {
+        "default": "./dist/h3/index.cjs",
+        "types": "./dist/h3/index.d.cts"
+      }
+    },
     "./hono": {
       "import": {
         "default": "./dist/hono/index.js",
@@ -144,6 +155,9 @@
       "fastify": [
         "./dist/fastify/index.d.ts"
       ],
+      "h3": [
+        "./dist/h3/index.d.ts"
+      ],
       "hono": [
         "./dist/hono/index.d.ts"
       ],
@@ -172,6 +186,7 @@
     "express": "^4 || ^5",
     "fastify": "^3 || ^4 || ^5",
     "fastify-plugin": "^3 || ^4 || ^5",
+    "h3": "^2",
     "hono": "^4",
     "koa": "^2 || ^3"
   },
@@ -198,6 +213,9 @@
       "optional": true
     },
     "fastify-plugin": {
+      "optional": true
+    },
+    "h3": {
       "optional": true
     },
     "hono": {
@@ -237,6 +255,7 @@
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.1",
     "globals": "^16.2.0",
+    "h3": "^2.0.0-beta.0",
     "hono": "^4.6.5",
     "koa": "^3.0.0",
     "koa-bodyparser": "^4.4.1",

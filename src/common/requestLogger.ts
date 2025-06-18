@@ -20,7 +20,12 @@ const MAX_PENDING_WRITES = 100;
 const BODY_TOO_LARGE = Buffer.from("<body too large>");
 const BODY_MASKED = Buffer.from("<masked>");
 const MASKED = "******";
-const ALLOWED_CONTENT_TYPES = ["application/json", "text/plain"];
+const ALLOWED_CONTENT_TYPES = [
+  "application/json",
+  "application/problem+json",
+  "application/vnd.api+json",
+  "text/plain",
+];
 const EXCLUDE_PATH_PATTERNS = [
   /\/_?healthz?$/i,
   /\/_?health[_-]?checks?$/i,
@@ -121,6 +126,10 @@ export default class RequestLogger {
         this.maintain();
       }, 1000);
     }
+  }
+
+  get maxBodySize() {
+    return MAX_BODY_SIZE;
   }
 
   private shouldExcludePath(urlPath: string) {

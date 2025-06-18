@@ -33,8 +33,8 @@ testCases.forEach(({ name, router, getApp }) => {
       appTest = request(server);
       client = ApitallyClient.getInstance();
 
-      // Wait for 1.2 seconds for startup data to be set
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      // Wait for 600 ms for startup data to be set
+      await new Promise((resolve) => setTimeout(resolve, 600));
     });
 
     it("Request counter", async () => {
@@ -56,7 +56,7 @@ testCases.forEach(({ name, router, getApp }) => {
             r.method === "GET" &&
             r.path === "/hello" &&
             r.status_code === 200 &&
-            r.request_size_sum == 0 &&
+            r.request_size_sum === 0 &&
             r.response_size_sum > 0 &&
             r.consumer === "test",
         ),
