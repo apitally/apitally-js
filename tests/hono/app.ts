@@ -38,15 +38,18 @@ export const getApp = async () => {
       );
     },
   );
+
   app.get("/hello/:id", (c) => {
     return c.text(`Hello ${c.req.param("id")}!`);
   });
+
   app.post("/hello", async (c) => {
     const requestBody = await c.req.json();
     return c.text(
       `Hello ${requestBody.name}! You are ${requestBody.age} years old!`,
     );
   });
+
   app.get("/error", () => {
     throw new Error("test");
   });

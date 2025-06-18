@@ -3,6 +3,7 @@ import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
+import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import {
@@ -11,12 +12,11 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
-import { parseContentLength } from "../common/utils.js";
 import {
   getEndpoints,
-  parseExpressPathRegExp,
   getRouterInfo,
   parseExpressPath,
+  parseExpressPathRegExp,
 } from "./utils.js";
 
 declare module "express" {
