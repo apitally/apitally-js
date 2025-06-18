@@ -201,7 +201,7 @@ const app = new H3({
 });
 ```
 
-_Note:_ Apitally only works with H3 v2.
+_Note:_ Apitally only works with H3 v2 and currently doesn't support nested apps.
 
 ### AdonisJS
 
