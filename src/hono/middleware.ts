@@ -30,10 +30,10 @@ export function useApitally(app: Hono, config: ApitallyConfig) {
     if (appInfo.paths.length > 0 || attempt >= 10) {
       client.setStartupData(appInfo);
     } else {
-      setTimeout(() => setStartupData(attempt + 1), 1000);
+      setTimeout(() => setStartupData(attempt + 1), 500);
     }
   };
-  setTimeout(() => setStartupData(), 1000);
+  setTimeout(() => setStartupData(), 500);
 }
 
 function getMiddleware(client: ApitallyClient): MiddlewareHandler {

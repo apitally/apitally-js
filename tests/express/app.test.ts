@@ -35,8 +35,8 @@ testCases.forEach(({ name, getApp }) => {
       appTest = request(app);
       client = ApitallyClient.getInstance();
 
-      // Wait for 1.1 seconds for startup data to be set
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      // Wait for 600 ms for startup data to be set
+      await new Promise((resolve) => setTimeout(resolve, 600));
     });
 
     it("Request counter", async () => {

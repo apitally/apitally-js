@@ -32,10 +32,10 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
     if (appInfo.paths.length > 0 || attempt >= 10) {
       client.setStartupData(appInfo);
     } else {
-      setTimeout(() => setStartupData(attempt + 1), 1000);
+      setTimeout(() => setStartupData(attempt + 1), 500);
     }
   };
-  setTimeout(() => setStartupData(), 1000);
+  setTimeout(() => setStartupData(), 500);
 
   const handleResponse = async (
     event: H3Event,
