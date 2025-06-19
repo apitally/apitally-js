@@ -214,19 +214,19 @@ describe("Middleware for Hono with nested app", () => {
   });
 
   it("Request counter", async () => {
-    const res = await app.request("/api/hello");
+    const res = await app.request("/api/v1/hello");
     expect(res.status).toBe(200);
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ method: "GET", path: "/api/hello" });
+    expect(requests[0]).toMatchObject({ method: "GET", path: "/api/v1/hello" });
   });
 
   it("List endpoints", async () => {
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
-        path: "/api/hello",
+        path: "/api/v1/hello",
       },
     ]);
   });

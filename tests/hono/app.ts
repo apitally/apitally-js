@@ -58,7 +58,7 @@ export const getApp = async () => {
 };
 
 export const getNestedApp = async () => {
-  const app = new Hono();
+  const app = new Hono().basePath("/api");
   const nestedApp = new Hono();
 
   useApitally(app, {
@@ -69,7 +69,7 @@ export const getNestedApp = async () => {
   nestedApp.get("/hello", (c) => {
     return c.text("Hello");
   });
-  app.route("/api", nestedApp);
+  app.route("/v1", nestedApp);
 
   return app;
 };
