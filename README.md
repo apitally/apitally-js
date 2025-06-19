@@ -183,7 +183,7 @@ useApitally(app, {
 
 ### H3
 
-This is an example of how to use the Apitally middleware with an H3 application.
+This is an example of how to register the Apitally plugin with an H3 application.
 For further instructions, see our
 [setup guide for H3](https://docs.apitally.io/frameworks/h3).
 
