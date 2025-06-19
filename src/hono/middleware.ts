@@ -137,7 +137,14 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
   };
 }
 
-export function getConsumer(c: Context) {
+export function setConsumer(
+  c: Context,
+  consumer: ApitallyConsumer | string | null | undefined,
+) {
+  c.set("apitallyConsumer", consumer || undefined);
+}
+
+function getConsumer(c: Context) {
   const consumer = c.get("apitallyConsumer");
   if (consumer) {
     return consumerFromStringOrObject(consumer);

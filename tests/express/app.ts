@@ -3,7 +3,7 @@ import type { Request } from "express";
 import express from "express";
 import { body, query, validationResult } from "express-validator";
 
-import { useApitally } from "../../src/express/index.js";
+import { setConsumer, useApitally } from "../../src/express/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
 const requestLoggingConfig = {
@@ -37,7 +37,7 @@ export const getAppWithCelebrate = () => {
       { abortEarly: false },
     ),
     (req: Request, res) => {
-      req.apitallyConsumer = "test";
+      setConsumer(req, "test");
       res.type("txt");
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
@@ -87,7 +87,7 @@ export const getAppWithValidator = () => {
     query("name").isString().isLength({ min: 2 }),
     query("age").isInt({ min: 18 }),
     (req: Request, res) => {
-      req.apitallyConsumer = "test";
+      setConsumer(req, "test");
       const result = validationResult(req);
       if (result.isEmpty()) {
         res.type("txt");

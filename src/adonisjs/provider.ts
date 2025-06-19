@@ -41,7 +41,7 @@ export default class ApitallyProvider {
   }
 }
 
-const listRoutes = (router: Router) => {
+function listRoutes(router: Router) {
   const routes = router.toJSON();
   const paths: Array<PathInfo> = [];
   for (const domain in routes) {
@@ -57,9 +57,9 @@ const listRoutes = (router: Router) => {
     }
   }
   return paths;
-};
+}
 
-const getVersions = (appVersion?: string) => {
+function getVersions(appVersion?: string) {
   const versions = [["nodejs", process.version.replace(/^v/, "")]];
   const adonisJsVersion = getPackageVersion("@adonisjs/core");
   const apitallyVersion = getPackageVersion("../..");
@@ -73,4 +73,4 @@ const getVersions = (appVersion?: string) => {
     versions.push(["app", appVersion]);
   }
   return Object.fromEntries(versions);
-};
+}

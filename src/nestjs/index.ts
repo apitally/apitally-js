@@ -4,14 +4,14 @@ import { Response } from "express";
 
 import type { ApitallyConfig } from "../common/types.js";
 import { useApitally as useApitallyExpress } from "../express/index.js";
-export type { ApitallyConsumer } from "../common/types.js";
+export type { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 
-export const useApitally = (app: INestApplication, config: ApitallyConfig) => {
+export function useApitally(app: INestApplication, config: ApitallyConfig) {
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
   useApitallyExpress(expressInstance, config);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
-};
+}
 
 @Catch()
 class AllExceptionsFilter extends BaseExceptionFilter {

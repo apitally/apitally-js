@@ -164,7 +164,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   });
 };
 
-const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
+function getAppInfo(routes: PathInfo[], appVersion?: string) {
   const versions = [["nodejs", process.version.replace(/^v/, "")]];
   const fastifyVersion = getPackageVersion("fastify");
   const apitallyVersion = getPackageVersion("../..");
@@ -182,9 +182,16 @@ const getAppInfo = (routes: PathInfo[], appVersion?: string) => {
     versions: Object.fromEntries(versions),
     client: "js:fastify",
   };
-};
+}
 
-const getConsumer = (request: FastifyRequest) => {
+export function setConsumer(
+  request: FastifyRequest,
+  consumer: ApitallyConsumer | string | null | undefined,
+) {
+  request.apitallyConsumer = consumer || undefined;
+}
+
+function getConsumer(request: FastifyRequest) {
   if (request.apitallyConsumer) {
     return consumerFromStringOrObject(request.apitallyConsumer);
   } else if (request.consumerIdentifier) {
@@ -196,18 +203,18 @@ const getConsumer = (request: FastifyRequest) => {
     return consumerFromStringOrObject(request.consumerIdentifier);
   }
   return null;
-};
+}
 
-const getResponseTime = (reply: FastifyReply) => {
+function getResponseTime(reply: FastifyReply) {
   if (reply.elapsedTime !== undefined) {
     return reply.elapsedTime;
   } else if ((reply as any).getResponseTime !== undefined) {
     return (reply as any).getResponseTime();
   }
   return 0;
-};
+}
 
-const extractAjvErrors = (message: string): ValidationError[] => {
+function extractAjvErrors(message: string): ValidationError[] {
   const regex =
     /(?<=^|, )((?:headers|params|query|querystring|body)[/.][^ ]+)(?= )/g;
   const matches: { match: string; index: number }[] = [];
@@ -229,7 +236,7 @@ const extractAjvErrors = (message: string): ValidationError[] => {
       type: "",
     };
   });
-};
+}
 
 export default fp(apitallyPlugin, {
   name: "apitally",
