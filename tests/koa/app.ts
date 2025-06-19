@@ -3,7 +3,7 @@ import Koa from "koa";
 import bodyParser from "koa-bodyparser";
 import route from "koa-route";
 
-import { useApitally } from "../../src/koa/index.js";
+import { setConsumer, useApitally } from "../../src/koa/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
 const requestLoggingConfig = {
@@ -27,7 +27,7 @@ export const getAppWithKoaRouter = () => {
   });
 
   router.get("/hello", async (ctx) => {
-    ctx.state.apitallyConsumer = "test";
+    setConsumer(ctx, "test");
     ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
   });
   router.get("/hello/:id", async (ctx) => {
@@ -61,7 +61,7 @@ export const getAppWithKoaRoute = () => {
   app.use(bodyParser());
   app.use(
     route.get("/hello", async (ctx) => {
-      ctx.state.apitallyConsumer = "test";
+      setConsumer(ctx, "test");
       ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
     }),
   );

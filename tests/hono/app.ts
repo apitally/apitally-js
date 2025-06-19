@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { useApitally } from "../../src/hono/index.js";
+import { setConsumer, useApitally } from "../../src/hono/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
 export const getApp = async () => {
@@ -32,7 +32,7 @@ export const getApp = async () => {
       }),
     ),
     (c) => {
-      c.set("apitallyConsumer", "test");
+      setConsumer(c, "test");
       return c.text(
         `Hello ${c.req.query("name")}! You are ${c.req.query("age")} years old!`,
       );

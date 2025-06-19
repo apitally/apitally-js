@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 
-import { apitallyPlugin } from "../../src/fastify/index.js";
+import { apitallyPlugin, setConsumer } from "../../src/fastify/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
 export const getApp = async () => {
@@ -47,7 +47,7 @@ export const getApp = async () => {
     },
     async function (request) {
       const { name, age } = request.query;
-      request.apitallyConsumer = "test";
+      setConsumer(request, "test");
       return `Hello ${name}! You are ${age} years old!`;
     },
   );

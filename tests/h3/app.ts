@@ -7,7 +7,7 @@ import {
 } from "h3";
 import { z } from "zod";
 
-import { apitallyPlugin } from "../../src/h3/index.js";
+import { apitallyPlugin, setConsumer } from "../../src/h3/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
 export const getApp = async () => {
@@ -44,7 +44,7 @@ export const getApp = async () => {
     "/hello",
     defineEventHandler(async (event) => {
       const { name, age } = await getValidatedQuery(event, querySchema.parse);
-      event.context.apitallyConsumer = "test";
+      setConsumer(event, "test");
       return `Hello ${name}! You are ${age} years old!`;
     }),
   );
