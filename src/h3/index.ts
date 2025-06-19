@@ -1,2 +1,2 @@
-export type { ApitallyConsumer } from "../common/types.js";
-export { apitallyPlugin } from "./plugin.js";
+export type { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
+export { apitallyPlugin, setConsumer } from "./plugin.js";

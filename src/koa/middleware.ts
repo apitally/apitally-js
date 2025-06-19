@@ -4,9 +4,14 @@ import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
-import { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
+import {
+  ApitallyConfig,
+  ApitallyConsumer,
+  PathInfo,
+  StartupData,
+} from "../common/types.js";
 
-export const useApitally = (app: Koa, config: ApitallyConfig) => {
+export function useApitally(app: Koa, config: ApitallyConfig) {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(client);
   app.use(middleware);
@@ -20,9 +25,9 @@ export const useApitally = (app: Koa, config: ApitallyConfig) => {
     }
   };
   setTimeout(() => setStartupData(), 500);
-};
+}
 
-const getMiddleware = (client: ApitallyClient) => {
+function getMiddleware(client: ApitallyClient) {
   return async (ctx: Koa.Context, next: Koa.Next) => {
     if (!client.isEnabled()) {
       await next();
@@ -104,13 +109,20 @@ const getMiddleware = (client: ApitallyClient) => {
       }
     }
   };
-};
+}
 
-const getPath = (ctx: Koa.Context) => {
+function getPath(ctx: Koa.Context) {
   return ctx._matchedRoute || ctx.routePath; // _matchedRoute is set by koa-router, routePath is set by koa-route
-};
+}
 
-const getConsumer = (ctx: Koa.Context) => {
+export function setConsumer(
+  ctx: Koa.Context,
+  consumer: ApitallyConsumer | string | null | undefined,
+) {
+  ctx.state.apitallyConsumer = consumer || undefined;
+}
+
+function getConsumer(ctx: Koa.Context) {
   if (ctx.state.apitallyConsumer) {
     return consumerFromStringOrObject(ctx.state.apitallyConsumer);
   } else if (ctx.state.consumerIdentifier) {
@@ -122,9 +134,9 @@ const getConsumer = (ctx: Koa.Context) => {
     return consumerFromStringOrObject(ctx.state.consumerIdentifier);
   }
   return null;
-};
+}
 
-const getAppInfo = (app: Koa, appVersion?: string): StartupData => {
+function getAppInfo(app: Koa, appVersion?: string): StartupData {
   const versions: Array<[string, string]> = [
     ["nodejs", process.version.replace(/^v/, "")],
   ];
@@ -144,17 +156,17 @@ const getAppInfo = (app: Koa, appVersion?: string): StartupData => {
     versions: Object.fromEntries(versions),
     client: "js:koa",
   };
-};
+}
 
-const isKoaRouterMiddleware = (middleware: any) => {
+function isKoaRouterMiddleware(middleware: any) {
   return (
     typeof middleware === "function" &&
     middleware.router &&
     Array.isArray(middleware.router.stack)
   );
-};
+}
 
-const listEndpoints = (app: Koa) => {
+function listEndpoints(app: Koa) {
   const endpoints: Array<PathInfo> = [];
   app.middleware.forEach((middleware: any) => {
     if (isKoaRouterMiddleware(middleware)) {
@@ -173,4 +185,4 @@ const listEndpoints = (app: Koa) => {
     }
   });
   return endpoints;
-};
+}

@@ -26,10 +26,10 @@ declare module "express" {
   }
 }
 
-export const useApitally = (
+export function useApitally(
   app: Express | Router,
   config: ApitallyConfig & { basePath?: string },
-) => {
+) {
   const client = new ApitallyClient(config);
   const middleware = getMiddleware(app, client);
   app.use(middleware);
@@ -43,9 +43,9 @@ export const useApitally = (
     }
   };
   setTimeout(() => setStartupData(), 500);
-};
+}
 
-const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
+function getMiddleware(app: Express | Router, client: ApitallyClient) {
   let errorHandlerConfigured = false;
 
   return (req: Request, res: Response, next: NextFunction) => {
@@ -185,9 +185,9 @@ const getMiddleware = (app: Express | Router, client: ApitallyClient) => {
       next();
     }
   };
-};
+}
 
-const getRoutePath = (req: Request) => {
+function getRoutePath(req: Request) {
   if (!req.route) {
     return;
   }
@@ -199,9 +199,9 @@ const getRoutePath = (req: Request) => {
     }
   }
   return req.route.path;
-};
+}
 
-const getRouterPath = (stack: any[], baseUrl: string) => {
+function getRouterPath(stack: any[], baseUrl: string) {
   const routerPaths: string[] = [];
   while (stack && stack.length > 0) {
     const routerLayer = stack.find(
@@ -240,9 +240,16 @@ const getRouterPath = (stack: any[], baseUrl: string) => {
     }
   }
   return routerPaths.filter((path) => path !== "/").join("");
-};
+}
 
-const getConsumer = (req: Request) => {
+export function setConsumer(
+  req: Request,
+  consumer: ApitallyConsumer | string | null | undefined,
+) {
+  req.apitallyConsumer = consumer || undefined;
+}
+
+function getConsumer(req: Request) {
   if (req.apitallyConsumer) {
     return consumerFromStringOrObject(req.apitallyConsumer);
   } else if (req.consumerIdentifier) {
@@ -254,9 +261,9 @@ const getConsumer = (req: Request) => {
     return consumerFromStringOrObject(req.consumerIdentifier);
   }
   return null;
-};
+}
 
-const extractExpressValidatorErrors = (responseBody: any) => {
+function extractExpressValidatorErrors(responseBody: any) {
   try {
     const errors: ValidationError[] = [];
     if (
@@ -278,9 +285,9 @@ const extractExpressValidatorErrors = (responseBody: any) => {
   } catch (error) {
     return [];
   }
-};
+}
 
-const extractCelebrateErrors = (responseBody: any) => {
+function extractCelebrateErrors(responseBody: any) {
   try {
     const errors: ValidationError[] = [];
     if (responseBody && responseBody.validation) {
@@ -305,9 +312,9 @@ const extractCelebrateErrors = (responseBody: any) => {
   } catch (error) {
     return [];
   }
-};
+}
 
-const extractNestValidationErrors = (responseBody: any) => {
+function extractNestValidationErrors(responseBody: any) {
   try {
     const errors: ValidationError[] = [];
     if (responseBody && Array.isArray(responseBody.message)) {
@@ -323,20 +330,20 @@ const extractNestValidationErrors = (responseBody: any) => {
   } catch (error) {
     return [];
   }
-};
+}
 
-const subsetJoiMessage = (message: string, key: string) => {
+function subsetJoiMessage(message: string, key: string) {
   const messageWithKey = message
     .split(". ")
     .find((message) => message.includes(`"${key}"`));
   return messageWithKey ? messageWithKey : message;
-};
+}
 
-const getAppInfo = (
+function getAppInfo(
   app: Express | Router,
   basePath?: string,
   appVersion?: string,
-): StartupData => {
+): StartupData {
   const versions: Array<[string, string]> = [
     ["nodejs", process.version.replace(/^v/, "")],
   ];
@@ -360,4 +367,4 @@ const getAppInfo = (
     versions: Object.fromEntries(versions),
     client: "js:express",
   };
-};
+}

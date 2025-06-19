@@ -131,9 +131,9 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
         {
           statusCode,
           responseTime: responseTime / 1000,
-          headers: responseHeaders
-            ? convertHeaders(Object.fromEntries(responseHeaders.entries()))
-            : [],
+          headers: convertHeaders(
+            Object.fromEntries(responseHeaders.entries()),
+          ),
           size: responseSize,
           body: responseBody,
         },
@@ -178,6 +178,13 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       }),
     );
 });
+
+export function setConsumer(
+  event: H3Event,
+  consumer: ApitallyConsumer | string | null | undefined,
+) {
+  event.context.apitallyConsumer = consumer || undefined;
+}
 
 function getConsumer(event: H3Event) {
   const consumer = event.context.apitallyConsumer;
