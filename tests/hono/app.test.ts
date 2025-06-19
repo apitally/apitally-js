@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
-import { getApp } from "./app.js";
+import { getApp, getNestedApp } from "./app.js";
 
 describe("Middleware for Hono", () => {
   let app: Hono;
@@ -189,6 +189,44 @@ describe("Middleware for Hono", () => {
       {
         method: "GET",
         path: "/error",
+      },
+    ]);
+  });
+
+  afterEach(async () => {
+    if (client) {
+      await client.handleShutdown();
+    }
+  });
+});
+
+describe("Middleware for Hono with nested app", () => {
+  let app: Hono;
+  let client: ApitallyClient;
+
+  beforeEach(async () => {
+    mockApitallyHub();
+    app = await getNestedApp();
+    client = ApitallyClient.getInstance();
+
+    // Wait for 600 ms for startup data to be set
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  });
+
+  it("Request counter", async () => {
+    const res = await app.request("/api/v1/hello");
+    expect(res.status).toBe(200);
+
+    const requests = client.requestCounter.getAndResetRequests();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ method: "GET", path: "/api/v1/hello" });
+  });
+
+  it("List endpoints", async () => {
+    expect(client.startupData?.paths).toEqual([
+      {
+        method: "GET",
+        path: "/api/v1/hello",
       },
     ]);
   });

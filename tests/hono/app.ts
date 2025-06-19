@@ -56,3 +56,20 @@ export const getApp = async () => {
 
   return app;
 };
+
+export const getNestedApp = async () => {
+  const app = new Hono().basePath("/api");
+  const nestedApp = new Hono();
+
+  useApitally(app, {
+    clientId: CLIENT_ID,
+    env: ENV,
+  });
+
+  nestedApp.get("/hello", (c) => {
+    return c.text("Hello");
+  });
+  app.route("/v1", nestedApp);
+
+  return app;
+};
