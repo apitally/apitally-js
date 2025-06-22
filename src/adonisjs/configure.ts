@@ -3,12 +3,14 @@
  */
 
 import type Configure from "@adonisjs/core/commands/configure";
-import { stubsRoot } from "./stubs/main.js";
+import { fileURLToPath } from "url";
+
+const STUBS_ROOT = fileURLToPath(new URL("./stubs/", import.meta.url));
 
 export async function configure(command: Configure) {
   const codemods = await command.createCodemods();
 
-  await codemods.makeUsingStub(stubsRoot, "config/apitally.stub", {});
+  await codemods.makeUsingStub(STUBS_ROOT, "config/apitally.stub", {});
 
   await codemods.registerMiddleware("router", [
     {
@@ -16,7 +18,7 @@ export async function configure(command: Configure) {
     },
   ]);
 
-  await codemods.updateRcFile((rcFile) => {
+  await codemods.updateRcFile((rcFile: any) => {
     rcFile.addProvider("apitally/adonisjs/provider");
   });
 

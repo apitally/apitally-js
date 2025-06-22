@@ -205,10 +205,10 @@ _Note:_ Apitally only works with H3 v2 and currently doesn't support nested apps
 
 ### AdonisJS
 
-You can use the built-in Ace command to set up Apitally in your AdonisJS application:
+You can use the built-in Ace command to configure Apitally in your AdonisJS application:
 
 ```bash
-node ace add apitally
+node ace configure apitally/adonisjs
 ```
 
 This command will automatically:

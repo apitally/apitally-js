@@ -35,15 +35,13 @@
   "homepage": "https://apitally.io",
   "type": "module",
   "scripts": {
-    "build": "tsup src",
+    "build": "tsup",
     "format": "prettier --write .",
     "check": "tsc --noEmit && eslint src tests && prettier --check .",
     "test": "vitest"
   },
   "files": [
     "dist/",
-    "stubs/",
-    "configure.ts",
     "LICENSE",
     "README.md"
   ],
@@ -251,6 +249,7 @@
     "celebrate": "^15.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
+    "copyfiles": "^2.4.1",
     "eslint": "^9.0.0",
     "express": "^5.1.0",
     "express-validator": "^7.2.1",
