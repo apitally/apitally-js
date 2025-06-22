@@ -205,7 +205,7 @@ _Note:_ Apitally only works with H3 v2 and currently doesn't support nested apps
 
 ### AdonisJS
 
-You can use the built-in Ace command to configure Apitally in your AdonisJS application:
+You can use the below Ace command to configure Apitally in your AdonisJS application:
 
 ```bash
 node ace configure apitally/adonisjs
@@ -216,12 +216,7 @@ This command will automatically:
 - Create a config file at `config/apitally.ts`
 - Register the Apitally provider in `adonisrc.ts`
 - Add the Apitally middleware to `start/kernel.ts`
-- Add environment variables to `.env` and `start/env.ts`
-
-After running the command, you'll need to:
-
-- Set your `APITALLY_CLIENT_ID` in the `.env` file
-- Modify your exception handler in `app/exceptions/handler.ts` to capture validation and server errors
+- Add required environment variables to `.env` and `start/env.ts`
 
 For further instructions, see our
 [setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
