@@ -205,43 +205,26 @@ _Note:_ Apitally only works with H3 v2 and currently doesn't support nested apps
 
 ### AdonisJS
 
-This is an example of how to use the Apitally middleware with a AdonisJS application.
+You can use the built-in Ace command to set up Apitally in your AdonisJS application:
+
+```bash
+node ace add apitally
+```
+
+This command will automatically:
+
+- Create the configuration file at `config/apitally.ts`
+- Register the Apitally provider in `adonisrc.ts`
+- Add the Apitally middleware to your `start/kernel.ts` file
+- Add environment variables to `.env` and validation to `start/env.ts`
+
+After running the command, you'll need to:
+
+- Set your `APITALLY_CLIENT_ID` in the `.env` file
+- Modify our exception handler in `app/exceptions/handler.ts` to capture validation and server errors in Apitally
+
 For further instructions, see our
 [setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
-
-Create a configuration file at `config/apitally.ts`:
-
-```javascript
-import { defineConfig } from "apitally/adonisjs";
-
-const apitallyConfig = defineConfig({
-  clientId: "your-client-id",
-  env: "dev", // or "prod" etc.
-});
-
-export default apitallyConfig;
-```
-
-Register the Apitally provider in your `adonisrc.ts` file:
-
-```javascript
-export default defineConfig({
-  // ... existing code ...
-  providers: [
-    // ... existing providers ...
-    () => import("apitally/adonisjs/provider"),
-  ],
-});
-```
-
-Register the Apitally middleware in your `start/kernel.ts` file:
-
-```javascript
-router.use([
-  () => import("apitally/adonisjs/middleware"),
-  // ... other middleware ...
-]);
-```
 
 ## Getting help
 

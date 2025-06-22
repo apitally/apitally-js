@@ -1,0 +1,15 @@
+{{{
+  exports({
+    to: app.configPath('apitally.ts')
+  })
+}}}
+import env from '#start/env'
+import app from '@adonisjs/core/services/app'
+import { defineConfig } from 'apitally/adonisjs'
+
+const apitallyConfig = defineConfig({
+  clientId: env.get('APITALLY_CLIENT_ID'),
+  env: env.get('APITALLY_ENV', app.inProduction ? 'prod' : 'dev'),
+})
+
+export default apitallyConfig

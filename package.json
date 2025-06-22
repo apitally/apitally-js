@@ -42,8 +42,10 @@
   },
   "files": [
     "dist/",
-    "README.md",
-    "LICENSE"
+    "stubs/",
+    "configure.ts",
+    "LICENSE",
+    "README.md"
   ],
   "exports": {
     "./adonisjs": {
