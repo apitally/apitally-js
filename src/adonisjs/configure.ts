@@ -5,9 +5,33 @@
 import type Configure from "@adonisjs/core/commands/configure";
 import { fileURLToPath } from "url";
 
+import { isValidClientId, isValidEnv } from "../common/paramValidation.js";
+
 const STUBS_ROOT = fileURLToPath(new URL("./stubs/", import.meta.url));
 
 export async function configure(command: Configure) {
+  const clientId = await command.prompt.ask("Apitally client ID", {
+    result(value) {
+      return value.trim().toLowerCase();
+    },
+    validate(value) {
+      return isValidClientId(value);
+    },
+  });
+  const env = await command.prompt.ask("Environment name", {
+    default: "dev",
+    result(value) {
+      return value
+        .trim()
+        .toLowerCase()
+        .replaceAll("_", "-")
+        .replaceAll(" ", "-");
+    },
+    validate(value) {
+      return isValidEnv(value);
+    },
+  });
+
   const codemods = await command.createCodemods();
 
   await codemods.makeUsingStub(STUBS_ROOT, "config/apitally.stub", {});
@@ -23,8 +47,8 @@ export async function configure(command: Configure) {
   });
 
   await codemods.defineEnvVariables({
-    APITALLY_CLIENT_ID: "",
-    APITALLY_ENV: "dev",
+    APITALLY_CLIENT_ID: clientId,
+    APITALLY_ENV: env,
   });
 
   await codemods.defineEnvValidations({
