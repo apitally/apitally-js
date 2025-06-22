@@ -213,15 +213,15 @@ node ace configure apitally/adonisjs
 
 This command will automatically:
 
-- Create the configuration file at `config/apitally.ts`
+- Create a config file at `config/apitally.ts`
 - Register the Apitally provider in `adonisrc.ts`
-- Add the Apitally middleware to your `start/kernel.ts` file
-- Add environment variables to `.env` and validation to `start/env.ts`
+- Add the Apitally middleware to `start/kernel.ts`
+- Add environment variables to `.env` and `start/env.ts`
 
 After running the command, you'll need to:
 
 - Set your `APITALLY_CLIENT_ID` in the `.env` file
-- Modify our exception handler in `app/exceptions/handler.ts` to capture validation and server errors in Apitally
+- Modify your exception handler in `app/exceptions/handler.ts` to capture validation and server errors
 
 For further instructions, see our
 [setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
