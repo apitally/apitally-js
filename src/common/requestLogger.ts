@@ -55,6 +55,16 @@ const MASK_HEADER_PATTERNS = [
   /token/i,
   /cookie/i,
 ];
+const MASK_BODY_FIELD_PATTERNS = [
+  /password/i,
+  /pwd/i,
+  /token/i,
+  /secret/i,
+  /auth/i,
+  /card[-_ ]?number/i,
+  /ccv/i,
+  /ssn/i,
+];
 
 export type Request = {
   timestamp: number;
@@ -85,6 +95,7 @@ export type RequestLoggingConfig = {
   logException: boolean;
   maskQueryParams: RegExp[];
   maskHeaders: RegExp[];
+  maskBodyFields: RegExp[];
   maskRequestBodyCallback?: (request: Request) => Buffer | null | undefined;
   maskResponseBodyCallback?: (
     request: Request,
@@ -104,14 +115,27 @@ const DEFAULT_CONFIG: RequestLoggingConfig = {
   logException: true,
   maskQueryParams: [],
   maskHeaders: [],
+  maskBodyFields: [],
   excludePaths: [],
+};
+
+type RequestLogItem = {
+  uuid: string;
+  request: Request;
+  response: Response;
+  exception?: {
+    type: string;
+    message: string;
+    stacktrace: string;
+    sentryEventId?: string;
+  };
 };
 
 export default class RequestLogger {
   public config: RequestLoggingConfig;
   public enabled: boolean;
   public suspendUntil: number | null = null;
-  private pendingWrites: string[] = [];
+  private pendingWrites: RequestLogItem[] = [];
   private currentFile: TempGzipFile | null = null;
   private files: TempGzipFile[] = [];
   private maintainIntervalId?: NodeJS.Timeout;
@@ -156,11 +180,26 @@ export default class RequestLogger {
     return matchPatterns(name, patterns);
   }
 
+  private shouldMaskBodyField(name: string) {
+    const patterns = [
+      ...this.config.maskBodyFields,
+      ...MASK_BODY_FIELD_PATTERNS,
+    ];
+    return matchPatterns(name, patterns);
+  }
+
   private hasSupportedContentType(headers: [string, string][]) {
     const contentType = headers.find(
       ([k]) => k.toLowerCase() === "content-type",
     )?.[1];
     return this.isSupportedContentType(contentType);
+  }
+
+  private hasJsonContentType(headers: [string, string][]) {
+    const contentType = headers.find(
+      ([k]) => k.toLowerCase() === "content-type",
+    )?.[1];
+    return contentType ? /\bjson\b/i.test(contentType) : null;
   }
 
   public isSupportedContentType(contentType?: string | null) {
@@ -184,6 +223,106 @@ export default class RequestLogger {
     return headers.map(([k, v]) => [k, this.shouldMaskHeader(k) ? MASKED : v]);
   }
 
+  private maskBody(data: any): any {
+    if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+      const result: any = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof value === "string" && this.shouldMaskBodyField(key)) {
+          result[key] = MASKED;
+        } else {
+          result[key] = this.maskBody(value);
+        }
+      }
+      return result;
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this.maskBody(item));
+    }
+    return data;
+  }
+
+  private applyMasking(item: RequestLogItem) {
+    // Apply user-provided maskRequestBodyCallback function
+    if (
+      this.config.maskRequestBodyCallback &&
+      item.request.body &&
+      item.request.body !== BODY_TOO_LARGE
+    ) {
+      try {
+        const maskedBody = this.config.maskRequestBodyCallback(item.request);
+        item.request.body = maskedBody ?? BODY_MASKED;
+      } catch {
+        item.request.body = undefined;
+      }
+    }
+
+    // Apply user-provided maskResponseBodyCallback function
+    if (
+      this.config.maskResponseBodyCallback &&
+      item.response.body &&
+      item.response.body !== BODY_TOO_LARGE
+    ) {
+      try {
+        const maskedBody = this.config.maskResponseBodyCallback(
+          item.request,
+          item.response,
+        );
+        item.response.body = maskedBody ?? BODY_MASKED;
+      } catch {
+        item.response.body = undefined;
+      }
+    }
+
+    // Check request and response body sizes
+    if (item.request.body && item.request.body.length > MAX_BODY_SIZE) {
+      item.request.body = BODY_TOO_LARGE;
+    }
+    if (item.response.body && item.response.body.length > MAX_BODY_SIZE) {
+      item.response.body = BODY_TOO_LARGE;
+    }
+
+    // Mask request and response body fields
+    for (const key of ["request", "response"] as const) {
+      const bodyData = item[key].body;
+      if (
+        !bodyData ||
+        bodyData === BODY_TOO_LARGE ||
+        bodyData === BODY_MASKED
+      ) {
+        continue;
+      }
+
+      const headers = item[key].headers;
+      const hasJsonContent = this.hasJsonContentType(headers);
+      if (hasJsonContent === null || hasJsonContent) {
+        try {
+          const parsedBody = JSON.parse(bodyData.toString());
+          const maskedBody = this.maskBody(parsedBody);
+          item[key].body = Buffer.from(JSON.stringify(maskedBody));
+        } catch {
+          // If parsing fails, leave body as is
+        }
+      }
+    }
+
+    // Mask request and response headers
+    item.request.headers = this.config.logRequestHeaders
+      ? this.maskHeaders(item.request.headers)
+      : [];
+    item.response.headers = this.config.logResponseHeaders
+      ? this.maskHeaders(item.response.headers)
+      : [];
+
+    // Mask query params
+    const url = new URL(item.request.url);
+    url.search = this.config.logQueryParams
+      ? this.maskQueryParams(url.search)
+      : "";
+    item.request.url = url.toString();
+
+    return item;
+  }
+
   logRequest(request: Request, response: Response, error?: Error) {
     if (!this.enabled || this.suspendUntil !== null) return;
 
@@ -201,69 +340,30 @@ export default class RequestLogger {
       return;
     }
 
-    // Process query params
-    url.search = this.config.logQueryParams
-      ? this.maskQueryParams(url.search)
-      : "";
-    request.url = url.toString();
-
-    // Process request body
     if (
       !this.config.logRequestBody ||
       !this.hasSupportedContentType(request.headers)
     ) {
       request.body = undefined;
-    } else if (request.body) {
-      if (request.body.length > MAX_BODY_SIZE) {
-        request.body = BODY_TOO_LARGE;
-      } else if (this.config.maskRequestBodyCallback) {
-        try {
-          request.body =
-            this.config.maskRequestBodyCallback(request) ?? BODY_MASKED;
-          if (request.body.length > MAX_BODY_SIZE) {
-            request.body = BODY_TOO_LARGE;
-          }
-        } catch {
-          request.body = undefined;
-        }
-      }
     }
-
-    // Process response body
     if (
       !this.config.logResponseBody ||
       !this.hasSupportedContentType(response.headers)
     ) {
       response.body = undefined;
-    } else if (response.body) {
-      if (response.body.length > MAX_BODY_SIZE) {
-        response.body = BODY_TOO_LARGE;
-      } else if (this.config.maskResponseBodyCallback) {
-        try {
-          response.body =
-            this.config.maskResponseBodyCallback(request, response) ??
-            BODY_MASKED;
-          if (response.body.length > MAX_BODY_SIZE) {
-            response.body = BODY_TOO_LARGE;
-          }
-        } catch {
-          response.body = undefined;
-        }
-      }
     }
 
-    // Process headers
-    request.headers = this.config.logRequestHeaders
-      ? this.maskHeaders(request.headers)
-      : [];
-    response.headers = this.config.logResponseHeaders
-      ? this.maskHeaders(response.headers)
-      : [];
+    if (request.size !== undefined && request.size < 0) {
+      request.size = undefined;
+    }
+    if (response.size !== undefined && response.size < 0) {
+      response.size = undefined;
+    }
 
-    const item = {
+    const item: RequestLogItem = {
       uuid: randomUUID(),
-      request: skipEmptyValues(request),
-      response: skipEmptyValues(response),
+      request: request,
+      response: response,
       exception:
         error && this.config.logException
           ? {
@@ -272,17 +372,9 @@ export default class RequestLogger {
               stacktrace: truncateExceptionStackTrace(error.stack || ""),
               sentryEventId: getSentryEventId(),
             }
-          : null,
+          : undefined,
     };
-    [item.request.body, item.response.body].forEach((body) => {
-      if (body) {
-        // @ts-expect-error Different return type
-        body.toJSON = function () {
-          return this.toString("base64");
-        };
-      }
-    });
-    this.pendingWrites.push(JSON.stringify(item));
+    this.pendingWrites.push(item);
 
     if (this.pendingWrites.length > MAX_PENDING_WRITES) {
       this.pendingWrites.shift();
@@ -298,9 +390,30 @@ export default class RequestLogger {
         this.currentFile = new TempGzipFile();
       }
       while (this.pendingWrites.length > 0) {
-        const item = this.pendingWrites.shift();
+        let item = this.pendingWrites.shift();
         if (item) {
-          await this.currentFile.writeLine(Buffer.from(item));
+          item = this.applyMasking(item);
+
+          const finalItem = {
+            uuid: item.uuid,
+            request: skipEmptyValues(item.request),
+            response: skipEmptyValues(item.response),
+            exception: item.exception,
+          };
+
+          // Set up body serialization for JSON
+          [finalItem.request.body, finalItem.response.body].forEach((body) => {
+            if (body) {
+              // @ts-expect-error Override Buffer's default JSON serialization
+              body.toJSON = function () {
+                return this.toString("base64");
+              };
+            }
+          });
+
+          await this.currentFile.writeLine(
+            Buffer.from(JSON.stringify(finalItem)),
+          );
         }
       }
     });
