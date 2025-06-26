@@ -273,9 +273,10 @@ const parseStack = function (stack, basePath, endpoints, version) {
 
 export const getEndpoints = function (app, basePath) {
   const endpoints = parseEndpoints(app);
+  const standardHttpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
   return endpoints.flatMap((route) =>
     route.methods
-      .filter((method) => !["HEAD", "OPTIONS"].includes(method.toUpperCase()))
+      .filter((method) => standardHttpMethods.includes(method.toUpperCase()))
       .map((method) => ({
         method,
         path: (basePath + route.path).replace(/\/\//g, "/"),
