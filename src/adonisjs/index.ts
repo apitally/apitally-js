@@ -16,7 +16,7 @@ export function captureError(error: unknown, ctx: HttpContext) {
 
 export function setConsumer(
   ctx: HttpContext,
-  consumer: ApitallyConsumer | string,
+  consumer: ApitallyConsumer | string | null | undefined,
 ) {
-  ctx.apitallyConsumer = consumer;
+  ctx.apitallyConsumer = consumer || undefined;
 }
