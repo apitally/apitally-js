@@ -42,6 +42,7 @@ describe("Middleware for NestJS", () => {
           r.method === "GET" &&
           r.path === "/hello" &&
           r.status_code === 200 &&
+          r.consumer === "test" &&
           r.response_size_sum > 0,
       ),
     ).toBe(true);
@@ -51,6 +52,7 @@ describe("Middleware for NestJS", () => {
           r.method === "POST" &&
           r.path === "/hello" &&
           r.status_code === 201 &&
+          r.consumer === "test" &&
           r.request_size_sum > 0 &&
           r.response_size_sum > 0,
       ),

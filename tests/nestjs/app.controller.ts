@@ -14,12 +14,13 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import { IsInt, IsNotEmpty, Min, MinLength } from "class-validator";
+import { setConsumer } from "../../src/nestjs/index.js";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    request.apitallyConsumer = "test";
+    setConsumer(request, "test");
     return true;
   }
 }
