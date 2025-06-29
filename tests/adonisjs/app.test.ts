@@ -88,6 +88,7 @@ describe("Middleware for AdonisJS", () => {
           r.method === "POST" &&
           r.path === "/hello" &&
           r.status_code === 200 &&
+          r.consumer === "test" &&
           r.request_size_sum > 0 &&
           r.response_size_sum > 0 &&
           r.request_count === 1,

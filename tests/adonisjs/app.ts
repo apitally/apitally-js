@@ -8,6 +8,7 @@ import vine from "@vinejs/vine";
 import {
   captureError,
   defineConfig as defineApitallyConfig,
+  setConsumer,
 } from "../../src/adonisjs/index.js";
 import ApitallyMiddleware from "../../src/adonisjs/middleware.js";
 import { CLIENT_ID, ENV } from "../utils.js";
@@ -73,6 +74,7 @@ export const createRoutes = (router: Router) => {
 
   router
     .post("/hello", async (ctx) => {
+      setConsumer(ctx, "test");
       const data = ctx.request.all();
       try {
         const { name, age } = await helloValidator.validate(data);
