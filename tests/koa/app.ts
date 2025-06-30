@@ -23,7 +23,7 @@ export const getAppWithKoaRouter = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
-    requestLoggingConfig,
+    requestLogging: requestLoggingConfig,
   });
 
   router.get("/hello", async (ctx) => {
@@ -55,7 +55,7 @@ export const getAppWithKoaRoute = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
-    requestLoggingConfig,
+    requestLogging: requestLoggingConfig,
   });
 
   app.use(bodyParser());

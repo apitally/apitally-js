@@ -23,7 +23,7 @@ export const createApp = async () => {
       clientId: CLIENT_ID,
       env: ENV,
       appVersion: "1.2.3",
-      requestLoggingConfig: {
+      requestLogging: {
         enabled: true,
         logQueryParams: true,
         logRequestHeaders: true,
