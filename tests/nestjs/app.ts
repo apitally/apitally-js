@@ -15,7 +15,7 @@ export async function getApp() {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
-    requestLoggingConfig: {
+    requestLogging: {
       enabled: true,
       logQueryParams: true,
       logRequestHeaders: true,

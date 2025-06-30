@@ -54,6 +54,7 @@ export class ApitallyClient {
   constructor({
     clientId,
     env = "dev",
+    requestLogging,
     requestLoggingConfig,
     logger,
   }: ApitallyConfig) {
@@ -70,6 +71,11 @@ export class ApitallyClient {
         `Invalid env '${env}' (expecting 1-32 alphanumeric lowercase characters and hyphens only)`,
       );
     }
+    if (requestLoggingConfig && !requestLogging) {
+      console.warn(
+        "requestLoggingConfig is deprecated, use requestLogging instead.",
+      );
+    }
 
     ApitallyClient.instance = this;
     this.clientId = clientId;
@@ -77,11 +83,13 @@ export class ApitallyClient {
     this.instanceUuid = randomUUID();
     this.syncDataQueue = [];
     this.requestCounter = new RequestCounter();
-    this.requestLogger = new RequestLogger(requestLoggingConfig);
+    this.requestLogger = new RequestLogger(
+      requestLogging ?? requestLoggingConfig,
+    );
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
     this.consumerRegistry = new ConsumerRegistry();
-    this.logger = logger || getLogger();
+    this.logger = logger ?? getLogger();
 
     this.startSync();
     this.handleShutdown = this.handleShutdown.bind(this);

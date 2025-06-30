@@ -4,9 +4,12 @@ import { RequestLoggingConfig } from "./requestLogger.js";
 export type ApitallyConfig = {
   clientId: string;
   env?: string;
-  requestLoggingConfig?: Partial<RequestLoggingConfig>;
+  requestLogging?: Partial<RequestLoggingConfig>;
   appVersion?: string;
   logger?: Logger;
+
+  /** @deprecated Use requestLogging instead */
+  requestLoggingConfig?: Partial<RequestLoggingConfig>;
 };
 
 export type ApitallyConsumer = {

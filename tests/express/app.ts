@@ -22,7 +22,7 @@ export const getAppWithCelebrate = () => {
   useApitally(app, {
     clientId: CLIENT_ID,
     env: ENV,
-    requestLoggingConfig,
+    requestLogging: requestLoggingConfig,
   });
 
   app.get(
@@ -79,7 +79,7 @@ export const getAppWithValidator = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
-    requestLoggingConfig,
+    requestLogging: requestLoggingConfig,
   });
 
   app.get(
@@ -134,7 +134,7 @@ export const getAppWithMiddlewareOnRouter = () => {
     env: ENV,
     appVersion: "1.2.3",
     basePath: "/api",
-    requestLoggingConfig,
+    requestLogging: requestLoggingConfig,
   });
 
   router.get("/hello", (req, res) => {
@@ -156,7 +156,7 @@ export const getAppWithNestedRouters = () => {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",
-    requestLoggingConfig,
+    requestLogging: requestLoggingConfig,
   });
 
   router1.get("/health", (req, res) => {
