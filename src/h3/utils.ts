@@ -30,7 +30,12 @@ export function getAppInfo(h3: H3, appVersion?: string) {
         method: route.method || "",
         path: route.route || "",
       }))
-      .filter((route) => route.method && route.path),
+      .filter(
+        (route) =>
+          route.method &&
+          route.path &&
+          !["HEAD", "OPTIONS"].includes(route.method.toUpperCase()),
+      ),
     versions: Object.fromEntries(versions),
     client: "js:h3",
   };

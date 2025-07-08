@@ -49,7 +49,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
   let errorHandlerConfigured = false;
 
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!client.isEnabled()) {
+    if (!client.isEnabled() || req.method.toUpperCase() === "OPTIONS") {
       next();
       return;
     }

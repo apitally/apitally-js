@@ -38,7 +38,7 @@ export function useApitally(app: Hono, config: ApitallyConfig) {
 
 function getMiddleware(client: ApitallyClient): MiddlewareHandler {
   return async (c, next) => {
-    if (!client.isEnabled()) {
+    if (!client.isEnabled() || c.req.method.toUpperCase() === "OPTIONS") {
       await next();
       return;
     }

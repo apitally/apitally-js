@@ -42,6 +42,10 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
     response?: Response,
     error?: HTTPError,
   ) => {
+    if (event.req.method.toUpperCase() === "OPTIONS") {
+      return response;
+    }
+
     const startTime = event.context._apitallyRequestTimestamp;
     const responseTime = startTime ? performance.now() - startTime : 0;
     const path = event.context.matchedRoute?.route;
