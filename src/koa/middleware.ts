@@ -29,10 +29,11 @@ export function useApitally(app: Koa, config: ApitallyConfig) {
 
 function getMiddleware(client: ApitallyClient) {
   return async (ctx: Koa.Context, next: Koa.Next) => {
-    if (!client.isEnabled()) {
+    if (!client.isEnabled() || ctx.request.method.toUpperCase() === "OPTIONS") {
       await next();
       return;
     }
+
     let path: string | undefined;
     let statusCode: number | undefined;
     let serverError: Error | undefined;

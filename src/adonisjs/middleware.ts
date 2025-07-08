@@ -21,7 +21,10 @@ export default class ApitallyMiddleware {
     const client: ApitallyClient =
       await ctx.containerResolver.make("apitallyClient");
 
-    if (!client.isEnabled()) {
+    if (
+      !client.isEnabled() ||
+      ctx.request.method().toUpperCase() === "OPTIONS"
+    ) {
       await next();
       return;
     }

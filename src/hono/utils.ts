@@ -34,7 +34,10 @@ export function getAppInfo(app: Hono, appVersion?: string): StartupData {
 export function listEndpoints(app: Hono) {
   const endpoints: Array<PathInfo> = [];
   app.routes.forEach((route) => {
-    if (route.method !== "ALL" && !isMiddleware(route.handler)) {
+    if (
+      !["ALL", "HEAD", "OPTIONS"].includes(route.method.toUpperCase()) &&
+      !isMiddleware(route.handler)
+    ) {
       endpoints.push({
         method: route.method.toUpperCase(),
         path: route.path,
