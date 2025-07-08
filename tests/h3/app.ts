@@ -29,6 +29,8 @@ export const getApp = async () => {
       }),
     ],
   });
+  const nestedApp1 = new H3();
+  const nestedApp2 = new H3();
 
   const querySchema = z.object({
     name: z.string().min(2),
@@ -40,7 +42,7 @@ export const getApp = async () => {
     age: z.number(),
   });
 
-  app.get(
+  nestedApp1.get(
     "/hello",
     defineEventHandler(async (event) => {
       const { name, age } = await getValidatedQuery(event, querySchema.parse);
@@ -49,7 +51,7 @@ export const getApp = async () => {
     }),
   );
 
-  app.get(
+  nestedApp1.get(
     "/hello/:id",
     defineEventHandler((event) => {
       const id = getRouterParam(event, "id");
@@ -57,7 +59,7 @@ export const getApp = async () => {
     }),
   );
 
-  app.post(
+  nestedApp1.post(
     "/hello",
     defineEventHandler(async (event) => {
       try {
@@ -69,12 +71,15 @@ export const getApp = async () => {
     }),
   );
 
-  app.get(
+  nestedApp2.get(
     "/error",
     defineEventHandler(() => {
       throw new Error("test");
     }),
   );
+
+  app.mount("/v1", nestedApp1);
+  app.mount("/v2", nestedApp2);
 
   return app;
 };

@@ -48,92 +48,92 @@
   "exports": {
     "./adonisjs": {
       "import": {
-        "default": "./dist/adonisjs/index.js",
-        "types": "./dist/adonisjs/index.d.ts"
+        "types": "./dist/adonisjs/index.d.ts",
+        "default": "./dist/adonisjs/index.js"
       },
       "require": {
-        "default": "./dist/adonisjs/index.cjs",
-        "types": "./dist/adonisjs/index.d.cts"
+        "types": "./dist/adonisjs/index.d.cts",
+        "default": "./dist/adonisjs/index.cjs"
       }
     },
     "./adonisjs/middleware": {
       "import": {
-        "default": "./dist/adonisjs/middleware.js",
-        "types": "./dist/adonisjs/middleware.d.ts"
+        "types": "./dist/adonisjs/middleware.d.ts",
+        "default": "./dist/adonisjs/middleware.js"
       },
       "require": {
-        "default": "./dist/adonisjs/middleware.cjs",
-        "types": "./dist/adonisjs/middleware.d.cts"
+        "types": "./dist/adonisjs/middleware.d.cts",
+        "default": "./dist/adonisjs/middleware.cjs"
       }
     },
     "./adonisjs/provider": {
       "import": {
-        "default": "./dist/adonisjs/provider.js",
-        "types": "./dist/adonisjs/provider.d.ts"
+        "types": "./dist/adonisjs/provider.d.ts",
+        "default": "./dist/adonisjs/provider.js"
       },
       "require": {
-        "default": "./dist/adonisjs/provider.cjs",
-        "types": "./dist/adonisjs/provider.d.cts"
+        "types": "./dist/adonisjs/provider.d.cts",
+        "default": "./dist/adonisjs/provider.cjs"
       }
     },
     "./express": {
       "import": {
-        "default": "./dist/express/index.js",
-        "types": "./dist/express/index.d.ts"
+        "types": "./dist/express/index.d.ts",
+        "default": "./dist/express/index.js"
       },
       "require": {
-        "default": "./dist/express/index.cjs",
-        "types": "./dist/express/index.d.cts"
+        "types": "./dist/express/index.d.cts",
+        "default": "./dist/express/index.cjs"
       }
     },
     "./fastify": {
       "import": {
-        "default": "./dist/fastify/index.js",
-        "types": "./dist/fastify/index.d.ts"
+        "types": "./dist/fastify/index.d.ts",
+        "default": "./dist/fastify/index.js"
       },
       "require": {
-        "default": "./dist/fastify/index.cjs",
-        "types": "./dist/fastify/index.d.cts"
+        "types": "./dist/fastify/index.d.cts",
+        "default": "./dist/fastify/index.cjs"
       }
     },
     "./h3": {
       "import": {
-        "default": "./dist/h3/index.js",
-        "types": "./dist/h3/index.d.ts"
+        "types": "./dist/h3/index.d.ts",
+        "default": "./dist/h3/index.js"
       },
       "require": {
-        "default": "./dist/h3/index.cjs",
-        "types": "./dist/h3/index.d.cts"
+        "types": "./dist/h3/index.d.cts",
+        "default": "./dist/h3/index.cjs"
       }
     },
     "./hono": {
       "import": {
-        "default": "./dist/hono/index.js",
-        "types": "./dist/hono/index.d.ts"
+        "types": "./dist/hono/index.d.ts",
+        "default": "./dist/hono/index.js"
       },
       "require": {
-        "default": "./dist/hono/index.cjs",
-        "types": "./dist/hono/index.d.cts"
+        "types": "./dist/hono/index.d.cts",
+        "default": "./dist/hono/index.cjs"
       }
     },
     "./koa": {
       "import": {
-        "default": "./dist/koa/index.js",
-        "types": "./dist/koa/index.d.ts"
+        "types": "./dist/koa/index.d.ts",
+        "default": "./dist/koa/index.js"
       },
       "require": {
-        "default": "./dist/koa/index.cjs",
-        "types": "./dist/koa/index.d.cts"
+        "types": "./dist/koa/index.d.cts",
+        "default": "./dist/koa/index.cjs"
       }
     },
     "./nestjs": {
       "import": {
-        "default": "./dist/nestjs/index.js",
-        "types": "./dist/nestjs/index.d.ts"
+        "types": "./dist/nestjs/index.d.ts",
+        "default": "./dist/nestjs/index.js"
       },
       "require": {
-        "default": "./dist/nestjs/index.cjs",
-        "types": "./dist/nestjs/index.d.cts"
+        "types": "./dist/nestjs/index.d.cts",
+        "default": "./dist/nestjs/index.cjs"
       }
     },
     "./package.json": "./package.json"
@@ -256,7 +256,7 @@
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.1",
     "globals": "^16.2.0",
-    "h3": "2.0.0-beta.0",
+    "h3": "2.0.0-beta.1",
     "hono": "^4.6.5",
     "koa": "^3.0.0",
     "koa-bodyparser": "^4.4.1",
