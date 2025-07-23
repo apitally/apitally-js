@@ -1,6 +1,5 @@
 import { ArgumentsHost, Catch, INestApplication } from "@nestjs/common";
 import { BaseExceptionFilter } from "@nestjs/core";
-import { Response } from "express";
 
 import type { ApitallyConfig } from "../common/types.js";
 import { useApitally as useApitallyExpress } from "../express/index.js";
@@ -18,8 +17,10 @@ export function useApitally(app: INestApplication, config: ApitallyConfig) {
 class AllExceptionsFilter extends BaseExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const res = ctx.getResponse<Response>();
-    res.locals.serverError = exception;
+    const res = ctx.getResponse();
+    if (res.locals) {
+      res.locals.serverError = exception;
+    }
     super.catch(exception, host);
   }
 }
