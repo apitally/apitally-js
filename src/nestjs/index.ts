@@ -1,5 +1,11 @@
-import { ArgumentsHost, Catch, INestApplication } from "@nestjs/common";
-import { BaseExceptionFilter } from "@nestjs/core";
+import {
+  CallHandler,
+  ExecutionContext,
+  INestApplication,
+  Injectable,
+  NestInterceptor,
+} from "@nestjs/common";
+import { catchError, throwError } from "rxjs";
 
 import type { ApitallyConfig } from "../common/types.js";
 import { useApitally as useApitallyExpress } from "../express/index.js";
@@ -10,17 +16,23 @@ export function useApitally(app: INestApplication, config: ApitallyConfig) {
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
   useApitallyExpress(expressInstance, config);
-  app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+  app.useGlobalInterceptors(new ApitallyInterceptor());
 }
 
-@Catch()
-class AllExceptionsFilter extends BaseExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const res = ctx.getResponse();
-    if (res.locals) {
-      res.locals.serverError = exception;
-    }
-    super.catch(exception, host);
+@Injectable()
+class ApitallyInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler) {
+    return next.handle().pipe(
+      catchError((exception) => {
+        if (context.getType() === "http") {
+          const ctx = context.switchToHttp();
+          const res = ctx.getResponse();
+          if (res.locals) {
+            res.locals.serverError = exception;
+          }
+        }
+        return throwError(() => exception);
+      }),
+    );
   }
 }
