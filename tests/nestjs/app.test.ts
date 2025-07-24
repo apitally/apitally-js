@@ -1,5 +1,4 @@
 import { INestApplication } from "@nestjs/common";
-import { BaseExceptionFilter } from "@nestjs/core";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,11 +27,7 @@ describe("Middleware for NestJS", () => {
     await appTest.get("/hello?name=Bob&age=17").expect(400); // invalid (age < 18)
     await appTest.get("/hello?name=X&age=1").expect(400); // invalid (name too short and age < 18)
 
-    const loggerSpy = vi
-      .spyOn((BaseExceptionFilter as any).logger, "error")
-      .mockImplementation(() => {});
     await appTest.get("/error").expect(500);
-    loggerSpy.mockRestore();
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(4);
@@ -119,11 +114,7 @@ describe("Middleware for NestJS", () => {
   });
 
   it("Server error counter", async () => {
-    const loggerSpy = vi
-      .spyOn((BaseExceptionFilter as any).logger, "error")
-      .mockImplementation(() => {});
     await appTest.get("/error").expect(500);
-    loggerSpy.mockRestore();
 
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(serverErrors.length).toBe(1);

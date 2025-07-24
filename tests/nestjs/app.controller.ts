@@ -11,7 +11,6 @@ import {
   Post,
   Query,
   UseGuards,
-  ValidationPipe,
 } from "@nestjs/common";
 import { IsInt, IsNotEmpty, Min, MinLength } from "class-validator";
 import { setConsumer } from "../../src/nestjs/index.js";
@@ -50,29 +49,13 @@ export class HelloBodyDTO {
 export class AppController {
   @Get("/hello")
   @Header("Content-Type", "text/plain")
-  getHello(
-    @Query(
-      new ValidationPipe({
-        transform: true,
-        transformOptions: { enableImplicitConversion: true },
-      }),
-    )
-    { name, age }: HelloQueryDTO,
-  ) {
+  getHello(@Query() { name, age }: HelloQueryDTO) {
     return `Hello ${name}! You are ${age} years old!`;
   }
 
   @Post("/hello")
   @Header("Content-Type", "text/plain")
-  postHello(
-    @Body(
-      new ValidationPipe({
-        transform: true,
-        transformOptions: { enableImplicitConversion: true },
-      }),
-    )
-    { name, age }: HelloBodyDTO,
-  ) {
+  postHello(@Body() { name, age }: HelloBodyDTO) {
     return `Hello ${name}! You are ${age} years old!`;
   }
 

@@ -1,3 +1,4 @@
+import { ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 
 import { useApitally } from "../../src/nestjs/index.js";
@@ -10,6 +11,13 @@ export async function getApp() {
     providers: [],
   }).compile();
   const app = moduleFixture.createNestApplication();
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   useApitally(app, {
     clientId: CLIENT_ID,
