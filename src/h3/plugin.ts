@@ -89,13 +89,14 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       }
 
       if (error?.status === 500) {
+        const cause = error.cause as Error;
         client.serverErrorCounter.addServerError({
           consumer: consumer?.identifier,
           method: event.req.method,
           path,
-          type: error.name,
-          msg: error.message,
-          traceback: error.stack || "",
+          type: cause.name || error.name,
+          msg: cause.message || error.message,
+          traceback: cause.stack || error.stack || "",
         });
       }
     }
