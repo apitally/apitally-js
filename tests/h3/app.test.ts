@@ -166,7 +166,7 @@ describe("Middleware for H3", () => {
         (e) =>
           e.type === "Error" &&
           e.msg === "test" &&
-          e.traceback &&
+          e.traceback.startsWith("Error: test") &&
           e.error_count === 1,
       ),
     ).toBe(true);
