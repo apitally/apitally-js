@@ -88,14 +88,14 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
         });
       }
 
-      if (error?.status === 500) {
+      if (error?.status === 500 && error.cause instanceof Error) {
         client.serverErrorCounter.addServerError({
           consumer: consumer?.identifier,
           method: event.req.method,
           path,
-          type: error.name,
-          msg: error.message,
-          traceback: error.stack || "",
+          type: error.cause.name,
+          msg: error.cause.message,
+          traceback: error.cause.stack || "",
         });
       }
     }

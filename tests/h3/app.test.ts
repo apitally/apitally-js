@@ -20,11 +20,11 @@ describe("Middleware for H3", () => {
 
   it("Request counter", async () => {
     let res;
-    res = await app.fetch("/v1/hello?name=John&age=20", { method: "GET" });
+    res = await app.request("/v1/hello?name=John&age=20", { method: "GET" });
     expect(res.status).toBe(200);
 
     const body = JSON.stringify({ name: "John", age: 20 });
-    res = await app.fetch("/v1/hello", {
+    res = await app.request("/v1/hello", {
       method: "POST",
       body,
       headers: {
@@ -36,19 +36,19 @@ describe("Middleware for H3", () => {
     expect(res.status).toBe(200);
     expect(resText).toBe("Hello John! You are 20 years old!");
 
-    res = await app.fetch("/v1/hello/123", { method: "GET" });
+    res = await app.request("/v1/hello/123", { method: "GET" });
     expect(res.status).toBe(200);
 
-    res = await app.fetch("/v1/hello?name=Bob&age=17", { method: "GET" });
+    res = await app.request("/v1/hello?name=Bob&age=17", { method: "GET" });
     const resJson = await res.json();
     expect(res.status).toBe(400); // invalid (age < 18)
     expect(resJson.statusText).toBe("Validation failed");
     expect(resJson.data.name).toBe("ZodError");
 
-    res = await app.fetch("/v1/hello?name=X&age=1", { method: "GET" });
+    res = await app.request("/v1/hello?name=X&age=1", { method: "GET" });
     expect(res.status).toBe(400); // invalid (name too short and age < 18)
 
-    res = await app.fetch("/v2/error", { method: "GET" });
+    res = await app.request("/v2/error", { method: "GET" });
     expect(res.status).toBe(500);
 
     const requests = client.requestCounter.getAndResetRequests();
@@ -95,7 +95,7 @@ describe("Middleware for H3", () => {
     let call;
     let res;
 
-    res = await app.fetch("/v1/hello?name=John&age=20", { method: "GET" });
+    res = await app.request("/v1/hello?name=John&age=20", { method: "GET" });
     expect(res.status).toBe(200);
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
@@ -116,7 +116,7 @@ describe("Middleware for H3", () => {
     spy.mockReset();
 
     const body = JSON.stringify({ name: "John", age: 20 });
-    res = await app.fetch("/v1/hello", {
+    res = await app.request("/v1/hello", {
       method: "POST",
       body,
       headers: {
@@ -140,9 +140,9 @@ describe("Middleware for H3", () => {
   });
 
   it("Validation error counter", async () => {
-    await app.fetch("/v1/hello?name=Bob&age=20", { method: "GET" });
-    await app.fetch("/v1/hello?name=Bob&age=17", { method: "GET" });
-    await app.fetch("/v1/hello?name=X&age=1", { method: "GET" });
+    await app.request("/v1/hello?name=Bob&age=20", { method: "GET" });
+    await app.request("/v1/hello?name=Bob&age=17", { method: "GET" });
+    await app.request("/v1/hello?name=X&age=1", { method: "GET" });
 
     const validationErrors =
       client.validationErrorCounter.getAndResetValidationErrors();
@@ -156,7 +156,7 @@ describe("Middleware for H3", () => {
   });
 
   it("Server error counter", async () => {
-    const res = await app.fetch("/v2/error", { method: "GET" });
+    const res = await app.request("/v2/error", { method: "GET" });
     expect(res.status).toBe(500);
 
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
@@ -166,7 +166,7 @@ describe("Middleware for H3", () => {
         (e) =>
           e.type === "Error" &&
           e.msg === "test" &&
-          e.traceback &&
+          e.traceback.startsWith("Error: test") &&
           e.error_count === 1,
       ),
     ).toBe(true);
