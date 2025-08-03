@@ -78,7 +78,10 @@ jobs:
           - koa@2.13
           - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11 @nestjs/testing@11"
           - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-express@10 @nestjs/testing@10"
-          - "@nestjs/core@8 @nestjs/common@8 @nestjs/platform-express@8 @nestjs/testing@8"
+          - "@nestjs/core@9 @nestjs/common@9 @nestjs/platform-express@9 @nestjs/testing@9"
+          - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-fastify@11 @nestjs/testing@11"
+          - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-fastify@10 @nestjs/testing@10"
+          - "@nestjs/core@9 @nestjs/common@9 @nestjs/platform-fastify@9 @nestjs/testing@9"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,9 +101,12 @@ jobs:
       - name: Run tests for Koa
         run: npm test -- tests/koa
         if: contains(matrix.deps, 'koa')
-      - name: Run tests for NestJS
-        run: npm test -- tests/nestjs
-        if: contains(matrix.deps, 'nestjs')
+      - name: Run tests for NestJS with Express
+        run: npm test -- tests/nestjs-express
+        if: contains(matrix.deps, '@nestjs/platform-express')
+      - name: Run tests for NestJS with Fastify
+        run: npm test -- tests/nestjs-fastify
+        if: contains(matrix.deps, '@nestjs/platform-fastify')
       - name: Run tests for H3
         run: npm test -- tests/h3
         if: contains(matrix.deps, 'h3')
