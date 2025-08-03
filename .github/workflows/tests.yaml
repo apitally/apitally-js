@@ -91,7 +91,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Override dependencies from matrix
-        run: npm install --no-save --legacy-peer-deps ${{ matrix.deps }}
+        run: npm install --no-save --force ${{ matrix.deps }}
       - name: Run tests for Express
         run: npm test -- tests/express
         if: contains(matrix.deps, 'express')
