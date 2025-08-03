@@ -23,10 +23,11 @@ export async function useApitally(
 ) {
   const httpAdapter = app.getHttpAdapter();
   const instance = httpAdapter.getInstance();
-  const platform =
-    instance.use === undefined && typeof instance.register === "function"
-      ? "fastify"
-      : "express";
+  const platform = httpAdapter.constructor.name
+    .toLowerCase()
+    .includes("fastify")
+    ? "fastify"
+    : "express";
 
   if (platform === "express") {
     const { useApitally, setConsumer } = await import("../express/index.js");
