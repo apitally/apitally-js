@@ -19,7 +19,7 @@ export async function getApp() {
     }),
   );
 
-  useApitally(app, {
+  await useApitally(app, {
     clientId: CLIENT_ID,
     env: ENV,
     appVersion: "1.2.3",

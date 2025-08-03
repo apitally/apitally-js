@@ -23,7 +23,7 @@ This SDK for Apitally currently supports the following Node.js web
 frameworks:
 
 - [Express](https://docs.apitally.io/frameworks/express)
-- [NestJS](https://docs.apitally.io/frameworks/nestjs) (with Express)
+- [NestJS](https://docs.apitally.io/frameworks/nestjs) (with Express or Fastify)
 - [Fastify](https://docs.apitally.io/frameworks/fastify)
 - [Koa](https://docs.apitally.io/frameworks/koa)
 - [Hono](https://docs.apitally.io/frameworks/hono)
@@ -95,8 +95,7 @@ This is an example of how to use the Apitally middleware with a NestJS
 application. For further instructions, see our
 [setup guide for NestJS](https://docs.apitally.io/frameworks/nestjs).
 
-_Note_: Currently only NestJS applications that use Express as the underlying
-HTTP server are supported (the default).
+_Note_: NestJS applications with Express (default) or Fastify HTTP adapters are supported.
 
 ```javascript
 const { NestFactory } = require("@nestjs/core");
@@ -105,7 +104,7 @@ const { AppModule } = require("./app.module");
 
 const app = await NestFactory.create(AppModule);
 
-useApitally(app, {
+await useApitally(app, {
   clientId: "your-client-id",
   env: "dev", // or "prod" etc.
 });

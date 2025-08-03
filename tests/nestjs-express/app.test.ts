@@ -6,7 +6,7 @@ import { ApitallyClient } from "../../src/common/client.js";
 import { mockApitallyHub } from "../utils.js";
 import { getApp } from "./app.js";
 
-describe("Middleware for NestJS", () => {
+describe("Middleware for NestJS (Express)", () => {
   let app: INestApplication;
   let appTest: request.Agent;
   let client: ApitallyClient;
