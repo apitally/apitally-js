@@ -178,9 +178,13 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 function getAppInfo(routes: PathInfo[], appVersion?: string) {
   const versions = [["nodejs", process.version.replace(/^v/, "")]];
   const fastifyVersion = getPackageVersion("fastify");
+  const nestjsVersion = getPackageVersion("@nestjs/core");
   const apitallyVersion = getPackageVersion("../..");
   if (fastifyVersion) {
     versions.push(["fastify", fastifyVersion]);
+  }
+  if (nestjsVersion) {
+    versions.push(["nestjs", nestjsVersion]);
   }
   if (apitallyVersion) {
     versions.push(["apitally", apitallyVersion]);
