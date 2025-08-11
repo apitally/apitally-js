@@ -185,8 +185,8 @@
     "@nestjs/platform-fastify": "^9 || ^10 || ^11",
     "@sentry/node": "^8.1.0 || ^9 || ^10",
     "express": "^4 || ^5",
-    "fastify": "^3 || ^4 || ^5",
-    "fastify-plugin": "^3 || ^4 || ^5",
+    "fastify": "^4 || ^5",
+    "fastify-plugin": "^4 || ^5",
     "h3": "^2",
     "hono": "^4",
     "koa": "^2 || ^3"
