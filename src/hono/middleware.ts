@@ -2,10 +2,12 @@ import { Context, Hono } from "hono";
 import { MiddlewareHandler } from "hono/types";
 import { performance } from "perf_hooks";
 
+import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
+import { patchConsole } from "../common/consoleCapture.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
-import { convertHeaders } from "../common/requestLogger.js";
+import { convertHeaders, LogRecord } from "../common/requestLogger.js";
 import {
   getResponseBody,
   getResponseJson,
@@ -37,103 +39,113 @@ export function useApitally(app: Hono, config: ApitallyConfig) {
 }
 
 function getMiddleware(client: ApitallyClient): MiddlewareHandler {
+  const logsContext = new AsyncLocalStorage<LogRecord[]>();
+
+  if (client.requestLogger.config.captureLogs) {
+    patchConsole(logsContext);
+  }
+
   return async (c, next) => {
     if (!client.isEnabled() || c.req.method.toUpperCase() === "OPTIONS") {
       await next();
       return;
     }
 
-    const timestamp = Date.now() / 1000;
-    const startTime = performance.now();
+    await logsContext.run([], async () => {
+      const timestamp = Date.now() / 1000;
+      const startTime = performance.now();
 
-    await next();
+      await next();
 
-    let response;
-    const responseTime = performance.now() - startTime;
-    const [responseSize, newResponse] = await measureResponseSize(c.res);
-    const requestSize = parseContentLength(c.req.header("content-length"));
+      let response;
+      const responseTime = performance.now() - startTime;
+      const [responseSize, newResponse] = await measureResponseSize(c.res);
+      const requestSize = parseContentLength(c.req.header("content-length"));
 
-    const consumer = getConsumer(c);
-    client.consumerRegistry.addOrUpdateConsumer(consumer);
+      const consumer = getConsumer(c);
+      client.consumerRegistry.addOrUpdateConsumer(consumer);
 
-    client.requestCounter.addRequest({
-      consumer: consumer?.identifier,
-      method: c.req.method,
-      path: c.req.routePath,
-      statusCode: c.res.status,
-      responseTime,
-      requestSize,
-      responseSize,
-    });
-
-    response = newResponse;
-
-    if (c.res.status === 400) {
-      const [responseJson, newResponse] = await getResponseJson(response);
-      const validationErrors = extractZodErrors(responseJson);
-      validationErrors.forEach((error) => {
-        client.validationErrorCounter.addValidationError({
-          consumer: consumer?.identifier,
-          method: c.req.method,
-          path: c.req.routePath,
-          ...error,
-        });
-      });
-      response = newResponse;
-    }
-
-    if (c.error) {
-      client.serverErrorCounter.addServerError({
+      client.requestCounter.addRequest({
         consumer: consumer?.identifier,
         method: c.req.method,
         path: c.req.routePath,
-        type: c.error.name,
-        msg: c.error.message,
-        traceback: c.error.stack || "",
+        statusCode: c.res.status,
+        responseTime,
+        requestSize,
+        responseSize,
       });
-    }
 
-    if (client.requestLogger.enabled) {
-      let requestBody;
-      let responseBody;
-      let newResponse = response;
-      const requestContentType = c.req.header("content-type");
-      const responseContentType = c.res.headers.get("content-type");
-      if (
-        client.requestLogger.config.logRequestBody &&
-        client.requestLogger.isSupportedContentType(requestContentType)
-      ) {
-        requestBody = Buffer.from(await c.req.arrayBuffer());
-      }
-      if (
-        client.requestLogger.config.logResponseBody &&
-        client.requestLogger.isSupportedContentType(responseContentType)
-      ) {
-        [responseBody, newResponse] = await getResponseBody(response);
+      response = newResponse;
+
+      if (c.res.status === 400) {
+        const [responseJson, newResponse] = await getResponseJson(response);
+        const validationErrors = extractZodErrors(responseJson);
+        validationErrors.forEach((error) => {
+          client.validationErrorCounter.addValidationError({
+            consumer: consumer?.identifier,
+            method: c.req.method,
+            path: c.req.routePath,
+            ...error,
+          });
+        });
         response = newResponse;
       }
-      client.requestLogger.logRequest(
-        {
-          timestamp,
+
+      if (c.error) {
+        client.serverErrorCounter.addServerError({
+          consumer: consumer?.identifier,
           method: c.req.method,
           path: c.req.routePath,
-          url: c.req.url,
-          headers: convertHeaders(c.req.header()),
-          size: Number(requestSize),
-          consumer: consumer?.identifier,
-          body: requestBody,
-        },
-        {
-          statusCode: c.res.status,
-          responseTime: responseTime / 1000,
-          headers: convertHeaders(c.res.headers),
-          size: responseSize,
-          body: responseBody,
-        },
-        c.error,
-      );
-    }
-    c.res = response;
+          type: c.error.name,
+          msg: c.error.message,
+          traceback: c.error.stack || "",
+        });
+      }
+
+      if (client.requestLogger.enabled) {
+        let requestBody;
+        let responseBody;
+        let newResponse = response;
+        const requestContentType = c.req.header("content-type");
+        const responseContentType = c.res.headers.get("content-type");
+        if (
+          client.requestLogger.config.logRequestBody &&
+          client.requestLogger.isSupportedContentType(requestContentType)
+        ) {
+          requestBody = Buffer.from(await c.req.arrayBuffer());
+        }
+        if (
+          client.requestLogger.config.logResponseBody &&
+          client.requestLogger.isSupportedContentType(responseContentType)
+        ) {
+          [responseBody, newResponse] = await getResponseBody(response);
+          response = newResponse;
+        }
+        const logs = logsContext.getStore();
+        client.requestLogger.logRequest(
+          {
+            timestamp,
+            method: c.req.method,
+            path: c.req.routePath,
+            url: c.req.url,
+            headers: convertHeaders(c.req.header()),
+            size: Number(requestSize),
+            consumer: consumer?.identifier,
+            body: requestBody,
+          },
+          {
+            statusCode: c.res.status,
+            responseTime: responseTime / 1000,
+            headers: convertHeaders(c.res.headers),
+            size: responseSize,
+            body: responseBody,
+          },
+          c.error,
+          logs,
+        );
+      }
+      c.res = response;
+    });
   };
 }
 
