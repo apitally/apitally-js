@@ -88,6 +88,7 @@ export type Response = {
 
 export type LogRecord = {
   timestamp: number;
+  logger?: string;
   level: string;
   message: string;
 };
@@ -393,6 +394,7 @@ export default class RequestLogger {
     if (logs && logs.length > 0) {
       item.logs = logs.map((log) => ({
         timestamp: log.timestamp,
+        logger: log.logger,
         level: log.level,
         message: truncateLogMessage(log.message),
       }));

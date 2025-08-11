@@ -6,6 +6,7 @@ import {
   Get,
   Header,
   Injectable,
+  Logger,
   Param,
   ParseIntPipe,
   Post,
@@ -47,9 +48,12 @@ export class HelloBodyDTO {
 @Controller()
 @UseGuards(AuthGuard)
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   @Get("/hello")
   @Header("Content-Type", "text/plain")
   getHello(@Query() { name, age }: HelloQueryDTO) {
+    this.logger.log("Saying hello", { name, age });
     return `Hello ${name}! You are ${age} years old!`;
   }
 

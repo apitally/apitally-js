@@ -2,7 +2,7 @@ import Koa from "koa";
 
 import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/consoleCapture.js";
+import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import {

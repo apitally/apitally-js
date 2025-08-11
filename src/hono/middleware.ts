@@ -4,7 +4,7 @@ import { performance } from "perf_hooks";
 
 import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/consoleCapture.js";
+import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { convertHeaders, LogRecord } from "../common/requestLogger.js";

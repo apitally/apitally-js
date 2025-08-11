@@ -8,7 +8,7 @@ import type {
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/consoleCapture.js";
+import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
@@ -54,6 +54,14 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
     patchPino(fastify.log, logsContext, filterLogs);
+
+    try {
+      const { patchNestLogger } = await import("../nestjs/logger.js");
+      patchNestLogger(logsContext);
+      console.log("NestJS logger patched");
+    } catch (error) {
+      // ignore
+    }
   }
 
   fastify.decorateRequest("apitallyConsumer", null);
@@ -224,10 +232,14 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 function getAppInfo(routes: PathInfo[], appVersion?: string) {
   const versions = [["nodejs", process.version.replace(/^v/, "")]];
   const fastifyVersion = getPackageVersion("fastify");
+  const pinoVersion = getPackageVersion("pino");
   const nestjsVersion = getPackageVersion("@nestjs/core");
   const apitallyVersion = getPackageVersion("../..");
   if (fastifyVersion) {
     versions.push(["fastify", fastifyVersion]);
+  }
+  if (pinoVersion) {
+    versions.push(["pino", pinoVersion]);
   }
   if (nestjsVersion) {
     versions.push(["nestjs", nestjsVersion]);
