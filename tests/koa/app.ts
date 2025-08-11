@@ -13,6 +13,7 @@ const requestLoggingConfig = {
   logRequestBody: true,
   logResponseHeaders: true,
   logResponseBody: true,
+  captureLogs: true,
 };
 
 export const getAppWithKoaRouter = () => {
@@ -28,6 +29,8 @@ export const getAppWithKoaRouter = () => {
 
   router.get("/hello", async (ctx) => {
     setConsumer(ctx, "test");
+    console.log("Test 1");
+    console.warn("Test 2");
     ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
   });
   router.get("/hello/:id", async (ctx) => {
@@ -62,6 +65,8 @@ export const getAppWithKoaRoute = () => {
   app.use(
     route.get("/hello", async (ctx) => {
       setConsumer(ctx, "test");
+      console.log("Test 1");
+      console.warn("Test 2");
       ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
     }),
   );
