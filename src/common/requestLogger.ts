@@ -17,6 +17,7 @@ const MAX_BODY_SIZE = 50_000; // 50 KB (uncompressed)
 const MAX_FILE_SIZE = 1_000_000; // 1 MB (compressed)
 const MAX_FILES = 50;
 const MAX_PENDING_WRITES = 100;
+const MAX_LOG_MSG_LENGTH = 2048;
 const BODY_TOO_LARGE = Buffer.from("<body too large>");
 const BODY_MASKED = Buffer.from("<masked>");
 const MASKED = "******";
@@ -85,6 +86,12 @@ export type Response = {
   body?: Buffer;
 };
 
+export type LogRecord = {
+  timestamp: number;
+  level: string;
+  message: string;
+};
+
 export type RequestLoggingConfig = {
   enabled: boolean;
   logQueryParams: boolean;
@@ -93,6 +100,7 @@ export type RequestLoggingConfig = {
   logResponseHeaders: boolean;
   logResponseBody: boolean;
   logException: boolean;
+  captureLogs: boolean;
   maskQueryParams: RegExp[];
   maskHeaders: RegExp[];
   maskBodyFields: RegExp[];
@@ -113,6 +121,7 @@ const DEFAULT_CONFIG: RequestLoggingConfig = {
   logResponseHeaders: true,
   logResponseBody: false,
   logException: true,
+  captureLogs: false,
   maskQueryParams: [],
   maskHeaders: [],
   maskBodyFields: [],
@@ -129,6 +138,7 @@ type RequestLogItem = {
     stacktrace: string;
     sentryEventId?: string;
   };
+  logs?: LogRecord[];
 };
 
 export default class RequestLogger {
@@ -323,7 +333,12 @@ export default class RequestLogger {
     return item;
   }
 
-  logRequest(request: Request, response: Response, error?: Error) {
+  logRequest(
+    request: Request,
+    response: Response,
+    error?: Error,
+    logs?: LogRecord[],
+  ) {
     if (!this.enabled || this.suspendUntil !== null) return;
 
     const url = new URL(request.url);
@@ -374,6 +389,14 @@ export default class RequestLogger {
             }
           : undefined,
     };
+
+    if (logs && logs.length > 0) {
+      item.logs = logs.map((log) => ({
+        timestamp: log.timestamp,
+        level: log.level,
+        message: truncateLogMessage(log.message),
+      }));
+    }
     this.pendingWrites.push(item);
 
     if (this.pendingWrites.length > MAX_PENDING_WRITES) {
@@ -538,6 +561,14 @@ function skipEmptyValues<T extends Record<string, any>>(data: T) {
       return true;
     }),
   ) as Partial<T>;
+}
+
+function truncateLogMessage(msg: string) {
+  if (msg.length > MAX_LOG_MSG_LENGTH) {
+    const suffix = "... (truncated)";
+    return msg.slice(0, MAX_LOG_MSG_LENGTH - suffix.length) + suffix;
+  }
+  return msg;
 }
 
 function checkWritableFs() {

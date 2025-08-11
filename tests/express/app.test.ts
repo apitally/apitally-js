@@ -101,6 +101,13 @@ testCases.forEach(({ name, getApp }) => {
       ]);
       expect(call[1].body).toBeInstanceOf(Buffer);
       expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+      expect(call[3]).toBeDefined();
+      expect(call[3]).toHaveLength(2);
+      expect(call[3]![0].level).toBe("log");
+      expect(call[3]![0].message).toBe("Test 1");
+      expect(call[3]![1].level).toBe("warn");
+      expect(call[3]![1].message).toBe("Test 2");
+
       spy.mockReset();
 
       await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);

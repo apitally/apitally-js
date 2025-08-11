@@ -7,7 +7,7 @@ export interface Logger {
   error: (message: string, meta?: object) => void;
 }
 
-export const getLogger = () => {
+export function getLogger() {
   return createLogger({
     level: process.env.APITALLY_DEBUG ? "debug" : "warn",
     format: format.combine(
@@ -19,4 +19,4 @@ export const getLogger = () => {
     ),
     transports: [new transports.Console()],
   });
-};
+}

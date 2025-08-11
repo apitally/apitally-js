@@ -1,3 +1,4 @@
+import { AsyncLocalStorage, AsyncResource } from "async_hooks";
 import type {
   FastifyError,
   FastifyPluginAsync,
@@ -7,16 +8,24 @@ import type {
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
+import { patchConsole } from "../common/consoleCapture.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { convertBody, convertHeaders } from "../common/requestLogger.js";
+import {
+  convertBody,
+  convertHeaders,
+  LogRecord,
+} from "../common/requestLogger.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
   PathInfo,
   ValidationError,
 } from "../common/types.js";
+
+const LOGS_SYMBOL = Symbol("apitally.logs");
+const ASYNC_RESOURCE_SYMBOL = Symbol("apitally.logsContextAsyncResource");
 
 declare module "fastify" {
   interface FastifyReply {
@@ -27,6 +36,9 @@ declare module "fastify" {
   interface FastifyRequest {
     apitallyConsumer?: ApitallyConsumer | string | null;
     consumerIdentifier?: ApitallyConsumer | string | null; // For backwards compatibility
+
+    [LOGS_SYMBOL]?: LogRecord[];
+    [ASYNC_RESOURCE_SYMBOL]?: AsyncResource;
   }
 }
 
@@ -36,6 +48,11 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 ) => {
   const client = new ApitallyClient(config);
   const routes: PathInfo[] = [];
+  const logsContext = new AsyncLocalStorage<LogRecord[]>();
+
+  if (client.requestLogger.config.captureLogs) {
+    patchConsole(logsContext);
+  }
 
   fastify.decorateRequest("apitallyConsumer", null);
   fastify.decorateRequest("consumerIdentifier", null); // For backwards compatibility
@@ -61,6 +78,31 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 
   fastify.addHook("onClose", async () => {
     await client.handleShutdown();
+  });
+
+  // Establish logs context for each request
+  fastify.addHook("onRequest", (request, reply, done) => {
+    if (client.isEnabled()) {
+      const logs: LogRecord[] = [];
+      request[LOGS_SYMBOL] = logs;
+      logsContext.run(logs, () => {
+        const asyncResource = new AsyncResource("ApitallyLogsContext");
+        request[ASYNC_RESOURCE_SYMBOL] = asyncResource;
+        asyncResource.runInAsyncScope(done, request.raw);
+      });
+    } else {
+      done();
+    }
+  });
+
+  // Restore async context for later hooks and route handlers
+  fastify.addHook("preValidation", (request, reply, done) => {
+    if (client.isEnabled() && request[ASYNC_RESOURCE_SYMBOL]) {
+      const asyncResource = request[ASYNC_RESOURCE_SYMBOL];
+      asyncResource.runInAsyncScope(done, request.raw);
+    } else {
+      done();
+    }
   });
 
   fastify.addHook("onSend", (request, reply, payload: any, done) => {
@@ -145,6 +187,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       }
 
       if (client.requestLogger.enabled) {
+        const logs = request[LOGS_SYMBOL];
         client.requestLogger.logRequest(
           {
             timestamp: Date.now() / 1000,
@@ -167,6 +210,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
             ),
           },
           reply.serverError,
+          logs,
         );
       }
     }

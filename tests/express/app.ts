@@ -13,6 +13,7 @@ const requestLoggingConfig = {
   logRequestBody: true,
   logResponseHeaders: true,
   logResponseBody: true,
+  captureLogs: true,
 };
 
 export const getAppWithCelebrate = () => {
@@ -38,6 +39,8 @@ export const getAppWithCelebrate = () => {
     ),
     (req: Request, res) => {
       setConsumer(req, "test");
+      console.log("Test 1");
+      console.warn("Test 2");
       res.type("txt");
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
@@ -88,6 +91,8 @@ export const getAppWithValidator = () => {
     query("age").isInt({ min: 18 }),
     (req: Request, res) => {
       setConsumer(req, "test");
+      console.log("Test 1");
+      console.warn("Test 2");
       const result = validationResult(req);
       if (result.isEmpty()) {
         res.type("txt");

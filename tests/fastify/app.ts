@@ -19,6 +19,7 @@ export const getApp = async () => {
       logRequestBody: true,
       logResponseHeaders: true,
       logResponseBody: true,
+      captureLogs: true,
     },
   });
 
@@ -48,6 +49,8 @@ export const getApp = async () => {
     async function (request) {
       const { name, age } = request.query;
       setConsumer(request, "test");
+      console.log("Test 1");
+      console.warn("Test 2");
       return `Hello ${name}! You are ${age} years old!`;
     },
   );
