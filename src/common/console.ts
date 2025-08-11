@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "async_hooks";
 import { format } from "util";
 
-import { LogRecord } from "./requestLogger.js";
+import type { LogRecord } from "./requestLogger.js";
 
 type LogLevel = "log" | "warn" | "error" | "info" | "debug";
 

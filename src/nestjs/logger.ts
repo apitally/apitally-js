@@ -2,7 +2,7 @@ import { Logger } from "@nestjs/common";
 import { AsyncLocalStorage } from "async_hooks";
 import { format } from "util";
 
-import { LogRecord } from "../common/requestLogger.js";
+import type { LogRecord } from "../common/requestLogger.js";
 
 type LogLevel = "log" | "error" | "warn" | "debug" | "verbose" | "fatal";
 
