@@ -318,8 +318,8 @@ function extractNestValidationErrors(message: any[]): ValidationError[] {
 }
 
 function filterLogs(obj: any) {
-  // Filter out "request completed" logs
-  return !(obj.res && obj.responseTime);
+  // Filter out Fastify internal logs
+  return !(obj.req || obj.res);
 }
 
 export { apitallyPlugin };
