@@ -6,6 +6,7 @@ import { CLIENT_ID, ENV } from "../utils.js";
 export const getApp = async () => {
   const app = Fastify({
     ajv: { customOptions: { allErrors: true } },
+    logger: true,
   });
 
   await app.register(apitallyPlugin, {
@@ -74,6 +75,7 @@ export const getApp = async () => {
     },
     async function (request) {
       const { name, age } = request.body;
+      request.log.info("Test 3");
       return `Hello ${name}! You are ${age} years old!`;
     },
   );

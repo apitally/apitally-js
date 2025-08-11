@@ -12,6 +12,7 @@ import { patchConsole } from "../common/consoleCapture.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import { patchPino } from "../common/pino.js";
 import {
   convertBody,
   convertHeaders,
@@ -52,6 +53,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
+    patchPino(fastify.log, logsContext, filterLogs);
   }
 
   fastify.decorateRequest("apitallyConsumer", null);
@@ -313,6 +315,11 @@ function extractNestValidationErrors(message: any[]): ValidationError[] {
   } catch (error) {
     return [];
   }
+}
+
+function filterLogs(obj: any) {
+  // Filter out "request completed" logs
+  return !(obj.res && obj.responseTime);
 }
 
 export { apitallyPlugin };
