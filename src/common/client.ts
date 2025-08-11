@@ -271,7 +271,7 @@ export class ApitallyClient {
           `${this.getHubUrlPrefix()}log?uuid=${logFile.uuid}`,
           {
             method: "POST",
-            body: await logFile.getContent(),
+            body: (await logFile.getContent()) as any,
           },
         );
 
