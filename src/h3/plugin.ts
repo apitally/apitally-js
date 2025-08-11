@@ -11,12 +11,15 @@ import { getResponseBody, measureResponseSize } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { getAppInfo } from "./utils.js";
 
+const REQUEST_TIMESTAMP_SYMBOL = Symbol("apitally.requestTimestamp");
+const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
+
 declare module "h3" {
   interface H3EventContext {
     apitallyConsumer?: ApitallyConsumer | string;
 
-    _apitallyRequestTimestamp?: number;
-    _apitallyRequestBody?: Buffer;
+    [REQUEST_TIMESTAMP_SYMBOL]?: number;
+    [REQUEST_BODY_SYMBOL]?: Buffer;
   }
 }
 
@@ -46,7 +49,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       return response;
     }
 
-    const startTime = event.context._apitallyRequestTimestamp;
+    const startTime = event.context[REQUEST_TIMESTAMP_SYMBOL];
     const responseTime = startTime ? performance.now() - startTime : 0;
     const path = event.context.matchedRoute?.route;
     const statusCode = response?.status || error?.status || 500;
@@ -130,7 +133,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
           ),
           size: Number(requestSize),
           consumer: consumer?.identifier,
-          body: event.context._apitallyRequestBody,
+          body: event.context[REQUEST_BODY_SYMBOL],
         },
         {
           statusCode,
@@ -150,7 +153,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
   app
     .use(
       onRequest(async (event) => {
-        event.context._apitallyRequestTimestamp = performance.now();
+        event.context[REQUEST_TIMESTAMP_SYMBOL] = performance.now();
         const requestContentType = event.req.headers.get("content-type");
         const requestSize =
           parseContentLength(event.req.headers.get("content-length")) ?? 0;
@@ -163,7 +166,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
         ) {
           const clonedRequest = event.req.clone();
           const requestBody = Buffer.from(await clonedRequest.arrayBuffer());
-          event.context._apitallyRequestBody = requestBody;
+          event.context[REQUEST_BODY_SYMBOL] = requestBody;
         }
       }),
     )
