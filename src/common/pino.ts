@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "async_hooks";
-import pino from "pino";
 
 import { LogRecord } from "./requestLogger.js";
 
@@ -13,33 +12,40 @@ const logLevelMap: Record<number, string> = {
 };
 
 export function patchPino(
-  logger: pino.BaseLogger,
+  logger: any,
   logsContext: AsyncLocalStorage<LogRecord[]>,
   filterLogs: (obj: any) => boolean = () => true,
 ): void {
-  const loggerInternal = logger as any; // Cast to access internal pino properties
-  const originalStream = loggerInternal[pino.symbols.streamSym];
+  import("pino")
+    .then((pino) => {
+      const loggerInternal = logger as any; // Cast to access internal pino properties
+      const originalStream = loggerInternal[pino.default.symbols.streamSym];
 
-  if (originalStream) {
-    const messageKey = loggerInternal[pino.symbols.messageKeySym];
-    const captureStream = new ApitallyLogCaptureStream(
-      logsContext,
-      messageKey,
-      filterLogs,
-    );
-    loggerInternal[pino.symbols.streamSym] = pino.multistream(
-      [
-        { level: 0, stream: originalStream },
-        { level: 0, stream: captureStream },
-      ],
-      {
-        levels: loggerInternal.levels,
-      },
-    );
-  }
+      if (originalStream) {
+        const messageKey = loggerInternal[pino.default.symbols.messageKeySym];
+        const captureStream = new ApitallyLogCaptureStream(
+          logsContext,
+          messageKey,
+          filterLogs,
+        );
+        loggerInternal[pino.default.symbols.streamSym] =
+          pino.default.multistream(
+            [
+              { level: 0, stream: originalStream },
+              { level: 0, stream: captureStream },
+            ],
+            {
+              levels: loggerInternal.levels,
+            },
+          );
+      }
+    })
+    .catch(() => {
+      // pino is not installed, silently ignore
+    });
 }
 
-class ApitallyLogCaptureStream implements pino.DestinationStream {
+class ApitallyLogCaptureStream {
   private logsContext: AsyncLocalStorage<LogRecord[]>;
   private messageKey: string;
   private filterLogs: (obj: any) => boolean;

@@ -1,4 +1,3 @@
-import { Logger } from "@nestjs/common";
 import { AsyncLocalStorage } from "async_hooks";
 import { format } from "util";
 
@@ -16,34 +15,40 @@ export function patchNestLogger(logsContext: AsyncLocalStorage<LogRecord[]>) {
     return;
   }
 
-  const logMethods: LogLevel[] = [
-    "log",
-    "error",
-    "warn",
-    "debug",
-    "verbose",
-    "fatal",
-  ];
+  import("@nestjs/common")
+    .then(({ Logger }) => {
+      const logMethods: LogLevel[] = [
+        "log",
+        "error",
+        "warn",
+        "debug",
+        "verbose",
+        "fatal",
+      ];
 
-  // Patch static methods
-  logMethods.forEach((method) => {
-    const originalMethod = Logger[method];
-    Logger[method] = function (message: any, ...args: any[]) {
-      captureLog(method, [message, ...args]);
-      return originalMethod.apply(Logger, [message, ...args]);
-    };
-  });
+      // Patch static methods
+      logMethods.forEach((method) => {
+        const originalMethod = Logger[method];
+        Logger[method] = function (message: any, ...args: any[]) {
+          captureLog(method, [message, ...args]);
+          return originalMethod.apply(Logger, [message, ...args]);
+        };
+      });
 
-  // Patch prototype methods to affect all instances (new and existing)
-  logMethods.forEach((method) => {
-    const originalMethod = Logger.prototype[method];
-    Logger.prototype[method] = function (message: any, ...args: any[]) {
-      captureLog(method, [message, ...args], this.context);
-      return originalMethod.apply(this, [message, ...args]);
-    };
-  });
+      // Patch prototype methods to affect all instances (new and existing)
+      logMethods.forEach((method) => {
+        const originalMethod = Logger.prototype[method];
+        Logger.prototype[method] = function (message: any, ...args: any[]) {
+          captureLog(method, [message, ...args], this.context);
+          return originalMethod.apply(this, [message, ...args]);
+        };
+      });
 
-  isPatched = true;
+      isPatched = true;
+    })
+    .catch(() => {
+      // @nestjs/common is not installed, silently ignore
+    });
 }
 
 function captureLog(level: LogLevel, args: any[], context?: string) {

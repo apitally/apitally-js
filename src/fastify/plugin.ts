@@ -24,6 +24,7 @@ import {
   PathInfo,
   ValidationError,
 } from "../common/types.js";
+import { patchNestLogger } from "../nestjs/logger.js";
 
 const LOGS_SYMBOL = Symbol("apitally.logs");
 const ASYNC_RESOURCE_SYMBOL = Symbol("apitally.logsContextAsyncResource");
@@ -54,14 +55,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
     patchPino(fastify.log, logsContext, filterLogs);
-
-    try {
-      const { patchNestLogger } = await import("../nestjs/logger.js");
-      patchNestLogger(logsContext);
-      console.log("NestJS logger patched");
-    } catch (error) {
-      // ignore
-    }
+    patchNestLogger(logsContext);
   }
 
   fastify.decorateRequest("apitallyConsumer", null);

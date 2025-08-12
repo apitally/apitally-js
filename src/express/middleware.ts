@@ -18,6 +18,7 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
+import { patchNestLogger } from "../nestjs/logger.js";
 import {
   getEndpoints,
   getRouterInfo,
@@ -57,14 +58,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
-
-    import("../nestjs/logger.js")
-      .then(({ patchNestLogger }) => {
-        patchNestLogger(logsContext);
-      })
-      .catch(() => {
-        // ignore
-      });
+    patchNestLogger(logsContext);
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
