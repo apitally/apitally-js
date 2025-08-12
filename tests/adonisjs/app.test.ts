@@ -1,5 +1,5 @@
 import { ServerFactory } from "@adonisjs/core/factories/http";
-import { ApplicationService } from "@adonisjs/core/types";
+import { ApplicationService, LoggerService } from "@adonisjs/core/types";
 import { createServer } from "http";
 import supertest from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,11 +18,29 @@ describe("Middleware for AdonisJS", () => {
   beforeEach(async () => {
     mockApitallyHub();
 
-    app = await createApp();
+    app = createApp();
+    await app.init();
+    await app.boot();
+
+    app.container.singleton("logger", async () => {
+      const { LoggerManager } = await import("@adonisjs/logger");
+      const loggerConfig = {
+        default: "app",
+        loggers: {
+          app: {
+            enabled: true,
+          },
+        },
+      };
+      return new LoggerManager<any>(loggerConfig) as LoggerService;
+    });
+
     provider = new ApitallyProvider(app);
     provider.register();
+    await provider.start();
 
-    const server = new ServerFactory().merge({ app }).create();
+    const logger = await app.container.make("logger");
+    const server = new ServerFactory().merge({ app, logger }).create();
     const router = server.getRouter();
     createRoutes(router);
     app.container.bindValue("router", router);
@@ -121,6 +139,10 @@ describe("Middleware for AdonisJS", () => {
     ]);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    expect(call[3]).toBeDefined();
+    expect(call[3]).toHaveLength(1);
+    expect(call[3]![0].message).toMatch(/^Saying hello/);
+    expect(call[3]![0].level).toBe("info");
     spy.mockReset();
 
     await testAgent.post("/hello").send({ name: "John", age: 20 }).expect(200);
@@ -136,6 +158,10 @@ describe("Middleware for AdonisJS", () => {
     expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    expect(call[3]).toBeDefined();
+    expect(call[3]).toHaveLength(1);
+    expect(call[3]![0].message).toBe("Saying hello 2");
+    expect(call[3]![0].level).toBe("log");
   });
 
   it("Validation error counter", async () => {

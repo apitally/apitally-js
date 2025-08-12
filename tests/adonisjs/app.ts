@@ -15,7 +15,7 @@ import { CLIENT_ID, ENV } from "../utils.js";
 
 const BASE_URL = new URL("./tmp/", import.meta.url);
 
-export const createApp = async () => {
+export const createApp = () => {
   const app = new AppFactory().create(BASE_URL) as ApplicationService;
 
   app.useConfig({
@@ -30,12 +30,11 @@ export const createApp = async () => {
         logRequestBody: true,
         logResponseHeaders: true,
         logResponseBody: true,
+        captureLogs: true,
       },
     }),
   });
 
-  await app.init();
-  await app.boot();
   return app;
 };
 
@@ -56,10 +55,11 @@ export const createRoutes = (router: Router) => {
   );
 
   router
-    .get("/hello", async ({ request, response }) => {
+    .get("/hello", async ({ request, response, logger }) => {
       const name = request.qs().name;
       const age = request.qs().age;
       response.type("txt");
+      logger.info("Saying hello", { name });
       return `Hello ${name}! You are ${age} years old!`;
     })
     .middleware(apitallyHandle);
@@ -79,6 +79,7 @@ export const createRoutes = (router: Router) => {
       try {
         const { name, age } = await helloValidator.validate(data);
         ctx.response.type("txt");
+        console.log("Saying hello 2");
         return `Hello ${name}! You are ${age} years old!`;
       } catch (error) {
         captureError(error, ctx);

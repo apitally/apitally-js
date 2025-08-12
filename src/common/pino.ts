@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "async_hooks";
 
 import { LogRecord } from "./requestLogger.js";
 
+const originalStreamSym = Symbol.for("apitally.originalStream");
 const logLevelMap: Record<number, string> = {
   10: "trace",
   20: "debug",
@@ -18,26 +19,30 @@ export function patchPino(
 ): void {
   import("pino")
     .then((pino) => {
-      const loggerInternal = logger as any; // Cast to access internal pino properties
-      const originalStream = loggerInternal[pino.default.symbols.streamSym];
+      if (!(pino.default.symbols.streamSym in logger)) {
+        return;
+      }
+      if (!(originalStreamSym in logger)) {
+        logger[originalStreamSym] = logger[pino.default.symbols.streamSym];
+      }
 
+      const originalStream = logger[originalStreamSym];
       if (originalStream) {
-        const messageKey = loggerInternal[pino.default.symbols.messageKeySym];
+        const messageKey = logger[pino.default.symbols.messageKeySym];
         const captureStream = new ApitallyLogCaptureStream(
           logsContext,
           messageKey,
           filterLogs,
         );
-        loggerInternal[pino.default.symbols.streamSym] =
-          pino.default.multistream(
-            [
-              { level: 0, stream: originalStream },
-              { level: 0, stream: captureStream },
-            ],
-            {
-              levels: loggerInternal.levels,
-            },
-          );
+        logger[pino.default.symbols.streamSym] = pino.default.multistream(
+          [
+            { level: 0, stream: originalStream },
+            { level: 0, stream: captureStream },
+          ],
+          {
+            levels: logger.levels,
+          },
+        );
       }
     })
     .catch(() => {
