@@ -2,9 +2,19 @@ import { Joi, Segments, celebrate, errors } from "celebrate";
 import type { Request } from "express";
 import express from "express";
 import { body, query, validationResult } from "express-validator";
+import winston from "winston";
 
 import { setConsumer, useApitally } from "../../src/express/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
+
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.simple(),
+  ),
+  transports: [new winston.transports.Console()],
+});
 
 const requestLoggingConfig = {
   enabled: true,
@@ -39,8 +49,8 @@ export const getAppWithCelebrate = () => {
     ),
     (req: Request, res) => {
       setConsumer(req, "test");
-      console.log("Test 1");
-      console.warn("Test 2");
+      console.warn("Console test");
+      logger.info("Saying hello", { name: req.query?.name });
       res.type("txt");
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
@@ -91,8 +101,8 @@ export const getAppWithValidator = () => {
     query("age").isInt({ min: 18 }),
     (req: Request, res) => {
       setConsumer(req, "test");
-      console.log("Test 1");
-      console.warn("Test 2");
+      console.warn("Console test");
+      logger.info("Saying hello", { name: req.query?.name });
       const result = validationResult(req);
       if (result.isEmpty()) {
         res.type("txt");

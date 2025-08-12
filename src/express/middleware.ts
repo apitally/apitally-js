@@ -1,7 +1,7 @@
+import { AsyncLocalStorage } from "async_hooks";
 import type { Express, NextFunction, Request, Response, Router } from "express";
 import { performance } from "perf_hooks";
 
-import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
 import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
@@ -18,6 +18,7 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
+import { patchWinston } from "../common/winston.js";
 import { patchNestLogger } from "../nestjs/logger.js";
 import {
   getEndpoints,
@@ -58,6 +59,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
+    patchWinston(logsContext);
     patchNestLogger(logsContext);
   }
 

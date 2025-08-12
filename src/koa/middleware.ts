@@ -1,6 +1,6 @@
+import { AsyncLocalStorage } from "async_hooks";
 import Koa from "koa";
 
-import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
 import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
@@ -16,6 +16,7 @@ import {
   PathInfo,
   StartupData,
 } from "../common/types.js";
+import { patchWinston } from "../common/winston.js";
 
 export function useApitally(app: Koa, config: ApitallyConfig) {
   const client = new ApitallyClient(config);
@@ -38,6 +39,7 @@ function getMiddleware(client: ApitallyClient) {
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
+    patchWinston(logsContext);
   }
 
   return async (ctx: Koa.Context, next: Koa.Next) => {

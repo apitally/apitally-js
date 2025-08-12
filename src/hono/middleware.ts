@@ -1,8 +1,8 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { Context, Hono } from "hono";
 import { MiddlewareHandler } from "hono/types";
 import { performance } from "perf_hooks";
 
-import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
 import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
@@ -14,6 +14,7 @@ import {
   measureResponseSize,
 } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
+import { patchWinston } from "../common/winston.js";
 import { extractZodErrors, getAppInfo } from "./utils.js";
 
 declare module "hono" {
@@ -43,6 +44,7 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
+    patchWinston(logsContext);
   }
 
   return async (c, next) => {
