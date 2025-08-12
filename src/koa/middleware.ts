@@ -2,7 +2,6 @@ import { AsyncLocalStorage } from "async_hooks";
 import Koa from "koa";
 
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import {
@@ -16,7 +15,7 @@ import {
   PathInfo,
   StartupData,
 } from "../common/types.js";
-import { patchWinston } from "../common/winston.js";
+import { patchConsole, patchWinston } from "../loggers/index.js";
 
 export function useApitally(app: Koa, config: ApitallyConfig) {
   const client = new ApitallyClient(config);

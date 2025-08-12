@@ -3,7 +3,6 @@ import type { Express, NextFunction, Request, Response, Router } from "express";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
@@ -18,8 +17,11 @@ import {
   StartupData,
   ValidationError,
 } from "../common/types.js";
-import { patchWinston } from "../common/winston.js";
-import { patchNestLogger } from "../nestjs/logger.js";
+import {
+  patchConsole,
+  patchNestLogger,
+  patchWinston,
+} from "../loggers/index.js";
 import {
   getEndpoints,
   getRouterInfo,

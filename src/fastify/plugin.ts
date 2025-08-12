@@ -8,11 +8,9 @@ import type {
 import fp from "fastify-plugin";
 
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { patchPinoLogger } from "../common/pino.js";
 import {
   convertBody,
   convertHeaders,
@@ -24,7 +22,11 @@ import {
   PathInfo,
   ValidationError,
 } from "../common/types.js";
-import { patchNestLogger } from "../nestjs/logger.js";
+import {
+  patchConsole,
+  patchNestLogger,
+  patchPinoLogger,
+} from "../loggers/index.js";
 
 const LOGS_SYMBOL = Symbol("apitally.logs");
 const ASYNC_RESOURCE_SYMBOL = Symbol("apitally.logsContextAsyncResource");

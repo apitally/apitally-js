@@ -4,7 +4,6 @@ import { MiddlewareHandler } from "hono/types";
 import { performance } from "perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { convertHeaders, LogRecord } from "../common/requestLogger.js";
@@ -14,7 +13,7 @@ import {
   measureResponseSize,
 } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
-import { patchWinston } from "../common/winston.js";
+import { patchConsole, patchWinston } from "../loggers/index.js";
 import { extractZodErrors, getAppInfo } from "./utils.js";
 
 declare module "hono" {

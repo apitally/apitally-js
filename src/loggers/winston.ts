@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
 
-import type { LogRecord } from "./requestLogger.js";
+import type { LogRecord } from "../common/requestLogger.js";
 
 let isPatched = false;
 let globalLogsContext: AsyncLocalStorage<LogRecord[]>;

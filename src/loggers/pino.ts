@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
 
-import { LogRecord } from "./requestLogger.js";
+import { LogRecord } from "../common/requestLogger.js";
 
 const originalStreamSym = Symbol.for("apitally.originalStream");
 const logLevelMap: Record<number, string> = {

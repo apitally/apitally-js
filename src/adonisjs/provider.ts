@@ -3,11 +3,10 @@ import type { ApplicationService } from "@adonisjs/core/types";
 import { AsyncLocalStorage } from "async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
-import { patchConsole } from "../common/console.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { patchPinoLogger } from "../common/pino.js";
 import { LogRecord } from "../common/requestLogger.js";
 import type { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
+import { patchConsole, patchPinoLogger } from "../loggers/index.js";
 
 declare module "@adonisjs/core/types" {
   interface ContainerBindings {
