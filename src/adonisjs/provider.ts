@@ -5,7 +5,7 @@ import { AsyncLocalStorage } from "async_hooks";
 import { ApitallyClient } from "../common/client.js";
 import { patchConsole } from "../common/console.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { patchPino } from "../common/pino.js";
+import { patchPinoLogger } from "../common/pino.js";
 import { LogRecord } from "../common/requestLogger.js";
 import type { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 
@@ -35,7 +35,7 @@ export default class ApitallyProvider {
       const logsContext = await this.app.container.make("apitallyLogsContext");
       const logger = await this.app.container.make("logger");
 
-      patchPino(logger.pino, logsContext);
+      patchPinoLogger(logger.pino, logsContext);
       patchConsole(logsContext);
     }
   }

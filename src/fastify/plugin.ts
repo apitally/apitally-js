@@ -12,7 +12,7 @@ import { patchConsole } from "../common/console.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { patchPino } from "../common/pino.js";
+import { patchPinoLogger } from "../common/pino.js";
 import {
   convertBody,
   convertHeaders,
@@ -54,7 +54,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
-    patchPino(fastify.log, logsContext, filterLogs);
+    patchPinoLogger(fastify.log, logsContext, filterLogs);
     patchNestLogger(logsContext);
   }
 

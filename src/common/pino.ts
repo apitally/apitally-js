@@ -12,7 +12,7 @@ const logLevelMap: Record<number, string> = {
   60: "fatal",
 };
 
-export function patchPino(
+export function patchPinoLogger(
   logger: any,
   logsContext: AsyncLocalStorage<LogRecord[]>,
   filterLogs: (obj: any) => boolean = () => true,
