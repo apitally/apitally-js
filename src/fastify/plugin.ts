@@ -56,7 +56,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
-    patchPinoLogger(fastify.log, logsContext, filterLogs);
+    patchPinoLogger(fastify.log, logsContext);
     patchNestLogger(logsContext);
   }
 
@@ -323,11 +323,6 @@ function extractNestValidationErrors(message: any[]): ValidationError[] {
   } catch (error) {
     return [];
   }
-}
-
-function filterLogs(obj: any) {
-  // Filter out Fastify internal logs
-  return !(obj.req || obj.res);
 }
 
 export { apitallyPlugin };

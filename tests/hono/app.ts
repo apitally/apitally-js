@@ -34,8 +34,7 @@ export const getApp = async () => {
     ),
     (c) => {
       setConsumer(c, "test");
-      console.log("Test 1");
-      console.warn("Test 2");
+      console.warn("Console test");
       return c.text(
         `Hello ${c.req.query("name")}! You are ${c.req.query("age")} years old!`,
       );

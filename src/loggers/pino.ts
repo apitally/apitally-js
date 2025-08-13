@@ -15,9 +15,8 @@ const logLevelMap: Record<number, string> = {
 export function patchPinoLogger(
   logger: any,
   logsContext: AsyncLocalStorage<LogRecord[]>,
-  filterLogs: (obj: any) => boolean = () => true,
-): void {
-  import("pino")
+) {
+  return import("pino")
     .then((pino) => {
       if (!(pino.default.symbols.streamSym in logger)) {
         return;
@@ -32,7 +31,6 @@ export function patchPinoLogger(
         const captureStream = new ApitallyLogCaptureStream(
           logsContext,
           messageKey,
-          filterLogs,
         );
         logger[pino.default.symbols.streamSym] = pino.default.multistream(
           [
@@ -50,19 +48,17 @@ export function patchPinoLogger(
     });
 }
 
+function filterLogs(obj: any, messageKey: string) {
+  return obj[messageKey] !== "request completed";
+}
+
 class ApitallyLogCaptureStream {
   private logsContext: AsyncLocalStorage<LogRecord[]>;
   private messageKey: string;
-  private filterLogs: (obj: any) => boolean;
 
-  constructor(
-    logsContext: AsyncLocalStorage<LogRecord[]>,
-    messageKey: string,
-    filterLogs: (obj: any) => boolean = () => true,
-  ) {
+  constructor(logsContext: AsyncLocalStorage<LogRecord[]>, messageKey: string) {
     this.logsContext = logsContext;
     this.messageKey = messageKey;
-    this.filterLogs = filterLogs;
   }
 
   write(msg: string): void {
@@ -77,7 +73,11 @@ class ApitallyLogCaptureStream {
     } catch (e) {
       return;
     }
-    if (obj === null || typeof obj !== "object" || !this.filterLogs(obj)) {
+    if (
+      obj === null ||
+      typeof obj !== "object" ||
+      !filterLogs(obj, this.messageKey)
+    ) {
       return;
     }
 

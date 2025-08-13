@@ -141,7 +141,7 @@ describe("Middleware for AdonisJS", () => {
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
     expect(call[3]).toBeDefined();
     expect(call[3]).toHaveLength(1);
-    expect(call[3]![0].message).toMatch(/^Saying hello/);
+    expect(call[3]![0].message).toBe("Pino test");
     expect(call[3]![0].level).toBe("info");
     spy.mockReset();
 
@@ -160,8 +160,8 @@ describe("Middleware for AdonisJS", () => {
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
     expect(call[3]).toBeDefined();
     expect(call[3]).toHaveLength(1);
-    expect(call[3]![0].message).toBe("Saying hello 2");
-    expect(call[3]![0].level).toBe("log");
+    expect(call[3]![0].message).toBe("Console test");
+    expect(call[3]![0].level).toBe("warn");
   });
 
   it("Validation error counter", async () => {

@@ -29,8 +29,7 @@ export const getAppWithKoaRouter = () => {
 
   router.get("/hello", async (ctx) => {
     setConsumer(ctx, "test");
-    console.log("Test 1");
-    console.warn("Test 2");
+    console.warn("Console test");
     ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
   });
   router.get("/hello/:id", async (ctx) => {
@@ -65,8 +64,7 @@ export const getAppWithKoaRoute = () => {
   app.use(
     route.get("/hello", async (ctx) => {
       setConsumer(ctx, "test");
-      console.log("Test 1");
-      console.warn("Test 2");
+      console.warn("Console test");
       ctx.body = `Hello ${ctx.query.name}! You are ${ctx.query.age} years old!`;
     }),
   );

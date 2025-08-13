@@ -54,7 +54,7 @@ export class AppController {
   @Get("/hello")
   @Header("Content-Type", "text/plain")
   getHello(@Query() { name, age }: HelloQueryDTO) {
-    this.logger.log("Saying hello", { name, age });
+    this.logger.log("Logger test");
     return `Hello ${name}! You are ${age} years old!`;
   }
 

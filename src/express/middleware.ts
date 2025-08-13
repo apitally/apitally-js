@@ -20,6 +20,7 @@ import {
 import {
   patchConsole,
   patchNestLogger,
+  patchPinoLogger,
   patchWinston,
 } from "../loggers/index.js";
 import {
@@ -65,7 +66,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
     patchNestLogger(logsContext);
   }
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     if (!client.isEnabled() || req.method.toUpperCase() === "OPTIONS") {
       next();
       return;
@@ -78,6 +79,10 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
         next(err);
       });
       errorHandlerConfigured = true;
+    }
+
+    if (client.requestLogger.config.captureLogs && req.log) {
+      await patchPinoLogger(req.log, logsContext);
     }
 
     logsContext.run([], () => {

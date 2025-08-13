@@ -102,11 +102,13 @@ testCases.forEach(({ name, getApp }) => {
       expect(call[1].body).toBeInstanceOf(Buffer);
       expect(call[1].body!.toString()).toMatch(/^Hello John!/);
       expect(call[3]).toBeDefined();
-      expect(call[3]).toHaveLength(2);
+      expect(call[3]).toHaveLength(3);
       expect(call[3]![0].level).toBe("warn");
       expect(call[3]![0].message).toBe("Console test");
       expect(call[3]![1].level).toBe("info");
-      expect(call[3]![1].message).toBe('Saying hello {"name":"John"}');
+      expect(call[3]![1].message).toBe("Pino test");
+      expect(call[3]![2].level).toBe("info");
+      expect(call[3]![2].message).toBe("Winston test");
 
       spy.mockReset();
 

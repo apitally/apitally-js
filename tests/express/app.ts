@@ -2,12 +2,13 @@ import { Joi, Segments, celebrate, errors } from "celebrate";
 import type { Request } from "express";
 import express from "express";
 import { body, query, validationResult } from "express-validator";
+import { pinoHttp } from "pino-http";
 import winston from "winston";
 
 import { setConsumer, useApitally } from "../../src/express/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
-const logger = winston.createLogger({
+const winstonLogger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
     winston.format.timestamp(),
@@ -29,6 +30,7 @@ const requestLoggingConfig = {
 export const getAppWithCelebrate = () => {
   const app = express();
   app.use(express.json());
+  app.use(pinoHttp());
 
   useApitally(app, {
     clientId: CLIENT_ID,
@@ -50,7 +52,8 @@ export const getAppWithCelebrate = () => {
     (req: Request, res) => {
       setConsumer(req, "test");
       console.warn("Console test");
-      logger.info("Saying hello", { name: req.query?.name });
+      req.log.info("Pino test");
+      winstonLogger.info("Winston test");
       res.type("txt");
       res.send(
         `Hello ${req.query?.name}! You are ${req.query?.age} years old!`,
@@ -87,6 +90,7 @@ export const getAppWithCelebrate = () => {
 export const getAppWithValidator = () => {
   const app = express();
   app.use(express.json());
+  app.use(pinoHttp());
 
   useApitally(app, {
     clientId: CLIENT_ID,
@@ -102,7 +106,8 @@ export const getAppWithValidator = () => {
     (req: Request, res) => {
       setConsumer(req, "test");
       console.warn("Console test");
-      logger.info("Saying hello", { name: req.query?.name });
+      req.log.info("Pino test");
+      winstonLogger.info("Winston test");
       const result = validationResult(req);
       if (result.isEmpty()) {
         res.type("txt");

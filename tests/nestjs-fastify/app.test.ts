@@ -88,7 +88,7 @@ describe("Middleware for NestJS (Fastify)", () => {
     expect(call[3]).toHaveLength(1);
     expect(call[3]![0].logger).toBe("AppController");
     expect(call[3]![0].level).toBe("log");
-    expect(call[3]![0].message).toMatch(/^Saying hello/);
+    expect(call[3]![0].message).toBe("Logger test");
     spy.mockReset();
 
     await appTest.post("/hello").send({ name: "John", age: 20 }).expect(201);
