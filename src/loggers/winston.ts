@@ -1,31 +1,33 @@
 import { AsyncLocalStorage } from "async_hooks";
 
 import type { LogRecord } from "../common/requestLogger.js";
+import { formatMessage, removeKeys } from "./utils.js";
 
 let isPatched = false;
 let globalLogsContext: AsyncLocalStorage<LogRecord[]>;
 
-export function patchWinston(logsContext: AsyncLocalStorage<LogRecord[]>) {
+export async function patchWinston(
+  logsContext: AsyncLocalStorage<LogRecord[]>,
+) {
   globalLogsContext = logsContext;
 
   if (isPatched) {
     return;
   }
 
-  // @ts-expect-error - file is not typed
-  import("winston/lib/winston/logger.js")
-    .then((loggerModule) => {
-      if (loggerModule.default?.prototype?.write) {
-        const originalWrite = loggerModule.default.prototype.write;
-        loggerModule.default.prototype.write = function (info: any) {
-          captureLog(info);
-          return originalWrite.call(this, info);
-        };
-      }
-    })
-    .catch(() => {
-      // winston is not installed, silently ignore
-    });
+  try {
+    // @ts-expect-error - file is not typed
+    const loggerModule = await import("winston/lib/winston/logger.js");
+    if (loggerModule.default?.prototype?.write) {
+      const originalWrite = loggerModule.default.prototype.write;
+      loggerModule.default.prototype.write = function (info: any) {
+        captureLog(info);
+        return originalWrite.call(this, info);
+      };
+    }
+  } catch {
+    // winston is not installed, silently ignore
+  }
 
   isPatched = true;
 }
@@ -37,17 +39,8 @@ function captureLog(info: any) {
   }
 
   try {
-    const stringifiedRest = JSON.stringify(
-      Object.assign({}, info, {
-        timestamp: undefined,
-        level: undefined,
-        message: undefined,
-        splat: undefined,
-      }),
-    );
-    const formattedMessage =
-      (info.message || "") +
-      (stringifiedRest !== "{}" ? ` ${stringifiedRest}` : "");
+    const rest = removeKeys(info, ["timestamp", "level", "message", "splat"]);
+    const formattedMessage = formatMessage(info.message, rest);
     if (formattedMessage) {
       logs.push({
         timestamp: parseTimestamp(info.timestamp),

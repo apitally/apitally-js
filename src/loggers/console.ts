@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "async_hooks";
-import { format } from "util";
 
 import type { LogRecord } from "../common/requestLogger.js";
+import { formatMessage } from "./utils.js";
 
 type LogLevel = "log" | "warn" | "error" | "info" | "debug";
 
@@ -33,7 +33,7 @@ function captureLog(level: LogLevel, args: any[]) {
     logs.push({
       timestamp: Date.now() / 1000,
       level,
-      message: format(...args),
+      message: formatMessage(args[0], ...args.slice(1)),
     });
   }
 }
