@@ -81,8 +81,8 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
       errorHandlerConfigured = true;
     }
 
-    if (client.requestLogger.config.captureLogs && req.log) {
-      await patchPinoLogger(req.log, logsContext);
+    if (client.requestLogger.config.captureLogs && "log" in req) {
+      await patchPinoLogger((req as any).log, logsContext);
     }
 
     logsContext.run([], () => {
