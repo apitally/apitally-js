@@ -54,7 +54,7 @@ export async function patchNestLogger(
 
 function captureLog(level: LogLevel, args: any[], context?: string) {
   const logs = globalLogsContext?.getStore();
-  if (logs) {
+  if (logs && logs.length < 1000) {
     logs.push({
       timestamp: Date.now() / 1000,
       logger: context,

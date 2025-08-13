@@ -34,7 +34,7 @@ export async function patchWinston(
 
 function captureLog(info: any) {
   const logs = globalLogsContext?.getStore();
-  if (!logs || !info) {
+  if (!logs || !info || logs.length >= 1000) {
     return;
   }
 

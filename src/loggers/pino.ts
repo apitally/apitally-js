@@ -63,7 +63,7 @@ class ApitallyLogCaptureStream {
 
   write(msg: string): void {
     const logs = this.logsContext.getStore();
-    if (!logs || !msg) {
+    if (!logs || !msg || logs.length >= 1000) {
       return;
     }
 
