@@ -1,9 +1,11 @@
 import { AsyncLocalStorage } from "async_hooks";
+import { format } from "util";
 
 import type { LogRecord } from "../common/requestLogger.js";
-import { formatMessage } from "./utils.js";
 
 type LogLevel = "log" | "warn" | "error" | "info" | "debug";
+
+const MAX_BUFFER_SIZE = 1000;
 
 let isPatched = false;
 let globalLogsContext: AsyncLocalStorage<LogRecord[]>;
@@ -29,11 +31,12 @@ export function patchConsole(logsContext: AsyncLocalStorage<LogRecord[]>) {
 
 function captureLog(level: LogLevel, args: any[]) {
   const logs = globalLogsContext?.getStore();
-  if (logs && logs.length < 1000) {
+  if (logs && logs.length < MAX_BUFFER_SIZE) {
     logs.push({
       timestamp: Date.now() / 1000,
+      logger: "console",
       level,
-      message: formatMessage(args[0], ...args.slice(1)),
+      message: format(...args),
     });
   }
 }

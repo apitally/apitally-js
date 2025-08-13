@@ -3,6 +3,8 @@ import { AsyncLocalStorage } from "async_hooks";
 import type { LogRecord } from "../common/requestLogger.js";
 import { formatMessage, removeKeys } from "./utils.js";
 
+const MAX_BUFFER_SIZE = 1000;
+
 let isPatched = false;
 let globalLogsContext: AsyncLocalStorage<LogRecord[]>;
 
@@ -34,7 +36,7 @@ export async function patchWinston(
 
 function captureLog(info: any) {
   const logs = globalLogsContext?.getStore();
-  if (!logs || !info || logs.length >= 1000) {
+  if (!logs || !info || logs.length >= MAX_BUFFER_SIZE) {
     return;
   }
 

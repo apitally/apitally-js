@@ -5,6 +5,8 @@ import { formatMessage } from "./utils.js";
 
 type LogLevel = "log" | "error" | "warn" | "debug" | "verbose" | "fatal";
 
+const MAX_BUFFER_SIZE = 1000;
+
 let isPatched = false;
 let globalLogsContext: AsyncLocalStorage<LogRecord[]>;
 
@@ -54,7 +56,7 @@ export async function patchNestLogger(
 
 function captureLog(level: LogLevel, args: any[], context?: string) {
   const logs = globalLogsContext?.getStore();
-  if (logs && logs.length < 1000) {
+  if (logs && logs.length < MAX_BUFFER_SIZE) {
     logs.push({
       timestamp: Date.now() / 1000,
       logger: context,

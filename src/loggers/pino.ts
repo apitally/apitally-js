@@ -3,6 +3,8 @@ import { AsyncLocalStorage } from "async_hooks";
 import { LogRecord } from "../common/requestLogger.js";
 import { formatMessage, removeKeys } from "./utils.js";
 
+const MAX_BUFFER_SIZE = 1000;
+
 const originalStreamSym = Symbol.for("apitally.originalStream");
 const logLevelMap: Record<number, string> = {
   10: "trace",
@@ -63,7 +65,7 @@ class ApitallyLogCaptureStream {
 
   write(msg: string): void {
     const logs = this.logsContext.getStore();
-    if (!logs || !msg || logs.length >= 1000) {
+    if (!logs || !msg || logs.length >= MAX_BUFFER_SIZE) {
       return;
     }
 
