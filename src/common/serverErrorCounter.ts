@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash } from "node:crypto";
 
 import { getSentryEventId } from "./sentry.js";
 import { ConsumerMethodPath, ServerError, ServerErrorsItem } from "./types.js";

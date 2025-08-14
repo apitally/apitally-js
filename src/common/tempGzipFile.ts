@@ -1,9 +1,9 @@
-import { Buffer } from "buffer";
-import { randomUUID } from "crypto";
-import { createWriteStream, readFile, unlinkSync, WriteStream } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { createGzip, Gzip } from "zlib";
+import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
+import { createWriteStream, readFile, unlinkSync, WriteStream } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createGzip, Gzip } from "node:zlib";
 
 export default class TempGzipFile {
   public uuid: string;

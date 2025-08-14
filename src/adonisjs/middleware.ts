@@ -1,8 +1,8 @@
 import { HttpContext } from "@adonisjs/core/http";
 import { NextFn } from "@adonisjs/core/types/http";
-import { AsyncLocalStorage } from "async_hooks";
-import type { OutgoingHttpHeaders } from "http";
-import { performance } from "perf_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { OutgoingHttpHeaders } from "node:http";
+import { performance } from "node:perf_hooks";
 
 import type { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";

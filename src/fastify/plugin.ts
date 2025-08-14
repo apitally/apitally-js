@@ -1,4 +1,3 @@
-import { AsyncLocalStorage, AsyncResource } from "async_hooks";
 import type {
   FastifyError,
   FastifyPluginAsync,
@@ -6,6 +5,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import fp from "fastify-plugin";
+import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";

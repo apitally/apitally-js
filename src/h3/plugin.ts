@@ -1,7 +1,7 @@
-import { AsyncLocalStorage } from "async_hooks";
 import type { H3Event, HTTPError } from "h3";
 import { definePlugin, onError, onRequest, onResponse } from "h3";
-import { performance } from "perf_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { performance } from "node:perf_hooks";
 import type { ZodError } from "zod";
 
 import { ApitallyClient } from "../common/client.js";

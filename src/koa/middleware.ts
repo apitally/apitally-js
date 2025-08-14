@@ -1,5 +1,5 @@
-import { AsyncLocalStorage } from "async_hooks";
 import Koa from "koa";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";

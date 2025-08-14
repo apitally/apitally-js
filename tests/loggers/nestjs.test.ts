@@ -1,5 +1,5 @@
 import { Logger } from "@nestjs/common";
-import { AsyncLocalStorage } from "async_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { LogRecord } from "../../src/common/requestLogger.js";

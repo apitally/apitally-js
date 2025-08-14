@@ -1,6 +1,6 @@
 import { ServerFactory } from "@adonisjs/core/factories/http";
 import { ApplicationService, LoggerService } from "@adonisjs/core/types";
-import { createServer } from "http";
+import { createServer } from "node:http";
 import supertest from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

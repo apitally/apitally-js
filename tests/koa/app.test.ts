@@ -1,5 +1,5 @@
-import http from "http";
 import Koa from "koa";
+import http from "node:http";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

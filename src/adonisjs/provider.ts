@@ -1,6 +1,6 @@
 import type { Router } from "@adonisjs/core/http";
 import type { ApplicationService } from "@adonisjs/core/types";
-import { AsyncLocalStorage } from "async_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";

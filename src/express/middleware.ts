@@ -1,6 +1,6 @@
-import { AsyncLocalStorage } from "async_hooks";
 import type { Express, NextFunction, Request, Response, Router } from "express";
-import { performance } from "perf_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { performance } from "node:perf_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";

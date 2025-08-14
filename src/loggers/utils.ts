@@ -1,4 +1,4 @@
-import { format } from "util";
+import { format } from "node:util";
 
 export function formatMessage(message: any, ...args: any[]) {
   return [message, ...args]

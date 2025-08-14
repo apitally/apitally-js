@@ -1,5 +1,5 @@
+import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { gunzipSync } from "zlib";
 
 import TempGzipFile from "../../src/common/tempGzipFile.js";
 

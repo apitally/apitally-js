@@ -1,10 +1,10 @@
 import AsyncLock from "async-lock";
-import { Buffer } from "buffer";
-import { randomUUID } from "crypto";
-import { unlinkSync, writeFileSync } from "fs";
-import { IncomingHttpHeaders, OutgoingHttpHeaders } from "http";
-import { tmpdir } from "os";
-import { join } from "path";
+import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
+import { unlinkSync, writeFileSync } from "node:fs";
+import { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { getSentryEventId } from "./sentry.js";
 import {

@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "async_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { LogRecord } from "../common/requestLogger.js";
 import { formatMessage, removeKeys } from "./utils.js";
