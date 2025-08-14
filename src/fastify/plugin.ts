@@ -5,11 +5,13 @@ import type {
   FastifyRequest,
 } from "fastify";
 import fp from "fastify-plugin";
+import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import {
   ApitallyConfig,
@@ -17,6 +19,15 @@ import {
   PathInfo,
   ValidationError,
 } from "../common/types.js";
+import {
+  patchConsole,
+  patchNestLogger,
+  patchPinoLogger,
+  patchWinston,
+} from "../loggers/index.js";
+
+const LOGS_SYMBOL = Symbol("apitally.logs");
+const ASYNC_RESOURCE_SYMBOL = Symbol("apitally.logsContextAsyncResource");
 
 declare module "fastify" {
   interface FastifyReply {
@@ -27,6 +38,9 @@ declare module "fastify" {
   interface FastifyRequest {
     apitallyConsumer?: ApitallyConsumer | string | null;
     consumerIdentifier?: ApitallyConsumer | string | null; // For backwards compatibility
+
+    [LOGS_SYMBOL]?: LogRecord[];
+    [ASYNC_RESOURCE_SYMBOL]?: AsyncResource;
   }
 }
 
@@ -36,6 +50,14 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 ) => {
   const client = new ApitallyClient(config);
   const routes: PathInfo[] = [];
+  const logsContext = new AsyncLocalStorage<LogRecord[]>();
+
+  if (client.requestLogger.config.captureLogs) {
+    patchConsole(logsContext);
+    patchWinston(logsContext);
+    patchPinoLogger(fastify.log, logsContext);
+    patchNestLogger(logsContext);
+  }
 
   fastify.decorateRequest("apitallyConsumer", null);
   fastify.decorateRequest("consumerIdentifier", null); // For backwards compatibility
@@ -61,6 +83,31 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 
   fastify.addHook("onClose", async () => {
     await client.handleShutdown();
+  });
+
+  // Establish logs context for each request
+  fastify.addHook("onRequest", (request, reply, done) => {
+    if (client.isEnabled()) {
+      const logs: LogRecord[] = [];
+      request[LOGS_SYMBOL] = logs;
+      logsContext.run(logs, () => {
+        const asyncResource = new AsyncResource("ApitallyLogsContext");
+        request[ASYNC_RESOURCE_SYMBOL] = asyncResource;
+        asyncResource.runInAsyncScope(done, request.raw);
+      });
+    } else {
+      done();
+    }
+  });
+
+  // Restore async context for later hooks and route handlers
+  fastify.addHook("preValidation", (request, reply, done) => {
+    if (client.isEnabled() && request[ASYNC_RESOURCE_SYMBOL]) {
+      const asyncResource = request[ASYNC_RESOURCE_SYMBOL];
+      asyncResource.runInAsyncScope(done, request.raw);
+    } else {
+      done();
+    }
   });
 
   fastify.addHook("onSend", (request, reply, payload: any, done) => {
@@ -98,8 +145,8 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         path,
         statusCode: reply.statusCode,
         responseTime,
-        requestSize: requestSize,
-        responseSize: responseSize,
+        requestSize,
+        responseSize,
       });
 
       if (
@@ -145,6 +192,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       }
 
       if (client.requestLogger.enabled) {
+        const logs = request[LOGS_SYMBOL];
         client.requestLogger.logRequest(
           {
             timestamp: Date.now() / 1000,
@@ -152,7 +200,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
             path,
             url: `${request.protocol}://${request.host ?? request.hostname}${request.originalUrl ?? request.url}`,
             headers: convertHeaders(request.headers),
-            size: Number(requestSize),
+            size: requestSize,
             consumer: consumer?.identifier,
             body: convertBody(request.body, request.headers["content-type"]),
           },
@@ -160,13 +208,14 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
             statusCode: reply.statusCode,
             responseTime: responseTime / 1000,
             headers: convertHeaders(reply.getHeaders()),
-            size: Number(responseSize),
+            size: responseSize,
             body: convertBody(
               reply.payload,
               reply.getHeader("content-type")?.toString(),
             ),
           },
           reply.serverError,
+          logs,
         );
       }
     }
@@ -178,10 +227,14 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 function getAppInfo(routes: PathInfo[], appVersion?: string) {
   const versions = [["nodejs", process.version.replace(/^v/, "")]];
   const fastifyVersion = getPackageVersion("fastify");
+  const pinoVersion = getPackageVersion("pino");
   const nestjsVersion = getPackageVersion("@nestjs/core");
   const apitallyVersion = getPackageVersion("../..");
   if (fastifyVersion) {
     versions.push(["fastify", fastifyVersion]);
+  }
+  if (pinoVersion) {
+    versions.push(["pino", pinoVersion]);
   }
   if (nestjsVersion) {
     versions.push(["nestjs", nestjsVersion]);

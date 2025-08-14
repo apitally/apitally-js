@@ -1,5 +1,5 @@
+import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { gunzipSync } from "zlib";
 
 import RequestLogger, {
   Request,

@@ -19,6 +19,7 @@ export const getApp = async () => {
       logRequestBody: true,
       logResponseHeaders: true,
       logResponseBody: true,
+      captureLogs: true,
     },
   });
 
@@ -33,6 +34,7 @@ export const getApp = async () => {
     ),
     (c) => {
       setConsumer(c, "test");
+      console.warn("Console test");
       return c.text(
         `Hello ${c.req.query("name")}! You are ${c.req.query("age")} years old!`,
       );

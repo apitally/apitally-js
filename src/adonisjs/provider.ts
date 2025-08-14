@@ -1,13 +1,17 @@
 import type { Router } from "@adonisjs/core/http";
 import type { ApplicationService } from "@adonisjs/core/types";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import type { LogRecord } from "../common/requestLogger.js";
 import type { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
+import { patchConsole, patchPinoLogger } from "../loggers/index.js";
 
 declare module "@adonisjs/core/types" {
   interface ContainerBindings {
     apitallyClient: ApitallyClient;
+    apitallyLogsContext: AsyncLocalStorage<LogRecord[]>;
   }
 }
 
@@ -19,6 +23,20 @@ export default class ApitallyProvider {
       const config: ApitallyConfig = this.app.config.get("apitally");
       return new ApitallyClient(config);
     });
+    this.app.container.singleton("apitallyLogsContext", () => {
+      return new AsyncLocalStorage<LogRecord[]>();
+    });
+  }
+
+  async start() {
+    const client = await this.app.container.make("apitallyClient");
+    if (client.requestLogger.config.captureLogs) {
+      const logsContext = await this.app.container.make("apitallyLogsContext");
+      const logger = await this.app.container.make("logger");
+
+      patchPinoLogger(logger.pino, logsContext);
+      patchConsole(logsContext);
+    }
   }
 
   async ready() {

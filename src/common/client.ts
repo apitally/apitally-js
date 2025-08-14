@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
 import fetchRetry from "fetch-retry";
+import { randomUUID } from "node:crypto";
 
 import ConsumerRegistry from "./consumerRegistry.js";
 import { Logger, getLogger } from "./logging.js";

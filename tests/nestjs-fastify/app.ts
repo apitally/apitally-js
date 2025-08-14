@@ -31,6 +31,7 @@ export async function getApp() {
       logRequestBody: true,
       logResponseHeaders: true,
       logResponseBody: true,
+      captureLogs: true,
     },
   });
 

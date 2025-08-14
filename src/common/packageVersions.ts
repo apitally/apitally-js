@@ -1,4 +1,4 @@
-import { createRequire } from "module";
+import { createRequire } from "node:module";
 
 export function getPackageVersion(name: string): string | null {
   const packageJsonPath = `${name}/package.json`;

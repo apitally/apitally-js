@@ -25,6 +25,7 @@ export const getApp = async () => {
           logRequestBody: true,
           logResponseHeaders: true,
           logResponseBody: true,
+          captureLogs: true,
         },
       }),
     ],
@@ -47,6 +48,7 @@ export const getApp = async () => {
     defineEventHandler(async (event) => {
       const { name, age } = await getValidatedQuery(event, querySchema.parse);
       setConsumer(event, "test");
+      console.log("Console test");
       return `Hello ${name}! You are ${age} years old!`;
     }),
   );

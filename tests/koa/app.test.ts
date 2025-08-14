@@ -1,5 +1,5 @@
-import http from "http";
 import Koa from "koa";
+import http from "node:http";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -97,6 +97,10 @@ testCases.forEach(({ name, router, getApp }) => {
       ]);
       expect(call[1].body).toBeInstanceOf(Buffer);
       expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+      expect(call[3]).toBeDefined();
+      expect(call[3]).toHaveLength(1);
+      expect(call[3]![0].level).toBe("warn");
+      expect(call[3]![0].message).toBe("Console test");
       spy.mockReset();
 
       await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);

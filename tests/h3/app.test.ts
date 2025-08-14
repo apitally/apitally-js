@@ -113,6 +113,10 @@ describe("Middleware for H3", () => {
     ]);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    expect(call[3]).toBeDefined();
+    expect(call[3]).toHaveLength(1);
+    expect(call[3]![0].level).toBe("log");
+    expect(call[3]![0].message).toBe("Console test");
     spy.mockReset();
 
     const body = JSON.stringify({ name: "John", age: 20 });

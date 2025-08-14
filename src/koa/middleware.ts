@@ -1,8 +1,10 @@
 import Koa from "koa";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
+import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import {
   ApitallyConfig,
@@ -10,6 +12,7 @@ import {
   PathInfo,
   StartupData,
 } from "../common/types.js";
+import { patchConsole, patchWinston } from "../loggers/index.js";
 
 export function useApitally(app: Koa, config: ApitallyConfig) {
   const client = new ApitallyClient(config);
@@ -28,87 +31,98 @@ export function useApitally(app: Koa, config: ApitallyConfig) {
 }
 
 function getMiddleware(client: ApitallyClient) {
+  const logsContext = new AsyncLocalStorage<LogRecord[]>();
+
+  if (client.requestLogger.config.captureLogs) {
+    patchConsole(logsContext);
+    patchWinston(logsContext);
+  }
+
   return async (ctx: Koa.Context, next: Koa.Next) => {
     if (!client.isEnabled() || ctx.request.method.toUpperCase() === "OPTIONS") {
       await next();
       return;
     }
 
-    let path: string | undefined;
-    let statusCode: number | undefined;
-    let serverError: Error | undefined;
-    const startTime = performance.now();
-    try {
-      await next();
-    } catch (error: any) {
-      path = getPath(ctx);
-      statusCode = error.statusCode || error.status || 500;
-      if (path && statusCode === 500 && error instanceof Error) {
-        serverError = error;
-        client.serverErrorCounter.addServerError({
-          consumer: getConsumer(ctx)?.identifier,
-          method: ctx.request.method,
-          path,
-          type: error.name,
-          msg: error.message,
-          traceback: error.stack || "",
-        });
-      }
-      throw error;
-    } finally {
-      const responseTime = performance.now() - startTime;
-      const consumer = getConsumer(ctx);
-      client.consumerRegistry.addOrUpdateConsumer(consumer);
-      if (!path) {
+    await logsContext.run([], async () => {
+      let path: string | undefined;
+      let statusCode: number | undefined;
+      let serverError: Error | undefined;
+      const startTime = performance.now();
+      try {
+        await next();
+      } catch (error: any) {
         path = getPath(ctx);
-      }
-      if (path) {
-        try {
-          client.requestCounter.addRequest({
-            consumer: consumer?.identifier,
+        statusCode = error.statusCode || error.status || 500;
+        if (path && statusCode === 500 && error instanceof Error) {
+          serverError = error;
+          client.serverErrorCounter.addServerError({
+            consumer: getConsumer(ctx)?.identifier,
             method: ctx.request.method,
             path,
-            statusCode: statusCode || ctx.response.status,
-            responseTime,
-            requestSize: ctx.request.length,
-            responseSize: ctx.response.length,
+            type: error.name,
+            msg: error.message,
+            traceback: error.stack || "",
           });
-        } catch (error) {
-          client.logger.error(
-            "Error while logging request in Apitally middleware.",
-            { context: ctx, error },
+        }
+        throw error;
+      } finally {
+        const responseTime = performance.now() - startTime;
+        const consumer = getConsumer(ctx);
+        client.consumerRegistry.addOrUpdateConsumer(consumer);
+        if (!path) {
+          path = getPath(ctx);
+        }
+        if (path) {
+          try {
+            client.requestCounter.addRequest({
+              consumer: consumer?.identifier,
+              method: ctx.request.method,
+              path,
+              statusCode: statusCode || ctx.response.status,
+              responseTime,
+              requestSize: ctx.request.length,
+              responseSize: ctx.response.length,
+            });
+          } catch (error) {
+            client.logger.error(
+              "Error while logging request in Apitally middleware.",
+              { context: ctx, error },
+            );
+          }
+        }
+        if (client.requestLogger.enabled) {
+          const logs = logsContext.getStore();
+          client.requestLogger.logRequest(
+            {
+              timestamp: Date.now() / 1000,
+              method: ctx.request.method,
+              path,
+              url: ctx.request.href,
+              headers: convertHeaders(ctx.request.headers),
+              size: ctx.request.length,
+              consumer: consumer?.identifier,
+              body: convertBody(
+                ctx.request.body,
+                ctx.request.get("content-type"),
+              ),
+            },
+            {
+              statusCode: statusCode || ctx.response.status,
+              responseTime: responseTime / 1000,
+              headers: convertHeaders(ctx.response.headers),
+              size: ctx.response.length,
+              body: convertBody(
+                ctx.response.body,
+                ctx.response.get("content-type"),
+              ),
+            },
+            serverError,
+            logs,
           );
         }
       }
-      if (client.requestLogger.enabled) {
-        client.requestLogger.logRequest(
-          {
-            timestamp: Date.now() / 1000,
-            method: ctx.request.method,
-            path,
-            url: ctx.request.href,
-            headers: convertHeaders(ctx.request.headers),
-            size: ctx.request.length,
-            consumer: consumer?.identifier,
-            body: convertBody(
-              ctx.request.body,
-              ctx.request.get("content-type"),
-            ),
-          },
-          {
-            statusCode: statusCode || ctx.response.status,
-            responseTime: responseTime / 1000,
-            headers: convertHeaders(ctx.response.headers),
-            size: ctx.response.length,
-            body: convertBody(
-              ctx.response.body,
-              ctx.response.get("content-type"),
-            ),
-          },
-          serverError,
-        );
-      }
-    }
+    });
   };
 }
 

@@ -84,6 +84,10 @@ describe("Plugin for Fastify", () => {
     ]);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    expect(call[3]).toBeDefined();
+    expect(call[3]).toHaveLength(1);
+    expect(call[3]![0].level).toBe("warn");
+    expect(call[3]![0].message).toBe("Console test");
     spy.mockReset();
 
     await appTest.post("/hello").send({ name: "John", age: 20 }).expect(200);
@@ -99,6 +103,10 @@ describe("Plugin for Fastify", () => {
     expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    expect(call[3]).toBeDefined();
+    expect(call[3]).toHaveLength(1);
+    expect(call[3]![0].level).toBe("info");
+    expect(call[3]![0].message).toBe("Test 3");
   });
 
   it("Validation error counter", async () => {

@@ -3,7 +3,7 @@
  */
 
 import type Configure from "@adonisjs/core/commands/configure";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "node:url";
 
 import { isValidClientId, isValidEnv } from "../common/paramValidation.js";
 

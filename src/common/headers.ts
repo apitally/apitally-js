@@ -1,4 +1,4 @@
-import { OutgoingHttpHeader } from "http";
+import { OutgoingHttpHeader } from "node:http";
 
 export function parseContentLength(
   contentLength: OutgoingHttpHeader | undefined | null,
