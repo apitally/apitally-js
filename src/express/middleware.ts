@@ -6,11 +6,8 @@ import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import {
-  convertBody,
-  convertHeaders,
-  LogRecord,
-} from "../common/requestLogger.js";
+import type { LogRecord } from "../common/requestLogger.js";
+import { convertBody, convertHeaders } from "../common/requestLogger.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,

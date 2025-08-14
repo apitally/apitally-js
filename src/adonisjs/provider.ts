@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { ApitallyClient } from "../common/client.js";
 import { getPackageVersion } from "../common/packageVersions.js";
-import { LogRecord } from "../common/requestLogger.js";
+import type { LogRecord } from "../common/requestLogger.js";
 import type { ApitallyConfig, PathInfo, StartupData } from "../common/types.js";
 import { patchConsole, patchPinoLogger } from "../loggers/index.js";
 

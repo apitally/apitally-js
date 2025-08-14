@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import pino from "pino";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { LogRecord } from "../../src/common/requestLogger.js";
+import type { LogRecord } from "../../src/common/requestLogger.js";
 import { patchPinoLogger } from "../../src/loggers/index.js";
 
 describe("Pino logger", () => {

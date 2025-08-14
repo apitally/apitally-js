@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { LogRecord } from "../../src/common/requestLogger.js";
+import type { LogRecord } from "../../src/common/requestLogger.js";
 import { patchConsole } from "../../src/loggers/index.js";
 
 describe("Console logger", () => {

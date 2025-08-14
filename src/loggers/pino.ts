@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { LogRecord } from "../common/requestLogger.js";
+import type { LogRecord } from "../common/requestLogger.js";
 import { formatMessage, removeKeys } from "./utils.js";
 
 const MAX_BUFFER_SIZE = 1000;

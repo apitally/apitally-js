@@ -7,7 +7,8 @@ import { performance } from "node:perf_hooks";
 import type { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
-import { convertHeaders, LogRecord } from "../common/requestLogger.js";
+import type { LogRecord } from "../common/requestLogger.js";
+import { convertHeaders } from "../common/requestLogger.js";
 import type { ApitallyConsumer } from "../common/types.js";
 
 declare module "@adonisjs/core/http" {

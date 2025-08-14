@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { beforeAll, describe, expect, it } from "vitest";
 import winston from "winston";
 
-import { LogRecord } from "../../src/common/requestLogger.js";
+import type { LogRecord } from "../../src/common/requestLogger.js";
 import { patchWinston } from "../../src/loggers/index.js";
 
 describe("Winston logger", () => {

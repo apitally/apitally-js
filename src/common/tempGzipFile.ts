@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { createWriteStream, readFile, unlinkSync, WriteStream } from "node:fs";
+import { createWriteStream, readFile, WriteStream } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGzip, Gzip } from "node:zlib";
@@ -69,6 +70,6 @@ export default class TempGzipFile {
 
   async delete() {
     await this.close();
-    unlinkSync(this.filePath);
+    await unlink(this.filePath);
   }
 }
