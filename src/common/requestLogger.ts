@@ -424,6 +424,7 @@ export default class RequestLogger {
             request: skipEmptyValues(item.request),
             response: skipEmptyValues(item.response),
             exception: item.exception,
+            logs: item.logs,
           };
 
           // Set up body serialization for JSON
