@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import type { H3Event, HTTPError } from "h3";
 import { definePlugin, onError, onRequest, onResponse } from "h3";
 import { performance } from "perf_hooks";
@@ -6,9 +7,10 @@ import type { ZodError } from "zod";
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { mergeHeaders, parseContentLength } from "../common/headers.js";
-import { convertHeaders } from "../common/requestLogger.js";
+import { convertHeaders, LogRecord } from "../common/requestLogger.js";
 import { getResponseBody, measureResponseSize } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
+import { patchConsole, patchWinston } from "../loggers/index.js";
 import { getAppInfo } from "./utils.js";
 
 const REQUEST_TIMESTAMP_SYMBOL = Symbol("apitally.requestTimestamp");
@@ -29,6 +31,7 @@ const jsonHeaders = new Headers({
 
 export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
   const client = new ApitallyClient(config);
+  const logsContext = new AsyncLocalStorage<LogRecord[]>();
 
   const setStartupData = (attempt: number = 1) => {
     const appInfo = getAppInfo(app, config.appVersion);
@@ -39,6 +42,11 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
     }
   };
   setTimeout(() => setStartupData(), 500);
+
+  if (client.requestLogger.config.captureLogs) {
+    patchConsole(logsContext);
+    patchWinston(logsContext);
+  }
 
   const handleResponse = async (
     event: H3Event,
@@ -122,6 +130,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
         responseBody = Buffer.from(JSON.stringify(error.toJSON()));
       }
 
+      const logs = logsContext.getStore();
       client.requestLogger.logRequest(
         {
           timestamp: (Date.now() - responseTime) / 1000,
@@ -144,6 +153,8 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
           size: responseSize,
           body: responseBody,
         },
+        error?.cause instanceof Error ? error.cause : undefined,
+        logs,
       );
     }
 
@@ -153,6 +164,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
   app
     .use(
       onRequest(async (event) => {
+        logsContext.enterWith([]);
         event.context[REQUEST_TIMESTAMP_SYMBOL] = performance.now();
         const requestContentType = event.req.headers.get("content-type");
         const requestSize =

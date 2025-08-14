@@ -26,6 +26,7 @@ import {
   patchConsole,
   patchNestLogger,
   patchPinoLogger,
+  patchWinston,
 } from "../loggers/index.js";
 
 const LOGS_SYMBOL = Symbol("apitally.logs");
@@ -56,6 +57,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
 
   if (client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
+    patchWinston(logsContext);
     patchPinoLogger(fastify.log, logsContext);
     patchNestLogger(logsContext);
   }
