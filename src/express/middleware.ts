@@ -147,7 +147,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
                     client.validationErrorCounter.addValidationError({
                       consumer: consumer?.identifier,
                       method: req.method,
-                      path: req.route.path,
+                      path,
                       ...error,
                     });
                   });
@@ -159,7 +159,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
                 client.serverErrorCounter.addServerError({
                   consumer: consumer?.identifier,
                   method: req.method,
-                  path: req.route.path,
+                  path,
                   type: serverError.name,
                   msg: serverError.message,
                   traceback: serverError.stack || "",
