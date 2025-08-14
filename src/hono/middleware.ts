@@ -131,7 +131,7 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
             path: c.req.routePath,
             url: c.req.url,
             headers: convertHeaders(c.req.header()),
-            size: Number(requestSize),
+            size: requestSize,
             consumer: consumer?.identifier,
             body: requestBody,
           },

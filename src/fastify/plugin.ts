@@ -145,8 +145,8 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         path,
         statusCode: reply.statusCode,
         responseTime,
-        requestSize: requestSize,
-        responseSize: responseSize,
+        requestSize,
+        responseSize,
       });
 
       if (
@@ -200,7 +200,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
             path,
             url: `${request.protocol}://${request.host ?? request.hostname}${request.originalUrl ?? request.url}`,
             headers: convertHeaders(request.headers),
-            size: Number(requestSize),
+            size: requestSize,
             consumer: consumer?.identifier,
             body: convertBody(request.body, request.headers["content-type"]),
           },
@@ -208,7 +208,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
             statusCode: reply.statusCode,
             responseTime: responseTime / 1000,
             headers: convertHeaders(reply.getHeaders()),
-            size: Number(responseSize),
+            size: responseSize,
             body: convertBody(
               reply.payload,
               reply.getHeader("content-type")?.toString(),

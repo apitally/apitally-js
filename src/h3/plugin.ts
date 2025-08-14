@@ -141,7 +141,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
           headers: convertHeaders(
             Object.fromEntries(event.req.headers.entries()),
           ),
-          size: Number(requestSize),
+          size: requestSize,
           consumer: consumer?.identifier,
           body: event.context[REQUEST_BODY_SYMBOL],
         },
