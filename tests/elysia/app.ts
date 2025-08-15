@@ -1,10 +1,10 @@
 import { Elysia, t } from "elysia";
 
-import { apitallyPlugin, setConsumer } from "../../src/elysia/index.js";
+import { apitallyPlugin } from "../../src/elysia/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
 export const getApp = async () => {
-  const app = new Elysia({ aot: false })
+  const app = new Elysia()
     .use(
       apitallyPlugin({
         clientId: CLIENT_ID,
@@ -12,10 +12,8 @@ export const getApp = async () => {
         appVersion: "1.2.3",
         requestLogging: {
           enabled: true,
-          logQueryParams: true,
           logRequestHeaders: true,
           logRequestBody: true,
-          logResponseHeaders: true,
           logResponseBody: true,
           captureLogs: true,
         },
@@ -23,9 +21,9 @@ export const getApp = async () => {
     )
     .get(
       "/hello",
-      ({ query, store }) => {
+      ({ query, apitally }) => {
         const { name, age } = query;
-        setConsumer(store, "test");
+        apitally.consumer = "test";
         console.warn("Console test");
         return `Hello ${name}! You are ${age} years old!`;
       },
@@ -44,7 +42,6 @@ export const getApp = async () => {
       "/hello",
       ({ body }) => {
         const { name, age } = body;
-        console.info("Test 3");
         return `Hello ${name}! You are ${age} years old!`;
       },
       {

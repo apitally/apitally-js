@@ -500,8 +500,12 @@ export function convertHeaders(
     | Headers
     | IncomingHttpHeaders
     | OutgoingHttpHeaders
-    | Record<string, string | string[] | number | undefined>,
+    | Record<string, string | string[] | number | undefined>
+    | undefined,
 ) {
+  if (!headers) {
+    return [];
+  }
   if (headers instanceof Headers) {
     return Array.from(headers.entries());
   }

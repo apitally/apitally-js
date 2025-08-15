@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
+import { getAppInfo } from "../../src/elysia/utils.js";
 import { mockApitallyHub } from "../utils.js";
 import { getApp } from "./app.js";
 
@@ -34,6 +35,9 @@ describe("Plugin for Elysia", () => {
     await app.handle(new Request("http://localhost/hello?name=Bob&age=17")); // invalid (age < 18)
     await app.handle(new Request("http://localhost/hello?name=X&age=1")); // invalid (name too short and age < 18)
     await app.handle(new Request("http://localhost/error"));
+
+    // Wait briefly for onAfterResponse to be called
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(5);
@@ -163,6 +167,9 @@ describe("Plugin for Elysia", () => {
   });
 
   it("List endpoints", async () => {
+    const appInfo = getAppInfo(app);
+    client.setStartupData(appInfo);
+
     expect(client.startupData?.paths).toEqual([
       {
         method: "GET",
