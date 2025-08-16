@@ -63,6 +63,7 @@ jobs:
         deps:
           - "@adonisjs/core@6.17"
           - "@adonisjs/core@6.12"
+          - elysia@1.3
           - express@5.1
           - express@4.21
           - express@4.18
@@ -91,6 +92,9 @@ jobs:
         run: npm ci
       - name: Override dependencies from matrix
         run: npm install --no-save --force ${{ matrix.deps }}
+      - name: Run tests for Elysia
+        run: npm test -- tests/elysia
+        if: contains(matrix.deps, 'elysia')
       - name: Run tests for Express
         run: npm test -- tests/express
         if: contains(matrix.deps, 'express')

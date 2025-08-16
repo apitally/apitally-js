@@ -1,7 +1,10 @@
 export async function measureResponseSize(
   response: Response,
+  tee: boolean = true,
 ): Promise<[number, Response]> {
-  const [newResponse1, newResponse2] = await teeResponse(response);
+  const [newResponse1, newResponse2] = tee
+    ? teeResponse(response)
+    : [response, response];
   let size = 0;
   if (newResponse2.body) {
     let done = false;
@@ -19,8 +22,11 @@ export async function measureResponseSize(
 
 export async function getResponseBody(
   response: Response,
+  tee: boolean = true,
 ): Promise<[Buffer, Response]> {
-  const [newResponse1, newResponse2] = await teeResponse(response);
+  const [newResponse1, newResponse2] = tee
+    ? teeResponse(response)
+    : [response, response];
   const responseBuffer = Buffer.from(await newResponse2.arrayBuffer());
   return [responseBuffer, newResponse1];
 }
@@ -30,16 +36,14 @@ export async function getResponseJson(
 ): Promise<[any, Response]> {
   const contentType = response.headers.get("content-type");
   if (contentType?.includes("application/json")) {
-    const [newResponse1, newResponse2] = await teeResponse(response);
+    const [newResponse1, newResponse2] = teeResponse(response);
     const responseJson = await newResponse2.json();
     return [responseJson, newResponse1];
   }
   return [null, response];
 }
 
-export async function teeResponse(
-  response: Response,
-): Promise<[Response, Response]> {
+export function teeResponse(response: Response): [Response, Response] {
   if (!response.body) {
     return [response, response];
   }
