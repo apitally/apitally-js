@@ -1,6 +1,7 @@
 import { Context, Elysia, StatusMap, ValidationError } from "elysia";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
+import { setImmediate } from "node:timers/promises";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
@@ -157,13 +158,16 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           }
         }
       })
-      .onAfterResponse(({ request, set, route, apitally }) => {
+      .onAfterResponse(async ({ request, set, route, apitally }) => {
         if (!client.isEnabled() || request.method.toUpperCase() === "OPTIONS") {
           return;
         }
 
         const startTime = request[START_TIME_SYMBOL];
         const responseTime = startTime ? performance.now() - startTime : 0;
+
+        await setImmediate(); // Wait for the response to be captured
+
         const statusCode =
           request[RESPONSE_STATUS_SYMBOL] ?? getStatusCode(set) ?? 200;
         const requestSize = parseContentLength(
