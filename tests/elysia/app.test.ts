@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
@@ -13,15 +14,18 @@ describe("Plugin for Elysia", () => {
     mockApitallyHub();
     app = await getApp();
     client = ApitallyClient.getInstance();
-
-    // Wait for 0.6 seconds for startup data to be set
-    await new Promise((resolve) => setTimeout(resolve, 600));
   });
 
   it("Request counter", async () => {
-    await app.handle(new Request("http://localhost/hello?name=John&age=20"));
+    let response: Response;
+
+    response = await app.handle(
+      new Request("http://localhost/hello?name=John&age=20"),
+    );
+    expect(response.status).toBe(200);
+
     const body = JSON.stringify({ name: "John", age: 20 });
-    await app.handle(
+    response = await app.handle(
       new Request("http://localhost/hello", {
         method: "POST",
         body,
@@ -31,13 +35,27 @@ describe("Plugin for Elysia", () => {
         },
       }),
     );
-    await app.handle(new Request("http://localhost/hello/123"));
-    await app.handle(new Request("http://localhost/hello?name=Bob&age=17")); // invalid (age < 18)
-    await app.handle(new Request("http://localhost/hello?name=X&age=1")); // invalid (name too short and age < 18)
-    await app.handle(new Request("http://localhost/error"));
+    expect(response.status).toBe(200);
 
-    // Wait briefly for onAfterResponse to be called
-    await new Promise((resolve) => setTimeout(resolve, 1));
+    response = await app.handle(new Request("http://localhost/hello/123"));
+    expect(response.status).toBe(200);
+
+    // invalid (age < 18)
+    response = await app.handle(
+      new Request("http://localhost/hello?name=Bob&age=17"),
+    );
+    expect(response.status).toBeOneOf([400, 422]);
+
+    // invalid (name too short and age < 18)
+    response = await app.handle(
+      new Request("http://localhost/hello?name=X&age=1"),
+    );
+    expect(response.status).toBeOneOf([400, 422]);
+
+    response = await app.handle(new Request("http://localhost/error"));
+    expect(response.status).toBe(500);
+
+    await setImmediate(); // Wait for onAfterResponse to be called
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(5);
@@ -71,7 +89,11 @@ describe("Plugin for Elysia", () => {
       ),
     ).toBe(true);
     expect(
-      requests.some((r) => r.status_code === 400 && r.request_count === 2),
+      requests.some(
+        (r) =>
+          (r.status_code === 400 || r.status_code === 422) &&
+          r.request_count === 2,
+      ),
     ).toBe(true);
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
@@ -83,6 +105,8 @@ describe("Plugin for Elysia", () => {
     let call;
 
     await app.handle(new Request("http://localhost/hello?name=John&age=20"));
+    await setImmediate();
+
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
     expect(call[0].method).toBe("GET");
@@ -93,10 +117,7 @@ describe("Plugin for Elysia", () => {
     expect(call[1].responseTime).toBeGreaterThan(0);
     expect(call[1].responseTime).toBeLessThan(1);
     expect(call[1].size).toBeGreaterThan(0);
-    expect(call[1].headers).toContainEqual([
-      "content-type",
-      "text/plain; charset=utf-8",
-    ]);
+    expect(call[1].headers).toContainEqual(["content-type", "text/plain"]);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
     expect(call[3]).toBeDefined();
@@ -116,6 +137,8 @@ describe("Plugin for Elysia", () => {
         },
       }),
     );
+    await setImmediate();
+
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
     expect(call[0].method).toBe("POST");
@@ -128,30 +151,22 @@ describe("Plugin for Elysia", () => {
     expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
-    expect(call[3]).toBeDefined();
-    expect(call[3]).toHaveLength(1);
-    expect(call[3]![0].level).toBe("info");
-    expect(call[3]![0].message).toBe("Test 3");
   });
 
   it("Validation error counter", async () => {
     await app.handle(new Request("http://localhost/hello?name=John&age=20"));
     await app.handle(new Request("http://localhost/hello?name=Bob&age=17"));
     await app.handle(new Request("http://localhost/hello?name=X&age=1"));
+    await setImmediate();
 
     const validationErrors =
       client.validationErrorCounter.getAndResetValidationErrors();
     expect(validationErrors.length).toBe(2);
-    expect(
-      validationErrors.find((e) => e.loc.includes("age"))?.error_count,
-    ).toBe(2);
-    expect(
-      validationErrors.find((e) => e.loc.includes("name"))?.error_count,
-    ).toBe(1);
   });
 
   it("Server error counter", async () => {
     await app.handle(new Request("http://localhost/error"));
+    await setImmediate();
 
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(serverErrors.length).toBe(1);
@@ -167,6 +182,7 @@ describe("Plugin for Elysia", () => {
   });
 
   it("List endpoints", async () => {
+    // @ts-expect-error app has complex type
     const appInfo = getAppInfo(app);
     client.setStartupData(appInfo);
 

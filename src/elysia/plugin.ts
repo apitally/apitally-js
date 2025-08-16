@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Context, Elysia, StatusMap, ValidationError } from "elysia";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
 
@@ -7,7 +7,11 @@ import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
-import { getResponseBody, measureResponseSize } from "../common/response.js";
+import {
+  getResponseBody,
+  measureResponseSize,
+  teeResponse,
+} from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { patchConsole, patchWinston } from "../loggers/index.js";
 import { getAppInfo } from "./utils.js";
@@ -46,37 +50,70 @@ export default function apitallyPlugin(config: ApitallyConfig) {
   }
 
   return (app: Elysia) => {
-    const originalHandle = app.handle.bind(app);
+    const handler = app["~adapter"].handler;
+    const originalMapResponse = handler.mapResponse;
+    const originalMapCompactResponse = handler.mapCompactResponse;
+    const originalMapEarlyResponse = handler.mapEarlyResponse;
 
-    // Monkey patch handle() to capture response body and metadata.
-    // This doesn't work in Bun, because Elysia registers per-route handlers with the runtime,
-    // so requests don't go through the handle() function.
-    app.handle = async function wrappedHandle(request: Request) {
-      const response = await originalHandle(request);
-      let newResponse = response;
-
-      if (client.requestLogger.enabled) {
-        const responseContentType = response.headers.get("content-type");
-        if (
-          client.requestLogger.config.logResponseBody &&
-          client.requestLogger.isSupportedContentType(responseContentType)
-        ) {
-          let responseBody;
-          [responseBody, newResponse] = await getResponseBody(newResponse);
-          request[RESPONSE_BODY_SYMBOL] = responseBody;
-          request[RESPONSE_SIZE_SYMBOL] = responseBody.length;
-        }
-      }
-
-      if (request[RESPONSE_SIZE_SYMBOL] === undefined) {
-        let responseSize;
-        [responseSize, newResponse] = await measureResponseSize(response);
-        request[RESPONSE_SIZE_SYMBOL] = responseSize;
+    const handleMappedResponse = (response: unknown, request?: Request) => {
+      if (!(request instanceof Request) || !(response instanceof Response)) {
+        return response;
       }
 
       request[RESPONSE_HEADERS_SYMBOL] = response.headers;
       request[RESPONSE_STATUS_SYMBOL] = response.status;
+      const [newResponse1, newResponse2] = teeResponse(response);
 
+      if (
+        client.requestLogger.enabled &&
+        client.requestLogger.config.logResponseBody &&
+        client.requestLogger.isSupportedContentType(
+          response.headers.get("content-type"),
+        )
+      ) {
+        const captureResponseBody = async () => {
+          const responseBody = (await getResponseBody(newResponse2, false))[0];
+          request[RESPONSE_BODY_SYMBOL] = responseBody;
+          request[RESPONSE_SIZE_SYMBOL] = responseBody.length;
+        };
+        captureResponseBody();
+      } else {
+        const captureResponseSize = async () => {
+          const responseSize = (
+            await measureResponseSize(newResponse2, false)
+          )[0];
+          request[RESPONSE_SIZE_SYMBOL] = responseSize;
+        };
+        captureResponseSize();
+      }
+
+      return newResponse1;
+    };
+
+    handler.mapResponse = function wrappedMapResponse(
+      response: unknown,
+      set: Context["set"],
+      request?: Request,
+    ) {
+      const mappedResponse = originalMapResponse(response, set, request);
+      const newResponse = handleMappedResponse(mappedResponse, request);
+      return newResponse;
+    };
+    handler.mapCompactResponse = function wrappedMapCompactResponse(
+      response: unknown,
+      request?: Request,
+    ) {
+      const mappedResponse = originalMapCompactResponse(response, request);
+      const newResponse = handleMappedResponse(mappedResponse, request);
+      return newResponse;
+    };
+    handler.mapEarlyResponse = function wrappedMapEarlyResponse(
+      response: unknown,
+      set: Context["set"],
+      request?: Request,
+    ) {
+      const mappedResponse = originalMapEarlyResponse(response, set, request);
+      const newResponse = handleMappedResponse(mappedResponse, request);
       return newResponse;
     };
 
@@ -120,14 +157,15 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           }
         }
       })
-      .onAfterResponse(({ request, response, apitally, route }) => {
+      .onAfterResponse(({ request, set, route, apitally }) => {
         if (!client.isEnabled() || request.method.toUpperCase() === "OPTIONS") {
           return;
         }
 
         const startTime = request[START_TIME_SYMBOL];
         const responseTime = startTime ? performance.now() - startTime : 0;
-        const statusCode = request[RESPONSE_STATUS_SYMBOL] ?? 200;
+        const statusCode =
+          request[RESPONSE_STATUS_SYMBOL] ?? getStatusCode(set) ?? 200;
         const requestSize = parseContentLength(
           request.headers.get("content-length"),
         );
@@ -150,7 +188,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             responseSize,
           });
 
-          // Handle server errors (500 status)
+          // Handle server errors
           if (statusCode === 500 && error) {
             client.serverErrorCounter.addServerError({
               consumer: consumer?.identifier,
@@ -162,34 +200,21 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             });
           }
 
-          // Handle validation errors (400 status)
-          if (statusCode === 400 && response && !error) {
-            try {
-              const responseBody =
-                typeof response === "string"
-                  ? response
-                  : JSON.stringify(response);
-              const parsedBody = JSON.parse(responseBody);
-
-              // Handle Elysia/TypeBox validation errors
-              if (
-                parsedBody.type === "validation" &&
-                Array.isArray(parsedBody.errors)
-              ) {
-                parsedBody.errors.forEach((validationError: any) => {
-                  client.validationErrorCounter.addValidationError({
-                    consumer: consumer?.identifier,
-                    method: request.method,
-                    path: route,
-                    loc: validationError.path || "",
-                    msg: validationError.message || "",
-                    type: validationError.type || "",
-                  });
-                });
-              }
-            } catch (error) {
-              // Ignore errors in validation error parsing
-            }
+          // Handle validation errors
+          if (
+            (statusCode === 400 || statusCode === 422) &&
+            error instanceof ValidationError
+          ) {
+            const parsedMessage = JSON.parse(error.message);
+            client.validationErrorCounter.addValidationError({
+              consumer: consumer?.identifier,
+              method: request.method,
+              path: route,
+              loc:
+                (parsedMessage.on ?? "") + "." + (parsedMessage.property ?? ""),
+              msg: parsedMessage.message,
+              type: "",
+            });
           }
         }
 
@@ -227,4 +252,12 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         }
       });
   };
+}
+
+function getStatusCode(set: Context["set"]) {
+  if (typeof set.status === "number") {
+    return set.status;
+  } else if (typeof set.status === "string") {
+    return StatusMap[set.status];
+  }
 }
