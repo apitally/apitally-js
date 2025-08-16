@@ -92,6 +92,7 @@ describe("Plugin for Elysia", () => {
       requests.some(
         (r) =>
           (r.status_code === 400 || r.status_code === 422) &&
+          r.response_size_sum > 0 &&
           r.request_count === 2,
       ),
     ).toBe(true);

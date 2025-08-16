@@ -168,18 +168,44 @@ export default function apitallyPlugin(config: ApitallyConfig) {
 
         await setImmediate(); // Wait for the response to be captured
 
-        const statusCode =
-          request[RESPONSE_STATUS_SYMBOL] ?? getStatusCode(set) ?? 200;
-        const requestSize = parseContentLength(
+        const requestBody = request[REQUEST_BODY_SYMBOL];
+        let requestSize = parseContentLength(
           request.headers.get("content-length"),
         );
-        const responseSize = request[RESPONSE_SIZE_SYMBOL];
+        let responseHeaders = request[RESPONSE_HEADERS_SYMBOL] ?? set.headers;
+        let responseBody = request[RESPONSE_BODY_SYMBOL];
+        let responseSize = request[RESPONSE_SIZE_SYMBOL];
+        let statusCode = request[RESPONSE_STATUS_SYMBOL] ?? getStatusCode(set);
         const error = request[ERROR_SYMBOL];
 
         const consumer = apitally.consumer
           ? consumerFromStringOrObject(apitally.consumer)
           : null;
         client.consumerRegistry.addOrUpdateConsumer(consumer);
+
+        if (requestSize === undefined && requestBody !== undefined) {
+          requestSize = requestBody.length;
+        }
+
+        if (
+          responseBody === undefined &&
+          responseSize === undefined &&
+          error &&
+          "toResponse" in error &&
+          typeof error.toResponse === "function"
+        ) {
+          const response = error.toResponse();
+          if (response instanceof Response) {
+            statusCode = response.status;
+            responseBody = Buffer.from(await response.arrayBuffer());
+            responseSize = responseBody.length;
+            responseHeaders = response.headers;
+          }
+        }
+
+        if (statusCode === undefined) {
+          statusCode = 200;
+        }
 
         if (route) {
           client.requestCounter.addRequest({
@@ -236,14 +262,14 @@ export default function apitallyPlugin(config: ApitallyConfig) {
               ),
               size: requestSize,
               consumer: consumer?.identifier,
-              body: request[REQUEST_BODY_SYMBOL],
+              body: requestBody,
             },
             {
               statusCode,
               responseTime: responseTime / 1000,
-              headers: convertHeaders(request[RESPONSE_HEADERS_SYMBOL]),
+              headers: convertHeaders(responseHeaders),
               size: responseSize,
-              body: request[RESPONSE_BODY_SYMBOL],
+              body: responseBody,
             },
             error,
             logs,
