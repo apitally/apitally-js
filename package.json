@@ -1,13 +1,16 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, Hono, H3, Koa, and NestJS.",
+  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, NestJS, AdonisJS, Hono, H3, Elysia, and Koa.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
+    "adonisjs",
     "analytics",
     "api",
     "apitally",
+    "bun",
+    "elysia",
     "express",
     "fastify",
     "h3",
