@@ -18,22 +18,14 @@ import { getAppInfo } from "./utils.js";
 
 const START_TIME_SYMBOL = Symbol("apitally.startTime");
 const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
-const RESPONSE_STATUS_SYMBOL = Symbol("apitally.responseStatus");
-const RESPONSE_SIZE_SYMBOL = Symbol("apitally.responseSize");
-const RESPONSE_HEADERS_SYMBOL = Symbol("apitally.responseHeaders");
-const RESPONSE_BODY_SYMBOL = Symbol("apitally.responseBody");
-const RESPONSE_PROMISE_SYMBOL = Symbol("apitally.responsePromise");
+const RESPONSE_SYMBOL = Symbol("apitally.response");
 const ERROR_SYMBOL = Symbol("apitally.error");
 
 declare global {
   interface Request {
     [START_TIME_SYMBOL]?: number;
     [REQUEST_BODY_SYMBOL]?: Buffer;
-    [RESPONSE_STATUS_SYMBOL]?: number;
-    [RESPONSE_HEADERS_SYMBOL]?: Headers;
-    [RESPONSE_BODY_SYMBOL]?: Buffer;
-    [RESPONSE_SIZE_SYMBOL]?: number;
-    [RESPONSE_PROMISE_SYMBOL]?: Promise<void>;
+    [RESPONSE_SYMBOL]?: Response;
     [ERROR_SYMBOL]?: Readonly<Error>;
   }
 }
@@ -57,39 +49,14 @@ export default function apitallyPlugin(config: ApitallyConfig) {
     const originalMapCompactResponse = handler.mapCompactResponse;
     const originalMapEarlyResponse = handler.mapEarlyResponse;
 
-    const handleMappedResponse = (response: unknown, request?: Request) => {
-      if (!(request instanceof Request) || !(response instanceof Response)) {
+    const captureResponse = (response: unknown, request?: Request) => {
+      if (request instanceof Request && response instanceof Response) {
+        const [newResponse1, newResponse2] = teeResponse(response);
+        request[RESPONSE_SYMBOL] = newResponse2;
+        return newResponse1;
+      } else {
         return response;
       }
-
-      request[RESPONSE_HEADERS_SYMBOL] = response.headers;
-      request[RESPONSE_STATUS_SYMBOL] = response.status;
-      const [newResponse1, newResponse2] = teeResponse(response);
-
-      if (
-        client.requestLogger.enabled &&
-        client.requestLogger.config.logResponseBody &&
-        client.requestLogger.isSupportedContentType(
-          response.headers.get("content-type"),
-        )
-      ) {
-        const captureResponseBody = async () => {
-          const responseBody = (await getResponseBody(newResponse2, false))[0];
-          request[RESPONSE_BODY_SYMBOL] = responseBody;
-          request[RESPONSE_SIZE_SYMBOL] = responseBody.length;
-        };
-        request[RESPONSE_PROMISE_SYMBOL] = captureResponseBody();
-      } else {
-        const captureResponseSize = async () => {
-          const responseSize = (
-            await measureResponseSize(newResponse2, false)
-          )[0];
-          request[RESPONSE_SIZE_SYMBOL] = responseSize;
-        };
-        request[RESPONSE_PROMISE_SYMBOL] = captureResponseSize();
-      }
-
-      return newResponse1;
     };
 
     handler.mapResponse = function wrappedMapResponse(
@@ -98,7 +65,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       request?: Request,
     ) {
       const mappedResponse = originalMapResponse(response, set, request);
-      const newResponse = handleMappedResponse(mappedResponse, request);
+      const newResponse = captureResponse(mappedResponse, request);
       return newResponse;
     };
     handler.mapCompactResponse = function wrappedMapCompactResponse(
@@ -106,7 +73,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       request?: Request,
     ) {
       const mappedResponse = originalMapCompactResponse(response, request);
-      const newResponse = handleMappedResponse(mappedResponse, request);
+      const newResponse = captureResponse(mappedResponse, request);
       return newResponse;
     };
     handler.mapEarlyResponse = function wrappedMapEarlyResponse(
@@ -115,7 +82,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       request?: Request,
     ) {
       const mappedResponse = originalMapEarlyResponse(response, set, request);
-      const newResponse = handleMappedResponse(mappedResponse, request);
+      const newResponse = captureResponse(mappedResponse, request);
       return newResponse;
     };
 
@@ -154,7 +121,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
                 await request.clone().arrayBuffer(),
               );
             } catch (error) {
-              // Ignore errors in body capture
+              // ignore
             }
           }
         }
@@ -167,49 +134,46 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         const startTime = request[START_TIME_SYMBOL];
         const responseTime = startTime ? performance.now() - startTime : 0;
 
-        // Wait for the response to be captured
-        if (request[RESPONSE_PROMISE_SYMBOL]) {
-          await request[RESPONSE_PROMISE_SYMBOL];
+        const requestBody = request[REQUEST_BODY_SYMBOL];
+        const requestSize =
+          parseContentLength(request.headers.get("content-length")) ??
+          requestBody?.length;
+
+        const error = request[ERROR_SYMBOL];
+        let response = request[RESPONSE_SYMBOL];
+        let responseBody: Buffer | undefined;
+        let responseSize: number | undefined;
+
+        if (
+          !response &&
+          error &&
+          "toResponse" in error &&
+          typeof error.toResponse === "function"
+        ) {
+          response = error.toResponse();
         }
 
-        const requestBody = request[REQUEST_BODY_SYMBOL];
-        let requestSize = parseContentLength(
-          request.headers.get("content-length"),
-        );
-        let responseHeaders = request[RESPONSE_HEADERS_SYMBOL] ?? set.headers;
-        let responseBody = request[RESPONSE_BODY_SYMBOL];
-        let responseSize = request[RESPONSE_SIZE_SYMBOL];
-        let statusCode = request[RESPONSE_STATUS_SYMBOL] ?? getStatusCode(set);
-        const error = request[ERROR_SYMBOL];
+        if (
+          response &&
+          client.requestLogger.enabled &&
+          client.requestLogger.config.logResponseBody &&
+          client.requestLogger.isSupportedContentType(
+            response.headers.get("content-type"),
+          )
+        ) {
+          responseBody = (await getResponseBody(response, false))[0];
+          responseSize = responseBody.length;
+        } else if (response) {
+          responseSize = (await measureResponseSize(response, false))[0];
+        }
+
+        const statusCode = response?.status ?? getStatusCode(set) ?? 200;
+        const responseHeaders = response?.headers ?? set.headers;
 
         const consumer = apitally.consumer
           ? consumerFromStringOrObject(apitally.consumer)
           : null;
         client.consumerRegistry.addOrUpdateConsumer(consumer);
-
-        if (requestSize === undefined && requestBody !== undefined) {
-          requestSize = requestBody.length;
-        }
-
-        if (
-          responseBody === undefined &&
-          responseSize === undefined &&
-          error &&
-          "toResponse" in error &&
-          typeof error.toResponse === "function"
-        ) {
-          const response = error.toResponse();
-          if (response instanceof Response) {
-            statusCode = response.status;
-            responseBody = Buffer.from(await response.arrayBuffer());
-            responseSize = responseBody.length;
-            responseHeaders = response.headers;
-          }
-        }
-
-        if (statusCode === undefined) {
-          statusCode = 200;
-        }
 
         if (route) {
           client.requestCounter.addRequest({

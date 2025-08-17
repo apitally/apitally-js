@@ -151,7 +151,7 @@ bootstrap();
 
 ### AdonisJS
 
-You can use the below Ace command to configure Apitally in your AdonisJS application:
+You can use the following Ace command to configure Apitally in your AdonisJS application:
 
 ```bash
 node ace configure apitally/adonisjs
