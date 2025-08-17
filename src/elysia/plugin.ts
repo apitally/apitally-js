@@ -150,21 +150,26 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           "toResponse" in error &&
           typeof error.toResponse === "function"
         ) {
-          response = error.toResponse();
+          try {
+            response = error.toResponse();
+          } catch (error) {
+            // ignore
+          }
         }
 
-        if (
-          response &&
-          client.requestLogger.enabled &&
-          client.requestLogger.config.logResponseBody &&
-          client.requestLogger.isSupportedContentType(
-            response.headers.get("content-type"),
-          )
-        ) {
-          responseBody = (await getResponseBody(response, false))[0];
-          responseSize = responseBody.length;
-        } else if (response) {
-          responseSize = (await measureResponseSize(response, false))[0];
+        if (response instanceof Response) {
+          if (
+            client.requestLogger.enabled &&
+            client.requestLogger.config.logResponseBody &&
+            client.requestLogger.isSupportedContentType(
+              response.headers.get("content-type"),
+            )
+          ) {
+            responseBody = (await getResponseBody(response, false))[0];
+            responseSize = responseBody.length;
+          } else {
+            responseSize = (await measureResponseSize(response, false))[0];
+          }
         }
 
         const statusCode = response?.status ?? getStatusCode(set) ?? 200;
