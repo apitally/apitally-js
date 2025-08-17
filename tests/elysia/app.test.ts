@@ -12,7 +12,7 @@ describe("Plugin for Elysia", () => {
 
   beforeEach(async () => {
     mockApitallyHub();
-    app = await getApp();
+    app = getApp();
     client = ApitallyClient.getInstance();
   });
 

@@ -135,12 +135,18 @@ const { NestFactory } = require("@nestjs/core");
 const { useApitally } = require("apitally/nestjs");
 const { AppModule } = require("./app.module");
 
-const app = await NestFactory.create(AppModule);
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
 
-await useApitally(app, {
-  clientId: "your-client-id",
-  env: "dev", // or "prod" etc.
-});
+  await useApitally(app, {
+    clientId: "your-client-id",
+    env: "dev", // or "prod" etc.
+  });
+
+  // ...
+}
+
+bootstrap();
 ```
 
 ### AdonisJS

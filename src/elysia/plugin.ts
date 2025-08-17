@@ -1,7 +1,6 @@
 import { Context, Elysia, StatusMap, ValidationError } from "elysia";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
-import { setImmediate } from "node:timers/promises";
 
 import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
@@ -23,6 +22,7 @@ const RESPONSE_STATUS_SYMBOL = Symbol("apitally.responseStatus");
 const RESPONSE_SIZE_SYMBOL = Symbol("apitally.responseSize");
 const RESPONSE_HEADERS_SYMBOL = Symbol("apitally.responseHeaders");
 const RESPONSE_BODY_SYMBOL = Symbol("apitally.responseBody");
+const RESPONSE_PROMISE_SYMBOL = Symbol("apitally.responsePromise");
 const ERROR_SYMBOL = Symbol("apitally.error");
 
 declare global {
@@ -33,6 +33,7 @@ declare global {
     [RESPONSE_HEADERS_SYMBOL]?: Headers;
     [RESPONSE_BODY_SYMBOL]?: Buffer;
     [RESPONSE_SIZE_SYMBOL]?: number;
+    [RESPONSE_PROMISE_SYMBOL]?: Promise<void>;
     [ERROR_SYMBOL]?: Readonly<Error>;
   }
 }
@@ -77,7 +78,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           request[RESPONSE_BODY_SYMBOL] = responseBody;
           request[RESPONSE_SIZE_SYMBOL] = responseBody.length;
         };
-        captureResponseBody();
+        request[RESPONSE_PROMISE_SYMBOL] = captureResponseBody();
       } else {
         const captureResponseSize = async () => {
           const responseSize = (
@@ -85,7 +86,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           )[0];
           request[RESPONSE_SIZE_SYMBOL] = responseSize;
         };
-        captureResponseSize();
+        request[RESPONSE_PROMISE_SYMBOL] = captureResponseSize();
       }
 
       return newResponse1;
@@ -166,7 +167,10 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         const startTime = request[START_TIME_SYMBOL];
         const responseTime = startTime ? performance.now() - startTime : 0;
 
-        await setImmediate(); // Wait for the response to be captured
+        // Wait for the response to be captured
+        if (request[RESPONSE_PROMISE_SYMBOL]) {
+          await request[RESPONSE_PROMISE_SYMBOL];
+        }
 
         const requestBody = request[REQUEST_BODY_SYMBOL];
         let requestSize = parseContentLength(
@@ -235,16 +239,22 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             (statusCode === 400 || statusCode === 422) &&
             error instanceof ValidationError
           ) {
-            const parsedMessage = JSON.parse(error.message);
-            client.validationErrorCounter.addValidationError({
-              consumer: consumer?.identifier,
-              method: request.method,
-              path: route,
-              loc:
-                (parsedMessage.on ?? "") + "." + (parsedMessage.property ?? ""),
-              msg: parsedMessage.message,
-              type: "",
-            });
+            try {
+              const parsedMessage = JSON.parse(error.message);
+              client.validationErrorCounter.addValidationError({
+                consumer: consumer?.identifier,
+                method: request.method,
+                path: route,
+                loc:
+                  (parsedMessage.on ?? "") +
+                  "." +
+                  (parsedMessage.property ?? ""),
+                msg: parsedMessage.message,
+                type: "",
+              });
+            } catch (error) {
+              // ignore
+            }
           }
         }
 

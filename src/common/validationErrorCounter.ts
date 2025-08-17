@@ -51,7 +51,7 @@ export default class ValidationErrorCounter {
       validationError.consumer || "",
       validationError.method.toUpperCase(),
       validationError.path,
-      validationError.loc,
+      validationError.loc.split(".").filter(Boolean),
       validationError.msg.trim(),
       validationError.type,
     ].join("|");

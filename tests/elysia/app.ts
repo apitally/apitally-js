@@ -3,7 +3,7 @@ import { Elysia, t } from "elysia";
 import { apitallyPlugin } from "../../src/elysia/index.js";
 import { CLIENT_ID, ENV } from "../utils.js";
 
-export const getApp = async () => {
+export const getApp = () => {
   const app = new Elysia()
     .use(
       apitallyPlugin({
