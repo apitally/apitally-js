@@ -38,7 +38,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
   const client = new ApitallyClient(config);
   const logsContext = new AsyncLocalStorage<LogRecord[]>();
 
-  if (client.requestLogger.config.captureLogs) {
+  if (client.requestLogger.enabled && client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
     patchWinston(logsContext);
   }
