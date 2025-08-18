@@ -23,12 +23,13 @@ This SDK for Apitally currently supports the following Node.js web
 frameworks:
 
 - [Express](https://docs.apitally.io/frameworks/express)
-- [NestJS](https://docs.apitally.io/frameworks/nestjs)
 - [Fastify](https://docs.apitally.io/frameworks/fastify)
-- [Koa](https://docs.apitally.io/frameworks/koa)
+- [NestJS](https://docs.apitally.io/frameworks/nestjs)
+- [AdonisJS](https://docs.apitally.io/frameworks/adonisjs)
 - [Hono](https://docs.apitally.io/frameworks/hono)
 - [H3](https://docs.apitally.io/frameworks/h3) (v2)
-- [AdonisJS](https://docs.apitally.io/frameworks/adonisjs)
+- [Elysia](https://docs.apitally.io/frameworks/elysia)
+- [Koa](https://docs.apitally.io/frameworks/koa)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out
 the 📚 [documentation](https://docs.apitally.io).
@@ -89,25 +90,6 @@ useApitally(app, {
 });
 ```
 
-### NestJS
-
-This is an example of how to use the Apitally middleware with a NestJS
-application. For further instructions, see our
-[setup guide for NestJS](https://docs.apitally.io/frameworks/nestjs).
-
-```javascript
-const { NestFactory } = require("@nestjs/core");
-const { useApitally } = require("apitally/nestjs");
-const { AppModule } = require("./app.module");
-
-const app = await NestFactory.create(AppModule);
-
-await useApitally(app, {
-  clientId: "your-client-id",
-  env: "dev", // or "prod" etc.
-});
-```
-
 ### Fastify
 
 This is an example of how to register the Apitally plugin with a Fastify
@@ -142,23 +124,48 @@ fastify.register((instance, opts, done) => {
 
 _Note:_ If your project uses ES modules you can use `await fastify.register(...)` and don't need to wrap your routes in a plugin. See the [Fastify V4 migration guide](https://fastify.dev/docs/latest/Guides/Migration-Guide-V4/#synchronous-route-definitions-2954) for more details.
 
-### Koa
+### NestJS
 
-This is an example of how to use the Apitally middleware with a Koa application.
-For further instructions, see our
-[setup guide for Koa](https://docs.apitally.io/frameworks/koa).
+This is an example of how to use the Apitally middleware with a NestJS
+application. For further instructions, see our
+[setup guide for NestJS](https://docs.apitally.io/frameworks/nestjs).
 
 ```javascript
-const Koa = require("koa");
-const { useApitally } = require("apitally/koa");
+const { NestFactory } = require("@nestjs/core");
+const { useApitally } = require("apitally/nestjs");
+const { AppModule } = require("./app.module");
 
-const app = new Koa();
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
 
-useApitally(app, {
-  clientId: "your-client-id",
-  env: "dev", // or "prod" etc.
-});
+  await useApitally(app, {
+    clientId: "your-client-id",
+    env: "dev", // or "prod" etc.
+  });
+
+  // ...
+}
+
+bootstrap();
 ```
+
+### AdonisJS
+
+You can use the following Ace command to configure Apitally in your AdonisJS application:
+
+```bash
+node ace configure apitally/adonisjs
+```
+
+This command will automatically:
+
+- Create a config file at `config/apitally.ts`
+- Register the Apitally provider in `adonisrc.ts`
+- Add the Apitally middleware to `start/kernel.ts`
+- Add required environment variables to `.env` and `start/env.ts`
+
+For further instructions, see our
+[setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
 
 ### Hono
 
@@ -200,23 +207,43 @@ const app = new H3({
 
 _Note:_ Apitally only works with H3 v2 and currently doesn't support nested apps.
 
-### AdonisJS
+### Elysia
 
-You can use the below Ace command to configure Apitally in your AdonisJS application:
+This is an example of how to use the Apitally plugin with an Elysia application.
+For further instructions, see our
+[setup guide for Elysia](https://docs.apitally.io/frameworks/elysia).
 
-```bash
-node ace configure apitally/adonisjs
+```javascript
+import { Elysia } from "elysia";
+import { apitallyPlugin } from "apitally/elysia";
+
+const app = new Elysia()
+  .use(
+    apitallyPlugin({
+      clientId: "your-client-id",
+      env: "dev", // or "prod" etc.
+    }),
+  )
+  .get("/", () => "hello");
 ```
 
-This command will automatically:
+### Koa
 
-- Create a config file at `config/apitally.ts`
-- Register the Apitally provider in `adonisrc.ts`
-- Add the Apitally middleware to `start/kernel.ts`
-- Add required environment variables to `.env` and `start/env.ts`
-
+This is an example of how to use the Apitally middleware with a Koa application.
 For further instructions, see our
-[setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
+[setup guide for Koa](https://docs.apitally.io/frameworks/koa).
+
+```javascript
+const Koa = require("koa");
+const { useApitally } = require("apitally/koa");
+
+const app = new Koa();
+
+useApitally(app, {
+  clientId: "your-client-id",
+  env: "dev", // or "prod" etc.
+});
+```
 
 ## Getting help
 
