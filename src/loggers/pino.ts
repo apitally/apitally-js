@@ -22,7 +22,7 @@ export async function patchPinoLogger(
   try {
     const pino = await import("pino");
     if (!(pino.default.symbols.streamSym in logger)) {
-      return;
+      return false;
     }
     if (!(originalStreamSym in logger)) {
       logger[originalStreamSym] = logger[pino.default.symbols.streamSym];
@@ -45,8 +45,10 @@ export async function patchPinoLogger(
         },
       );
     }
+    return true;
   } catch {
-    // pino is not installed, silently ignore
+    // pino is not installed
+    return false;
   }
 }
 

@@ -1,4 +1,4 @@
-import type { Request, ResponseToolkit, Server } from "@hapi/hapi";
+import type { Request, Server } from "@hapi/hapi";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
 
@@ -7,10 +7,16 @@ import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
-import { patchConsole, patchWinston } from "../loggers/index.js";
+import {
+  handleHapiRequestEvent,
+  patchConsole,
+  patchPinoLogger,
+  patchWinston,
+} from "../loggers/index.js";
 import { getAppInfo, isBoom } from "./utils.js";
 
 const START_TIME_SYMBOL = Symbol("apitally.startTime");
+const PINO_LOGGER_PATCHED_SYMBOL = Symbol("apitally.pinoLoggerPatched");
 const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
 const REQUEST_SIZE_SYMBOL = Symbol("apitally.requestSize");
 const RESPONSE_BODY_SYMBOL = Symbol("apitally.responseBody");
@@ -19,6 +25,7 @@ const RESPONSE_SIZE_SYMBOL = Symbol("apitally.responseSize");
 declare module "@hapi/hapi" {
   interface Request {
     [START_TIME_SYMBOL]?: number;
+    [PINO_LOGGER_PATCHED_SYMBOL]?: boolean;
     [REQUEST_BODY_SYMBOL]?: Buffer;
     [REQUEST_SIZE_SYMBOL]?: number;
     [RESPONSE_BODY_SYMBOL]?: Buffer;
@@ -52,9 +59,31 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         await client.handleShutdown();
       });
 
-      server.ext("onRequest", (request: Request, h: ResponseToolkit) => {
+      server.events.on("request", (request, event) => {
+        if (
+          event.channel === "app" &&
+          client.requestLogger.enabled &&
+          client.requestLogger.config.captureLogs &&
+          !request[PINO_LOGGER_PATCHED_SYMBOL]
+        ) {
+          handleHapiRequestEvent(event, logsContext);
+        }
+      });
+
+      server.ext("onRequest", async (request, h) => {
         if (!client.isEnabled() || request.method.toUpperCase() === "OPTIONS") {
           return h.continue;
+        }
+
+        if (
+          client.requestLogger.enabled &&
+          client.requestLogger.config.captureLogs &&
+          "logger" in request
+        ) {
+          request[PINO_LOGGER_PATCHED_SYMBOL] = await patchPinoLogger(
+            (request as any).logger,
+            logsContext,
+          );
         }
 
         logsContext.enterWith([]);
@@ -84,7 +113,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         return h.continue;
       });
 
-      server.ext("onPreResponse", (request: Request, h: ResponseToolkit) => {
+      server.ext("onPreResponse", async (request, h) => {
         if (
           !client.isEnabled() ||
           request.method.toUpperCase() === "OPTIONS" ||
@@ -120,7 +149,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         return h.continue;
       });
 
-      server.ext("onPostResponse", (request: Request, h: ResponseToolkit) => {
+      server.ext("onPostResponse", async (request, h) => {
         if (!client.isEnabled() || request.method.toUpperCase() === "OPTIONS") {
           return h.continue;
         }

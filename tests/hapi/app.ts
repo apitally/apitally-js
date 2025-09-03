@@ -32,6 +32,7 @@ export const getApp = async () => {
       const { name, age } = request.query;
       setConsumer(request, "test");
       console.warn("Console test");
+      request.log("info", "Hapi test");
       return `Hello ${name}! You are ${age} years old!`;
     },
     options: {
