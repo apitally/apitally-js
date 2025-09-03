@@ -26,6 +26,7 @@ const ALLOWED_CONTENT_TYPES = [
   "application/problem+json",
   "application/vnd.api+json",
   "text/plain",
+  "text/html",
 ];
 const EXCLUDE_PATH_PATTERNS = [
   /\/_?healthz?$/i,

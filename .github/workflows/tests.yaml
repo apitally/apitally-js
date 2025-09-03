@@ -76,6 +76,8 @@ jobs:
           - koa@3.0
           - koa@2.16
           - koa@2.13
+          - "@hapi/hapi@21.4"
+          - "@hapi/hapi@21.3"
           - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11 @nestjs/testing@11"
           - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-express@10 @nestjs/testing@10"
           - "@nestjs/core@9 @nestjs/common@9 @nestjs/platform-express@9 @nestjs/testing@9"
@@ -119,3 +121,6 @@ jobs:
       - name: Run tests for AdonisJS
         run: npm test -- tests/adonisjs
         if: contains(matrix.deps, 'adonisjs')
+      - name: Run tests for Hapi
+        run: npm test -- tests/hapi
+        if: contains(matrix.deps, '@hapi/hapi')

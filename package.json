@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0",
-  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, NestJS, AdonisJS, Hono, H3, Elysia, and Koa.",
+  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, NestJS, AdonisJS, Hono, H3, Elysia, Hapi, and Koa.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -14,6 +14,7 @@
     "express",
     "fastify",
     "h3",
+    "hapi",
     "hono",
     "koa",
     "logging",
@@ -119,6 +120,16 @@
         "default": "./dist/h3/index.cjs"
       }
     },
+    "./hapi": {
+      "import": {
+        "types": "./dist/hapi/index.d.ts",
+        "default": "./dist/hapi/index.js"
+      },
+      "require": {
+        "types": "./dist/hapi/index.d.cts",
+        "default": "./dist/hapi/index.cjs"
+      }
+    },
     "./hono": {
       "import": {
         "types": "./dist/hono/index.d.ts",
@@ -174,6 +185,9 @@
       "h3": [
         "./dist/h3/index.d.ts"
       ],
+      "hapi": [
+        "./dist/hapi/index.d.ts"
+      ],
       "hono": [
         "./dist/hono/index.d.ts"
       ],
@@ -195,6 +209,7 @@
   },
   "peerDependencies": {
     "@adonisjs/core": "^6",
+    "@hapi/hapi": "^21",
     "@nestjs/common": "^9 || ^10 || ^11",
     "@nestjs/core": "^9 || ^10 || ^11",
     "@nestjs/platform-express": "^9 || ^10 || ^11",
@@ -210,6 +225,9 @@
   },
   "peerDependenciesMeta": {
     "@adonisjs/core": {
+      "optional": true
+    },
+    "@hapi/hapi": {
       "optional": true
     },
     "@nestjs/common": {
@@ -252,6 +270,7 @@
   "devDependencies": {
     "@adonisjs/core": "^6.17.2",
     "@eslint/js": "^9.29.0",
+    "@hapi/hapi": "^21.4.3",
     "@hono/zod-validator": "^0.7.0",
     "@koa/router": "^13.1.0",
     "@nestjs/common": "^11.0.0",

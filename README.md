@@ -30,6 +30,7 @@ frameworks:
 - [H3](https://docs.apitally.io/frameworks/h3) (v2)
 - [Elysia](https://docs.apitally.io/frameworks/elysia)
 - [Koa](https://docs.apitally.io/frameworks/koa)
+- [Hapi](https://docs.apitally.io/frameworks/hapi)
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out
 the 📚 [documentation](https://docs.apitally.io).
@@ -243,6 +244,33 @@ useApitally(app, {
   clientId: "your-client-id",
   env: "dev", // or "prod" etc.
 });
+```
+
+### Hapi
+
+This is an example of how to use the Apitally plugin with a Hapi application.
+For further instructions, see our
+[setup guide for Hapi](https://docs.apitally.io/frameworks/hapi).
+
+```javascript
+const Hapi = require("@hapi/hapi");
+const { apitallyPlugin } = require("apitally/hapi");
+
+const init = async () => {
+  const server = Hapi.server({
+    port: 3000,
+    host: "localhost",
+  });
+
+  await server.register({
+    plugin: apitallyPlugin({
+      clientId: "your-client-id",
+      env: "dev", // or "prod" etc.
+    }),
+  });
+};
+
+init();
 ```
 
 ## Getting help
