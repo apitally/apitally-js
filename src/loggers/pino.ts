@@ -20,22 +20,34 @@ export async function patchPinoLogger(
   logsContext: AsyncLocalStorage<LogRecord[]>,
 ) {
   try {
-    const pino = await import("pino");
-    if (!(pino.default.symbols.streamSym in logger)) {
+    // Find stream and message key symbols on the logger and its prototype
+    const symbols = [
+      ...Object.getOwnPropertySymbols(logger),
+      ...Object.getOwnPropertySymbols(Object.getPrototypeOf(logger)),
+    ];
+    const streamSym = symbols.find(
+      (sym) => sym.toString() === "Symbol(pino.stream)",
+    );
+    const messageKeySym = symbols.find(
+      (sym) => sym.toString() === "Symbol(pino.messageKey)",
+    );
+    if (!streamSym || !messageKeySym) {
+      // not a pino logger
       return false;
     }
+
     if (!(originalStreamSym in logger)) {
-      logger[originalStreamSym] = logger[pino.default.symbols.streamSym];
+      logger[originalStreamSym] = logger[streamSym];
     }
 
     const originalStream = logger[originalStreamSym];
     if (originalStream) {
-      const messageKey = logger[pino.default.symbols.messageKeySym];
+      const pino = await import("pino");
       const captureStream = new ApitallyLogCaptureStream(
         logsContext,
-        messageKey,
+        logger[messageKeySym],
       );
-      logger[pino.default.symbols.streamSym] = pino.default.multistream(
+      logger[streamSym] = pino.default.multistream(
         [
           { level: 0, stream: originalStream },
           { level: 0, stream: captureStream },
@@ -47,7 +59,7 @@ export async function patchPinoLogger(
     }
     return true;
   } catch {
-    // pino is not installed
+    // ignore errors
     return false;
   }
 }
@@ -86,8 +98,8 @@ class ApitallyLogCaptureStream {
     }
 
     try {
-      const message = obj[this.messageKey];
-      const rest = removeKeys(obj, [
+      let message = obj[this.messageKey];
+      const ignoreKeys = [
         "hostname",
         "level",
         this.messageKey,
@@ -96,7 +108,14 @@ class ApitallyLogCaptureStream {
         "reqId",
         "req",
         "res",
-      ]);
+      ];
+      if (!message && "data" in obj && "tags" in obj) {
+        // hapi-pino uses data and tags instead of the message key
+        message = obj.data;
+        ignoreKeys.push("data");
+        ignoreKeys.push("tags");
+      }
+      const rest = removeKeys(obj, ignoreKeys);
       const formattedMessage = formatMessage(message, rest);
       if (formattedMessage) {
         logs.push({

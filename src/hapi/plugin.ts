@@ -16,20 +16,20 @@ import {
 import { getAppInfo, isBoom } from "./utils.js";
 
 const START_TIME_SYMBOL = Symbol("apitally.startTime");
-const PINO_LOGGER_PATCHED_SYMBOL = Symbol("apitally.pinoLoggerPatched");
 const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
 const REQUEST_SIZE_SYMBOL = Symbol("apitally.requestSize");
 const RESPONSE_BODY_SYMBOL = Symbol("apitally.responseBody");
 const RESPONSE_SIZE_SYMBOL = Symbol("apitally.responseSize");
+const LOGS_SYMBOL = Symbol("apitally.logs");
 
 declare module "@hapi/hapi" {
   interface Request {
     [START_TIME_SYMBOL]?: number;
-    [PINO_LOGGER_PATCHED_SYMBOL]?: boolean;
     [REQUEST_BODY_SYMBOL]?: Buffer;
     [REQUEST_SIZE_SYMBOL]?: number;
     [RESPONSE_BODY_SYMBOL]?: Buffer;
     [RESPONSE_SIZE_SYMBOL]?: number;
+    [LOGS_SYMBOL]?: LogRecord[];
     apitallyConsumer?: ApitallyConsumer | string;
   }
 
@@ -41,6 +41,7 @@ declare module "@hapi/hapi" {
 export default function apitallyPlugin(config: ApitallyConfig) {
   const client = new ApitallyClient(config);
   const logsContext = new AsyncLocalStorage<LogRecord[]>();
+  let pinoLoggerPatched = false;
 
   if (client.requestLogger.enabled && client.requestLogger.config.captureLogs) {
     patchConsole(logsContext);
@@ -50,6 +51,19 @@ export default function apitallyPlugin(config: ApitallyConfig) {
   return {
     name: "apitally",
     register: async function (server: Server) {
+      server.ext("onPostStart", async () => {
+        if (
+          "logger" in server &&
+          client.requestLogger.enabled &&
+          client.requestLogger.config.captureLogs
+        ) {
+          pinoLoggerPatched = await patchPinoLogger(
+            (server as any).logger,
+            logsContext,
+          );
+        }
+      });
+
       server.ext("onPostStart", () => {
         const appInfo = getAppInfo(server, config.appVersion);
         client.setStartupData(appInfo);
@@ -59,12 +73,12 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         await client.handleShutdown();
       });
 
-      server.events.on("request", (request, event) => {
+      server.events.on("request", (_, event) => {
         if (
-          event.channel === "app" &&
+          !pinoLoggerPatched &&
           client.requestLogger.enabled &&
           client.requestLogger.config.captureLogs &&
-          !request[PINO_LOGGER_PATCHED_SYMBOL]
+          event.channel === "app"
         ) {
           handleHapiRequestEvent(event, logsContext);
         }
@@ -75,19 +89,13 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           return h.continue;
         }
 
-        if (
-          client.requestLogger.enabled &&
-          client.requestLogger.config.captureLogs &&
-          "logger" in request
-        ) {
-          request[PINO_LOGGER_PATCHED_SYMBOL] = await patchPinoLogger(
-            (request as any).logger,
-            logsContext,
-          );
-        }
-
-        logsContext.enterWith([]);
         request[START_TIME_SYMBOL] = performance.now();
+
+        // Patch the lifecycle function to run with the logs context
+        const lifecycle = (request as any)._lifecycle.bind(request);
+        const logs: LogRecord[] = [];
+        request[LOGS_SYMBOL] = logs;
+        (request as any)._lifecycle = () => logsContext.run(logs, lifecycle);
 
         const captureRequestBody =
           client.requestLogger.enabled &&
@@ -164,7 +172,10 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         let responseHeaders: Record<string, any>;
         let responseBody = request[RESPONSE_BODY_SYMBOL];
         let responseSize = request[RESPONSE_SIZE_SYMBOL];
-        const error = (response as any)._error;
+        const error =
+          (response as any)._error instanceof Error
+            ? (response as any)._error
+            : undefined;
 
         if (isBoom(response)) {
           // Handle Boom error object
@@ -219,7 +230,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             responseSize,
           });
 
-          if (statusCode === 500 && error instanceof Error) {
+          if (statusCode === 500 && error) {
             client.serverErrorCounter.addServerError({
               consumer: consumer?.identifier,
               method: request.method,
@@ -232,7 +243,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         }
 
         if (client.requestLogger.enabled) {
-          const logs = logsContext.getStore();
+          const logs = request[LOGS_SYMBOL];
           client.requestLogger.logRequest(
             {
               timestamp,
