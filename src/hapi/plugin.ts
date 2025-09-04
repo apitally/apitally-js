@@ -101,7 +101,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           if (captureRequestBody) {
             chunks.push(Buffer.from(chunk, encoding as BufferEncoding));
           }
-          size += chunk.length;
+          size += Buffer.byteLength(chunk, encoding as BufferEncoding);
         });
         request.events.once("finish", () => {
           if (chunks.length > 0) {
@@ -136,7 +136,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             if (captureResponseBody) {
               chunks.push(Buffer.from(chunk, encoding as BufferEncoding));
             }
-            size += chunk.length;
+            size += Buffer.byteLength(chunk, encoding as BufferEncoding);
           },
         );
         request.response.events.once("finish", () => {
