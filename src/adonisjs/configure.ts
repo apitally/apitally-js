@@ -31,10 +31,18 @@ export async function configure(command: Configure) {
       return isValidEnv(value);
     },
   });
+  const enableRequestLogging = await command.prompt.confirm(
+    "Enable request logging?",
+    {
+      default: false,
+    },
+  );
 
   const codemods = await command.createCodemods();
 
-  await codemods.makeUsingStub(STUBS_ROOT, "config/apitally.stub", {});
+  await codemods.makeUsingStub(STUBS_ROOT, "config/apitally.stub", {
+    enableRequestLogging,
+  });
 
   await codemods.registerMiddleware("router", [
     {

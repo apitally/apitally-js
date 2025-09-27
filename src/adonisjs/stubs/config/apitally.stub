@@ -10,6 +10,15 @@ import { defineConfig } from 'apitally/adonisjs'
 const apitallyConfig = defineConfig({
   clientId: env.get('APITALLY_CLIENT_ID'),
   env: env.get('APITALLY_ENV', app.inProduction ? 'prod' : 'dev'),
+{{#if enableRequestLogging}}
+  requestLogging: {
+    enabled: true,
+    logRequestHeaders: true,
+    logRequestBody: true,
+    logResponseBody: true,
+    captureLogs: true,
+  },
+{{/if}}
 })
 
 export default apitallyConfig
