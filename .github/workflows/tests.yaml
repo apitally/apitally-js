@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22.20.x
+          node-version: 22.21.x
           cache: npm
       - name: Install dependencies
         run: npm ci
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22.20.x
+          node-version: 22.21.x
           cache: npm
       - name: Install dependencies
         run: npm ci
