@@ -48,21 +48,25 @@ export function listEndpoints(app: Hono) {
 }
 
 export function extractZodErrors(responseJson: any) {
-  const errors: ValidationError[] = [];
-  if (
-    responseJson &&
-    responseJson.success === false &&
-    responseJson.error &&
-    responseJson.error.name === "ZodError"
-  ) {
-    const zodError = responseJson.error as ZodError;
-    zodError.issues?.forEach((zodIssue) => {
-      errors.push({
-        loc: zodIssue.path.join("."),
-        msg: zodIssue.message,
-        type: zodIssue.code,
+  try {
+    const errors: ValidationError[] = [];
+    if (
+      responseJson &&
+      responseJson.success === false &&
+      responseJson.error &&
+      responseJson.error.name === "ZodError"
+    ) {
+      const zodError = responseJson.error as ZodError;
+      zodError.issues?.forEach((zodIssue) => {
+        errors.push({
+          loc: zodIssue.path.join("."),
+          msg: zodIssue.message,
+          type: zodIssue.code,
+        });
       });
-    });
+    }
+    return errors;
+  } catch (error) {
+    return [];
   }
-  return errors;
 }
