@@ -157,10 +157,12 @@ export class ApitallyClient {
       this.sync();
     }, INITIAL_SYNC_INTERVAL);
     setTimeout(() => {
-      clearInterval(this.syncIntervalId);
-      this.syncIntervalId = setInterval(() => {
-        this.sync();
-      }, SYNC_INTERVAL);
+      if (this.syncIntervalId) {
+        clearInterval(this.syncIntervalId);
+        this.syncIntervalId = setInterval(() => {
+          this.sync();
+        }, SYNC_INTERVAL);
+      }
     }, INITIAL_SYNC_INTERVAL_DURATION);
   }
 

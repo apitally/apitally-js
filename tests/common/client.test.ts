@@ -8,16 +8,21 @@ describe("Client", () => {
   beforeAll(() => {
     nock(APITALLY_HUB_BASE_URL)
       .persist()
-      .post(/\/sync$/)
+      .post(/\/(startup|sync)$/)
       .reply(202);
   });
 
-  it("Client ID validation on instantiation", () => {
+  it("Successful client instantiation", () => {
+    const client = new ApitallyClient({ clientId: CLIENT_ID, env: ENV });
+    expect(client.isEnabled()).toBe(true);
+  });
+
+  it("Client ID validation error on instantiation", () => {
     const client = new ApitallyClient({ clientId: "xxx" });
     expect(client.isEnabled()).toBe(false);
   });
 
-  it("Env validation on instantiation", () => {
+  it("Env validation error on instantiation", () => {
     const client = new ApitallyClient({ clientId: CLIENT_ID, env: "..." });
     expect(client.isEnabled()).toBe(false);
   });
@@ -31,6 +36,7 @@ describe("Client", () => {
   });
 
   it("Stop sync if client ID is invalid", async () => {
+    nock.cleanAll();
     nock(APITALLY_HUB_BASE_URL)
       .persist()
       .post(/\/(startup|sync)$/)
@@ -41,7 +47,7 @@ describe("Client", () => {
       env: ENV,
     });
     vi.spyOn(client.logger, "error").mockImplementation(() => {});
-    client.setStartupData({ paths: [], versions: {}, client: "js:test" });
+    await (client as any).sync();
 
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(client["syncIntervalId"]).toBeUndefined();
