@@ -61,15 +61,20 @@ export class ApitallyClient {
     if (ApitallyClient.instance) {
       throw new Error("Apitally client is already initialized");
     }
+
+    this.logger = logger ?? getLogger();
+
     if (!isValidClientId(clientId)) {
-      throw new Error(
+      this.logger.error(
         `Invalid Apitally client ID '${clientId}' (expecting hexadecimal UUID format)`,
       );
+      this.enabled = false;
     }
     if (!isValidEnv(env)) {
-      throw new Error(
-        `Invalid env '${env}' (expecting 1-32 alphanumeric lowercase characters and hyphens only)`,
+      this.logger.error(
+        `Invalid Apitally env '${env}' (expecting 1-32 alphanumeric characters and hyphens only)`,
       );
+      this.enabled = false;
     }
     if (requestLoggingConfig && !requestLogging) {
       console.warn(
@@ -89,7 +94,6 @@ export class ApitallyClient {
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
     this.consumerRegistry = new ConsumerRegistry();
-    this.logger = logger ?? getLogger();
 
     this.startSync();
     this.handleShutdown = this.handleShutdown.bind(this);
@@ -145,6 +149,9 @@ export class ApitallyClient {
   }
 
   private startSync() {
+    if (!this.enabled) {
+      return;
+    }
     this.sync();
     this.syncIntervalId = setInterval(() => {
       this.sync();
@@ -181,7 +188,6 @@ export class ApitallyClient {
   public setStartupData(data: StartupData) {
     this.startupData = data;
     this.startupDataSent = false;
-    this.sendStartupData();
   }
 
   private async sendStartupData() {

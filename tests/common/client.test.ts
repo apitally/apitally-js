@@ -12,11 +12,14 @@ describe("Client", () => {
       .reply(202);
   });
 
-  it("Argument validation on instantiation", () => {
-    expect(() => new ApitallyClient({ clientId: "xxx" })).toThrow("xxx");
-    expect(
-      () => new ApitallyClient({ clientId: CLIENT_ID, env: "..." }),
-    ).toThrow("...");
+  it("Client ID validation on instantiation", () => {
+    const client = new ApitallyClient({ clientId: "xxx" });
+    expect(client.isEnabled()).toBe(false);
+  });
+
+  it("Env validation on instantiation", () => {
+    const client = new ApitallyClient({ clientId: CLIENT_ID, env: "..." });
+    expect(client.isEnabled()).toBe(false);
   });
 
   it("Singleton instantiation", () => {
