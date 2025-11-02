@@ -11,6 +11,7 @@ import {
   getResponseBody,
   measureResponseSize,
   teeResponse,
+  teeResponseBlob,
 } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { patchConsole, patchWinston } from "../loggers/index.js";
@@ -49,13 +50,26 @@ export default function apitallyPlugin(config: ApitallyConfig) {
     const originalMapCompactResponse = handler.mapCompactResponse;
     const originalMapEarlyResponse = handler.mapEarlyResponse;
 
-    const captureResponse = (response: unknown, request?: Request) => {
-      if (request instanceof Request && response instanceof Response) {
-        const [newResponse1, newResponse2] = teeResponse(response);
+    const captureResponse = (
+      originalResponse: unknown,
+      mappedResponse: unknown,
+      request?: Request,
+    ) => {
+      if (
+        request instanceof Request &&
+        mappedResponse instanceof Response &&
+        !(RESPONSE_SYMBOL in request)
+      ) {
+        // Preserve the response body value as Blob if the original response is a string,
+        // so that Bun adds a Content-Type header.
+        const [newResponse1, newResponse2] =
+          originalResponse?.constructor?.name === "String"
+            ? teeResponseBlob(mappedResponse, originalResponse as string)
+            : teeResponse(mappedResponse);
         request[RESPONSE_SYMBOL] = newResponse2;
         return newResponse1;
       } else {
-        return response;
+        return mappedResponse;
       }
     };
 
@@ -65,7 +79,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       request?: Request,
     ) {
       const mappedResponse = originalMapResponse(response, set, request);
-      const newResponse = captureResponse(mappedResponse, request);
+      const newResponse = captureResponse(response, mappedResponse, request);
       return newResponse;
     };
     handler.mapCompactResponse = function wrappedMapCompactResponse(
@@ -73,7 +87,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       request?: Request,
     ) {
       const mappedResponse = originalMapCompactResponse(response, request);
-      const newResponse = captureResponse(mappedResponse, request);
+      const newResponse = captureResponse(response, mappedResponse, request);
       return newResponse;
     };
     handler.mapEarlyResponse = function wrappedMapEarlyResponse(
@@ -82,7 +96,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       request?: Request,
     ) {
       const mappedResponse = originalMapEarlyResponse(response, set, request);
-      const newResponse = captureResponse(mappedResponse, request);
+      const newResponse = captureResponse(response, mappedResponse, request);
       return newResponse;
     };
 

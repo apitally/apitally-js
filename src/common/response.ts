@@ -60,3 +60,20 @@ export function teeResponse(response: Response): [Response, Response] {
   });
   return [newResponse1, newResponse2];
 }
+
+export function teeResponseBlob(
+  response: Response,
+  blob: string | Blob,
+): [Response, Response] {
+  const newResponse1 = new Response(blob, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+  const newResponse2 = new Response(blob, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+  return [newResponse1, newResponse2];
+}
