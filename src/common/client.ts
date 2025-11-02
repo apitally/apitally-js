@@ -94,8 +94,6 @@ export class ApitallyClient {
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
     this.consumerRegistry = new ConsumerRegistry();
-
-    this.startSync();
     this.handleShutdown = this.handleShutdown.bind(this);
   }
 
@@ -148,7 +146,7 @@ export class ApitallyClient {
     }
   }
 
-  private startSync() {
+  public startSync() {
     if (!this.enabled) {
       return;
     }

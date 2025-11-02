@@ -23,6 +23,7 @@ export function useApitally(app: Koa, config: ApitallyConfig) {
     const appInfo = getAppInfo(app, config.appVersion);
     if (appInfo.paths.length > 0 || attempt >= 10) {
       client.setStartupData(appInfo);
+      client.startSync();
     } else {
       setTimeout(() => setStartupData(attempt + 1), 500);
     }

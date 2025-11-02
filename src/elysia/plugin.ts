@@ -105,6 +105,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       .onStart(() => {
         const appInfo = getAppInfo(app, config.appVersion);
         client.setStartupData(appInfo);
+        client.startSync();
       })
       .onStop(async () => {
         await client.handleShutdown();

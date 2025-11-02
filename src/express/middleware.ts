@@ -46,6 +46,7 @@ export function useApitally(
     const appInfo = getAppInfo(app, config.basePath, config.appVersion);
     if (appInfo.paths.length > 0 || attempt >= 10) {
       client.setStartupData(appInfo);
+      client.startSync();
     } else {
       setTimeout(() => setStartupData(attempt + 1), 500);
     }

@@ -51,6 +51,7 @@ export default class ApitallyProvider {
       client: "js:adonisjs",
     };
     client.setStartupData(startupData);
+    client.startSync();
   }
 
   async shutdown() {
