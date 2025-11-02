@@ -67,6 +67,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       server.ext("onPostStart", () => {
         const appInfo = getAppInfo(server, config.appVersion);
         client.setStartupData(appInfo);
+        client.startSync();
       });
 
       server.ext("onPreStop", async () => {
