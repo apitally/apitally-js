@@ -7,14 +7,18 @@ export async function measureResponseSize(
     : [response, response];
   let size = 0;
   if (newResponse2.body) {
-    let done = false;
-    const reader = newResponse2.body.getReader();
-    while (!done) {
-      const result = await reader.read();
-      done = result.done;
-      if (!done && result.value) {
-        size += result.value.byteLength;
+    try {
+      let done = false;
+      const reader = newResponse2.body.getReader();
+      while (!done) {
+        const result = await reader.read();
+        done = result.done;
+        if (!done && result.value) {
+          size += result.value.byteLength;
+        }
       }
+    } catch (error) {
+      // ignore
     }
   }
   return [size, newResponse1];
@@ -27,8 +31,12 @@ export async function getResponseBody(
   const [newResponse1, newResponse2] = tee
     ? teeResponse(response)
     : [response, response];
-  const responseBuffer = Buffer.from(await newResponse2.arrayBuffer());
-  return [responseBuffer, newResponse1];
+  try {
+    const responseBuffer = Buffer.from(await newResponse2.arrayBuffer());
+    return [responseBuffer, newResponse1];
+  } catch (error) {
+    return [Buffer.from([]), newResponse1];
+  }
 }
 
 export async function getResponseJson(
@@ -37,8 +45,12 @@ export async function getResponseJson(
   const contentType = response.headers.get("content-type");
   if (contentType?.includes("application/json")) {
     const [newResponse1, newResponse2] = teeResponse(response);
-    const responseJson = await newResponse2.json();
-    return [responseJson, newResponse1];
+    try {
+      const responseJson = await newResponse2.json();
+      return [responseJson, newResponse1];
+    } catch (error) {
+      return [null, newResponse1];
+    }
   }
   return [null, response];
 }
