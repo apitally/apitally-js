@@ -7,6 +7,7 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   splitting: false,
+  bundle: false,
   clean: true,
   onSuccess: 'copyfiles "src/**/*.stub" --up="1" dist',
 });
