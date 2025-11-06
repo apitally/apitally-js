@@ -431,7 +431,7 @@ export default class RequestLogger {
           // Set up body serialization for JSON
           [finalItem.request.body, finalItem.response.body].forEach((body) => {
             if (body) {
-              // @ts-expect-error Override Buffer's default JSON serialization
+              // Override Buffer's default JSON serialization
               body.toJSON = function () {
                 return this.toString("base64");
               };
@@ -511,7 +511,7 @@ export function convertHeaders(
     return Array.from(headers.entries());
   }
   return Object.entries(headers).flatMap(([key, value]) => {
-    if (value === undefined) {
+    if (value === undefined || value === null) {
       return [];
     }
     if (Array.isArray(value)) {
