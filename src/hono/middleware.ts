@@ -8,11 +8,7 @@ import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
-import {
-  getResponseBody,
-  getResponseJson,
-  measureResponseSize,
-} from "../common/response.js";
+import { captureResponse, getResponseJson } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { patchConsole, patchWinston } from "../loggers/index.js";
 import { extractZodErrors, getAppInfo } from "./utils.js";
@@ -60,94 +56,95 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
 
       await next();
 
-      let response;
-      const responseTime = performance.now() - startTime;
-      const [responseSize, newResponse] = await measureResponseSize(c.res);
-      const requestSize = parseContentLength(c.req.header("content-length"));
-
-      const consumer = getConsumer(c);
-      client.consumerRegistry.addOrUpdateConsumer(consumer);
-
-      client.requestCounter.addRequest({
-        consumer: consumer?.identifier,
-        method: c.req.method,
-        path: c.req.routePath,
-        statusCode: c.res.status,
-        responseTime,
-        requestSize,
-        responseSize,
+      const [newResponse, responsePromise] = captureResponse(c.res, {
+        captureBody:
+          (client.requestLogger.enabled &&
+            client.requestLogger.config.logResponseBody &&
+            client.requestLogger.isSupportedContentType(
+              c.res.headers.get("content-type"),
+            )) ||
+          (c.res.status === 400 &&
+            c.res.headers.get("content-type") === "application/json"),
+        maxBodySize: client.requestLogger.maxBodySize,
       });
+      c.res = newResponse;
 
-      response = newResponse;
+      responsePromise.then(async (capturedResponse) => {
+        const responseTime = performance.now() - startTime;
+        const requestSize = parseContentLength(c.req.header("content-length"));
+        const responseSize = capturedResponse.size;
 
-      if (c.res.status === 400) {
-        const [responseJson, newResponse] = await getResponseJson(response);
-        const validationErrors = extractZodErrors(responseJson);
-        validationErrors.forEach((error) => {
-          client.validationErrorCounter.addValidationError({
-            consumer: consumer?.identifier,
-            method: c.req.method,
-            path: c.req.routePath,
-            ...error,
-          });
-        });
-        response = newResponse;
-      }
+        const consumer = getConsumer(c);
+        client.consumerRegistry.addOrUpdateConsumer(consumer);
 
-      if (c.error) {
-        client.serverErrorCounter.addServerError({
+        client.requestCounter.addRequest({
           consumer: consumer?.identifier,
           method: c.req.method,
           path: c.req.routePath,
-          type: c.error.name,
-          msg: c.error.message,
-          traceback: c.error.stack || "",
+          statusCode: c.res.status,
+          responseTime,
+          requestSize,
+          responseSize,
         });
-      }
 
-      if (client.requestLogger.enabled) {
-        let requestBody;
-        let responseBody;
-        let newResponse = response;
-        const requestContentType = c.req.header("content-type");
-        const responseContentType = c.res.headers.get("content-type");
-        if (
-          client.requestLogger.config.logRequestBody &&
-          client.requestLogger.isSupportedContentType(requestContentType)
-        ) {
-          requestBody = Buffer.from(await c.req.arrayBuffer());
+        if (c.res.status === 400 && capturedResponse.body) {
+          const responseJson = getResponseJson(capturedResponse.body);
+          const validationErrors = extractZodErrors(responseJson);
+          validationErrors.forEach((error) => {
+            client.validationErrorCounter.addValidationError({
+              consumer: consumer?.identifier,
+              method: c.req.method,
+              path: c.req.routePath,
+              ...error,
+            });
+          });
         }
-        if (
-          client.requestLogger.config.logResponseBody &&
-          client.requestLogger.isSupportedContentType(responseContentType)
-        ) {
-          [responseBody, newResponse] = await getResponseBody(response);
-          response = newResponse;
-        }
-        const logs = logsContext.getStore();
-        client.requestLogger.logRequest(
-          {
-            timestamp,
+
+        if (c.error) {
+          client.serverErrorCounter.addServerError({
+            consumer: consumer?.identifier,
             method: c.req.method,
             path: c.req.routePath,
-            url: c.req.url,
-            headers: convertHeaders(c.req.header()),
-            size: requestSize,
-            consumer: consumer?.identifier,
-            body: requestBody,
-          },
-          {
-            statusCode: c.res.status,
-            responseTime: responseTime / 1000,
-            headers: convertHeaders(c.res.headers),
-            size: responseSize,
-            body: responseBody,
-          },
-          c.error,
-          logs,
-        );
-      }
-      c.res = response;
+            type: c.error.name,
+            msg: c.error.message,
+            traceback: c.error.stack || "",
+          });
+        }
+
+        if (client.requestLogger.enabled) {
+          let requestBody;
+          const responseBody = capturedResponse.body;
+          const requestContentType = c.req.header("content-type");
+          if (
+            client.requestLogger.config.logRequestBody &&
+            client.requestLogger.isSupportedContentType(requestContentType)
+          ) {
+            requestBody = Buffer.from(await c.req.arrayBuffer());
+          }
+          const logs = logsContext.getStore();
+          client.requestLogger.logRequest(
+            {
+              timestamp,
+              method: c.req.method,
+              path: c.req.routePath,
+              url: c.req.url,
+              headers: convertHeaders(c.req.header()),
+              size: requestSize,
+              consumer: consumer?.identifier,
+              body: requestBody,
+            },
+            {
+              statusCode: c.res.status,
+              responseTime: responseTime / 1000,
+              headers: convertHeaders(c.res.headers),
+              size: responseSize,
+              body: responseBody,
+            },
+            c.error,
+            logs,
+          );
+        }
+      });
     });
   };
 }

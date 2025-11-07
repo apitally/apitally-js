@@ -1,5 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { streamText } from "hono/streaming";
 import { z } from "zod";
 
 import { setConsumer, useApitally } from "../../src/hono/index.js";
@@ -54,6 +55,14 @@ export const getApp = async () => {
 
   app.get("/error", () => {
     throw new Error("test");
+  });
+
+  app.get("/stream", (c) => {
+    return streamText(c, async (stream) => {
+      await stream.writeln("Hello");
+      await stream.sleep(100);
+      await stream.write("world");
+    });
   });
 
   return app;
