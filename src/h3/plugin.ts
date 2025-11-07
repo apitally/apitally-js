@@ -84,7 +84,9 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
 
     responsePromise.then(async (capturedResponse) => {
       const responseTime = startTime ? performance.now() - startTime : 0;
-      const responseSize = capturedResponse.size;
+      const responseSize = capturedResponse.completed
+        ? capturedResponse.size
+        : undefined;
       const requestSize = parseContentLength(
         event.req.headers.get("content-length"),
       );
@@ -134,6 +136,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
     if (
       path &&
       error?.status === 400 &&
+      error.data &&
       (error.data as any).name === "ZodError"
     ) {
       const zodError = error.data as ZodError;

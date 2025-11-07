@@ -72,7 +72,9 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
       responsePromise.then(async (capturedResponse) => {
         const responseTime = performance.now() - startTime;
         const requestSize = parseContentLength(c.req.header("content-length"));
-        const responseSize = capturedResponse.size;
+        const responseSize = capturedResponse.completed
+          ? capturedResponse.size
+          : undefined;
 
         const consumer = getConsumer(c);
         client.consumerRegistry.addOrUpdateConsumer(consumer);

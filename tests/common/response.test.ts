@@ -1,25 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  captureResponse,
-  getResponseJson,
-  measureResponseSize,
-} from "../../src/common/response.js";
+import { captureResponse, getResponseJson } from "../../src/common/response.js";
 
 describe("Response utils", () => {
-  it("Measure response size", async () => {
-    const body = "Hello world";
-    const response = new Response(body);
-
-    const [size, newResponse] = await measureResponseSize(response);
-
-    expect(size).toBe(body.length);
-    expect(newResponse.bodyUsed).toBe(false);
-
-    const text = await newResponse.text();
-    expect(text).toBe(body);
-  });
-
   it("Capture response", async () => {
     const body = "Hello world";
     const response = new Response(body);
