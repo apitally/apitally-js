@@ -23,6 +23,8 @@ const BODY_MASKED = Buffer.from("<masked>");
 const MASKED = "******";
 const ALLOWED_CONTENT_TYPES = [
   "application/json",
+  "application/x-ndjson",
+  "application/ld+json",
   "application/problem+json",
   "application/vnd.api+json",
   "text/plain",
