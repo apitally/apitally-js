@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
@@ -12,7 +13,7 @@ describe("Temporary gzip file", () => {
     await file.writeLine(Buffer.from("test2"));
 
     // Wait for the next event loop cycle to ensure gzip stream has flushed to file
-    await new Promise(setImmediate);
+    await setImmediate();
     expect(file.size).toBeGreaterThan(0);
 
     await file.close();

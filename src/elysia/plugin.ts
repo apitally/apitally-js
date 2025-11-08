@@ -17,6 +17,7 @@ const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
 const RESPONSE_SYMBOL = Symbol("apitally.response");
 const RESPONSE_PROMISE_SYMBOL = Symbol("apitally.responsePromise");
 const ERROR_SYMBOL = Symbol("apitally.error");
+const CLIENT_SYMBOL = Symbol("apitally.client");
 
 declare global {
   interface Request {
@@ -25,6 +26,7 @@ declare global {
     [RESPONSE_SYMBOL]?: Response;
     [RESPONSE_PROMISE_SYMBOL]?: Promise<CapturedResponse>;
     [ERROR_SYMBOL]?: Readonly<Error>;
+    [CLIENT_SYMBOL]?: ApitallyClient;
   }
 }
 
@@ -43,87 +45,92 @@ export default function apitallyPlugin(config: ApitallyConfig) {
 
   return (app: Elysia) => {
     const handler = app["~adapter"].handler;
-    const originalMapResponse = handler.mapResponse;
-    const originalMapCompactResponse = handler.mapCompactResponse;
-    const originalMapEarlyResponse = handler.mapEarlyResponse;
 
-    const captureMappedResponse = (
-      originalResponse: unknown,
-      mappedResponse: unknown,
-      request?: Request,
-    ) => {
-      if (
-        request instanceof Request &&
-        mappedResponse instanceof Response &&
-        !(RESPONSE_SYMBOL in request)
-      ) {
-        if (originalResponse?.constructor?.name === "String") {
-          // Preserve the response body value as Blob if the original response is a string,
-          // so that Bun adds a Content-Type header.
-          const responseBody = Buffer.from(originalResponse as string);
-          request[RESPONSE_SYMBOL] = mappedResponse;
-          request[RESPONSE_PROMISE_SYMBOL] = Promise.resolve({
-            body: responseBody,
-            size: responseBody.length,
-            completed: true,
-          });
-        } else {
-          // Otherwise capture the response using streaming
-          const [newResponse, responsePromise] = captureResponse(
-            mappedResponse,
-            {
-              captureBody:
-                client.requestLogger.enabled &&
-                client.requestLogger.config.logResponseBody,
-              maxBodySize: client.requestLogger.maxBodySize,
-            },
-          );
-          request[RESPONSE_SYMBOL] = newResponse;
-          request[RESPONSE_PROMISE_SYMBOL] = responsePromise;
-          return newResponse;
+    if (!handler.mapResponse.name.startsWith("wrapped")) {
+      const originalMapResponse = handler.mapResponse;
+      const originalMapCompactResponse = handler.mapCompactResponse;
+      const originalMapEarlyResponse = handler.mapEarlyResponse;
+
+      const captureMappedResponse = (
+        originalResponse: unknown,
+        mappedResponse: unknown,
+        request?: Request,
+      ) => {
+        if (
+          request instanceof Request &&
+          mappedResponse instanceof Response &&
+          !(RESPONSE_SYMBOL in request) &&
+          CLIENT_SYMBOL in request
+        ) {
+          if (originalResponse?.constructor?.name === "String") {
+            // Preserve the response body value as Blob if the original response is a string,
+            // so that Bun adds a Content-Type header.
+            const responseBody = Buffer.from(originalResponse as string);
+            request[RESPONSE_SYMBOL] = mappedResponse;
+            request[RESPONSE_PROMISE_SYMBOL] = Promise.resolve({
+              body: responseBody,
+              size: responseBody.length,
+              completed: true,
+            });
+          } else {
+            // Otherwise capture the response using streaming
+            const client = request[CLIENT_SYMBOL]!;
+            const [newResponse, responsePromise] = captureResponse(
+              mappedResponse,
+              {
+                captureBody:
+                  client.requestLogger.enabled &&
+                  client.requestLogger.config.logResponseBody,
+                maxBodySize: client.requestLogger.maxBodySize,
+              },
+            );
+            request[RESPONSE_SYMBOL] = newResponse;
+            request[RESPONSE_PROMISE_SYMBOL] = responsePromise;
+            return newResponse;
+          }
         }
-      }
-      return mappedResponse;
-    };
+        return mappedResponse;
+      };
 
-    handler.mapResponse = function wrappedMapResponse(
-      response: unknown,
-      set: Context["set"],
-      request?: Request,
-    ) {
-      const mappedResponse = originalMapResponse(response, set, request);
-      const newResponse = captureMappedResponse(
-        response,
-        mappedResponse,
-        request,
-      );
-      return newResponse;
-    };
-    handler.mapCompactResponse = function wrappedMapCompactResponse(
-      response: unknown,
-      request?: Request,
-    ) {
-      const mappedResponse = originalMapCompactResponse(response, request);
-      const newResponse = captureMappedResponse(
-        response,
-        mappedResponse,
-        request,
-      );
-      return newResponse;
-    };
-    handler.mapEarlyResponse = function wrappedMapEarlyResponse(
-      response: unknown,
-      set: Context["set"],
-      request?: Request,
-    ) {
-      const mappedResponse = originalMapEarlyResponse(response, set, request);
-      const newResponse = captureMappedResponse(
-        response,
-        mappedResponse,
-        request,
-      );
-      return newResponse;
-    };
+      handler.mapResponse = function wrappedMapResponse(
+        response: unknown,
+        set: Context["set"],
+        request?: Request,
+      ) {
+        const mappedResponse = originalMapResponse(response, set, request);
+        const newResponse = captureMappedResponse(
+          response,
+          mappedResponse,
+          request,
+        );
+        return newResponse;
+      };
+      handler.mapCompactResponse = function wrappedMapCompactResponse(
+        response: unknown,
+        request?: Request,
+      ) {
+        const mappedResponse = originalMapCompactResponse(response, request);
+        const newResponse = captureMappedResponse(
+          response,
+          mappedResponse,
+          request,
+        );
+        return newResponse;
+      };
+      handler.mapEarlyResponse = function wrappedMapEarlyResponse(
+        response: unknown,
+        set: Context["set"],
+        request?: Request,
+      ) {
+        const mappedResponse = originalMapEarlyResponse(response, set, request);
+        const newResponse = captureMappedResponse(
+          response,
+          mappedResponse,
+          request,
+        );
+        return newResponse;
+      };
+    }
 
     return app
       .decorate("apitally", {} as ApitallyContext)
@@ -140,8 +147,9 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           return;
         }
 
-        logsContext.enterWith([]);
+        request[CLIENT_SYMBOL] = client;
         request[START_TIME_SYMBOL] = performance.now();
+        logsContext.enterWith([]);
 
         // Capture request body
         if (

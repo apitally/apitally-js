@@ -36,7 +36,7 @@ export const getApp = () => {
     )
     .get("/hello/:id", ({ params }) => {
       const { id } = params;
-      return `Hello ${id}!`;
+      return { message: `Hello ${id}!` };
     })
     .post(
       "/hello",

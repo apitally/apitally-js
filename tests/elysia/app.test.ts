@@ -39,6 +39,7 @@ describe("Plugin for Elysia", () => {
 
     response = await app.handle(new Request("http://localhost/hello/123"));
     expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ message: "Hello 123!" });
 
     // invalid (age < 18)
     response = await app.handle(
@@ -75,7 +76,8 @@ describe("Plugin for Elysia", () => {
         (r) =>
           r.method === "GET" &&
           r.path === "/hello/:id" &&
-          r.status_code === 200,
+          r.status_code === 200 &&
+          r.response_size_sum > 0,
       ),
     ).toBe(true);
     expect(
@@ -103,9 +105,13 @@ describe("Plugin for Elysia", () => {
 
   it("Request logger", async () => {
     const spy = vi.spyOn(client.requestLogger, "logRequest");
+    let res;
     let call;
 
-    await app.handle(new Request("http://localhost/hello?name=John&age=20"));
+    res = await app.handle(
+      new Request("http://localhost/hello?name=John&age=20"),
+    );
+    await res.text();
     await setImmediate();
 
     expect(spy).toHaveBeenCalledOnce();
@@ -128,7 +134,7 @@ describe("Plugin for Elysia", () => {
     spy.mockReset();
 
     const body = JSON.stringify({ name: "John", age: 20 });
-    await app.handle(
+    res = await app.handle(
       new Request("http://localhost/hello", {
         method: "POST",
         body,
@@ -138,6 +144,7 @@ describe("Plugin for Elysia", () => {
         },
       }),
     );
+    await res.text();
     await setImmediate();
 
     expect(spy).toHaveBeenCalledOnce();
@@ -152,6 +159,18 @@ describe("Plugin for Elysia", () => {
     expect(call[0].body!.toString()).toMatch(/^{"name":"John","age":20}$/);
     expect(call[1].body).toBeInstanceOf(Buffer);
     expect(call[1].body!.toString()).toMatch(/^Hello John!/);
+    spy.mockReset();
+
+    res = await app.handle(new Request("http://localhost/hello/123"));
+    await res.json();
+    await setImmediate();
+
+    expect(spy).toHaveBeenCalledOnce();
+    call = spy.mock.calls[0];
+    expect(call[0].method).toBe("GET");
+    expect(call[0].path).toBe("/hello/:id");
+    expect(call[1].size).toBeGreaterThan(0);
+    expect(call[1].body!.toString()).toMatch(/^{"message":"Hello 123!"}$/);
   });
 
   it("Validation error counter", async () => {
