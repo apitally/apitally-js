@@ -56,8 +56,6 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
 
       await next();
 
-      const statusCode = c.res.status;
-      const responseHeaders = c.res.headers;
       const [newResponse, responsePromise] = captureResponse(c.res, {
         captureBody:
           (client.requestLogger.enabled &&
@@ -70,6 +68,9 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
         maxBodySize: client.requestLogger.maxBodySize,
       });
       c.res = newResponse;
+
+      const statusCode = c.res.status;
+      const responseHeaders = c.res.headers;
 
       responsePromise.then(async (capturedResponse) => {
         const responseTime = performance.now() - startTime;
