@@ -80,6 +80,9 @@ export function captureResponse(
     headers: response.headers,
   });
 
+  // Force Bun to initialize the headers (workaround for lazy evaluation in Bun's Response implementation)
+  void newResponse.headers;
+
   return [newResponse, racePromise];
 }
 
