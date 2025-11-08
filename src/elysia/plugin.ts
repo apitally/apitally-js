@@ -62,7 +62,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           !(RESPONSE_SYMBOL in request) &&
           CLIENT_SYMBOL in request
         ) {
-          if (originalResponse?.constructor?.name === "String") {
+          if (typeof originalResponse === "string") {
             // Preserve the response body value as Blob if the original response is a string,
             // so that Bun adds a Content-Type header.
             const responseBody = Buffer.from(originalResponse as string);
