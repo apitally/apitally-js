@@ -5,7 +5,7 @@ type CaptureResponseOptions = {
 };
 
 export type CapturedResponse = {
-  body?: Buffer<ArrayBufferLike>;
+  body?: Buffer;
   size: number;
   completed: boolean;
   error?: Error;
