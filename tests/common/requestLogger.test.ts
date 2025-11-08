@@ -213,7 +213,7 @@ describe("Request logger", () => {
     expect(atob(item.response.body)).toBe("<masked>");
   });
 
-  it("Mask body fields", async () => {
+  it("Mask body fields (JSON)", async () => {
     requestLogger.config.maskBodyFields = [/custom/i];
 
     const requestBody = {
@@ -275,5 +275,55 @@ describe("Request logger", () => {
     expect(maskedRequestBody.array[0].id).toBe(1);
     expect(maskedRequestBody.array[1].normal).toBe("text");
     expect(maskedResponseBody.status).toBe("success");
+  });
+
+  it("Mask body fields (NDJSON)", async () => {
+    requestLogger.config.maskBodyFields = [/custom/i];
+
+    const requestBody = [
+      { username: "john", password: "secret1", custom: "value1" },
+      { username: "jane", token: "abc123", normal: "text" },
+    ];
+    const responseBody = [
+      { status: "ok", secret: "hidden" },
+      { id: 42, auth: "token123" },
+    ];
+
+    const request = createRequest();
+    const response = createResponse();
+    request.headers = [["content-type", "application/x-ndjson"]];
+    request.body = Buffer.from(
+      requestBody.map((line) => JSON.stringify(line)).join("\n"),
+    );
+    response.headers = [["content-type", "application/x-ndjson"]];
+    response.body = Buffer.from(
+      responseBody.map((line) => JSON.stringify(line)).join("\n"),
+    );
+
+    requestLogger.logRequest(request, response);
+    const items = await getLoggedItems(requestLogger);
+    expect(items.length).toBe(1);
+
+    const item = items[0];
+    const maskedRequestLines = atob(item.request.body)
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const maskedResponseLines = atob(item.response.body)
+      .split("\n")
+      .map((line) => JSON.parse(line));
+
+    // Test fields that should be masked
+    expect(maskedRequestLines[0].password).toBe("******");
+    expect(maskedRequestLines[0].custom).toBe("******");
+    expect(maskedRequestLines[1].token).toBe("******");
+    expect(maskedResponseLines[0].secret).toBe("******");
+    expect(maskedResponseLines[1].auth).toBe("******");
+
+    // Test fields that should NOT be masked
+    expect(maskedRequestLines[0].username).toBe("john");
+    expect(maskedRequestLines[1].username).toBe("jane");
+    expect(maskedRequestLines[1].normal).toBe("text");
+    expect(maskedResponseLines[0].status).toBe("ok");
+    expect(maskedResponseLines[1].id).toBe(42);
   });
 });

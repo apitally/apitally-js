@@ -7,12 +7,7 @@ import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { parseContentLength } from "../common/headers.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
-import {
-  getResponseBody,
-  measureResponseSize,
-  teeResponse,
-  teeResponseBlob,
-} from "../common/response.js";
+import { CapturedResponse, captureResponse } from "../common/response.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { patchConsole, patchWinston } from "../loggers/index.js";
 import { getAppInfo } from "./utils.js";
@@ -20,14 +15,18 @@ import { getAppInfo } from "./utils.js";
 const START_TIME_SYMBOL = Symbol("apitally.startTime");
 const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
 const RESPONSE_SYMBOL = Symbol("apitally.response");
+const RESPONSE_PROMISE_SYMBOL = Symbol("apitally.responsePromise");
 const ERROR_SYMBOL = Symbol("apitally.error");
+const CLIENT_SYMBOL = Symbol("apitally.client");
 
 declare global {
   interface Request {
     [START_TIME_SYMBOL]?: number;
     [REQUEST_BODY_SYMBOL]?: Buffer;
     [RESPONSE_SYMBOL]?: Response;
+    [RESPONSE_PROMISE_SYMBOL]?: Promise<CapturedResponse>;
     [ERROR_SYMBOL]?: Readonly<Error>;
+    [CLIENT_SYMBOL]?: ApitallyClient;
   }
 }
 
@@ -46,59 +45,92 @@ export default function apitallyPlugin(config: ApitallyConfig) {
 
   return (app: Elysia) => {
     const handler = app["~adapter"].handler;
-    const originalMapResponse = handler.mapResponse;
-    const originalMapCompactResponse = handler.mapCompactResponse;
-    const originalMapEarlyResponse = handler.mapEarlyResponse;
 
-    const captureResponse = (
-      originalResponse: unknown,
-      mappedResponse: unknown,
-      request?: Request,
-    ) => {
-      if (
-        request instanceof Request &&
-        mappedResponse instanceof Response &&
-        !(RESPONSE_SYMBOL in request)
-      ) {
-        // Preserve the response body value as Blob if the original response is a string,
-        // so that Bun adds a Content-Type header.
-        const [newResponse1, newResponse2] =
-          originalResponse?.constructor?.name === "String"
-            ? teeResponseBlob(mappedResponse, originalResponse as string)
-            : teeResponse(mappedResponse);
-        request[RESPONSE_SYMBOL] = newResponse2;
-        return newResponse1;
-      } else {
+    if (!handler.mapResponse.name.startsWith("wrapped")) {
+      const originalMapResponse = handler.mapResponse;
+      const originalMapCompactResponse = handler.mapCompactResponse;
+      const originalMapEarlyResponse = handler.mapEarlyResponse;
+
+      const captureMappedResponse = (
+        originalResponse: unknown,
+        mappedResponse: unknown,
+        request?: Request,
+      ) => {
+        if (
+          request instanceof Request &&
+          mappedResponse instanceof Response &&
+          !(RESPONSE_SYMBOL in request) &&
+          CLIENT_SYMBOL in request
+        ) {
+          if (typeof originalResponse === "string") {
+            // Preserve the response body value as Blob if the original response is a string,
+            // so that Bun adds a Content-Type header.
+            const responseBody = Buffer.from(originalResponse as string);
+            request[RESPONSE_SYMBOL] = mappedResponse;
+            request[RESPONSE_PROMISE_SYMBOL] = Promise.resolve({
+              body: responseBody,
+              size: responseBody.length,
+              completed: true,
+            });
+          } else {
+            // Otherwise capture the response using streaming
+            const client = request[CLIENT_SYMBOL]!;
+            const [newResponse, responsePromise] = captureResponse(
+              mappedResponse,
+              {
+                captureBody:
+                  client.requestLogger.enabled &&
+                  client.requestLogger.config.logResponseBody,
+                maxBodySize: client.requestLogger.maxBodySize,
+              },
+            );
+            request[RESPONSE_SYMBOL] = newResponse;
+            request[RESPONSE_PROMISE_SYMBOL] = responsePromise;
+            return newResponse;
+          }
+        }
         return mappedResponse;
-      }
-    };
+      };
 
-    handler.mapResponse = function wrappedMapResponse(
-      response: unknown,
-      set: Context["set"],
-      request?: Request,
-    ) {
-      const mappedResponse = originalMapResponse(response, set, request);
-      const newResponse = captureResponse(response, mappedResponse, request);
-      return newResponse;
-    };
-    handler.mapCompactResponse = function wrappedMapCompactResponse(
-      response: unknown,
-      request?: Request,
-    ) {
-      const mappedResponse = originalMapCompactResponse(response, request);
-      const newResponse = captureResponse(response, mappedResponse, request);
-      return newResponse;
-    };
-    handler.mapEarlyResponse = function wrappedMapEarlyResponse(
-      response: unknown,
-      set: Context["set"],
-      request?: Request,
-    ) {
-      const mappedResponse = originalMapEarlyResponse(response, set, request);
-      const newResponse = captureResponse(response, mappedResponse, request);
-      return newResponse;
-    };
+      handler.mapResponse = function wrappedMapResponse(
+        response: unknown,
+        set: Context["set"],
+        request?: Request,
+      ) {
+        const mappedResponse = originalMapResponse(response, set, request);
+        const newResponse = captureMappedResponse(
+          response,
+          mappedResponse,
+          request,
+        );
+        return newResponse;
+      };
+      handler.mapCompactResponse = function wrappedMapCompactResponse(
+        response: unknown,
+        request?: Request,
+      ) {
+        const mappedResponse = originalMapCompactResponse(response, request);
+        const newResponse = captureMappedResponse(
+          response,
+          mappedResponse,
+          request,
+        );
+        return newResponse;
+      };
+      handler.mapEarlyResponse = function wrappedMapEarlyResponse(
+        response: unknown,
+        set: Context["set"],
+        request?: Request,
+      ) {
+        const mappedResponse = originalMapEarlyResponse(response, set, request);
+        const newResponse = captureMappedResponse(
+          response,
+          mappedResponse,
+          request,
+        );
+        return newResponse;
+      };
+    }
 
     return app
       .decorate("apitally", {} as ApitallyContext)
@@ -115,10 +147,11 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           return;
         }
 
-        logsContext.enterWith([]);
+        request[CLIENT_SYMBOL] = client;
         request[START_TIME_SYMBOL] = performance.now();
+        logsContext.enterWith([]);
 
-        // Capture request body for logging if enabled
+        // Capture request body
         if (
           client.requestLogger.enabled &&
           client.requestLogger.config.logRequestBody
@@ -154,10 +187,9 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           parseContentLength(request.headers.get("content-length")) ??
           requestBody?.length;
 
-        const error = request[ERROR_SYMBOL];
+        let responsePromise = request[RESPONSE_PROMISE_SYMBOL];
         let response = request[RESPONSE_SYMBOL];
-        let responseBody: Buffer | undefined;
-        let responseSize: number | undefined;
+        const error = request[ERROR_SYMBOL];
 
         if (
           !response &&
@@ -165,37 +197,48 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           "toResponse" in error &&
           typeof error.toResponse === "function"
         ) {
+          // Convert error to response
           try {
-            response = error.toResponse();
+            response = error.toResponse() as Response;
+            const errorResponseBody = Buffer.from(await response.arrayBuffer());
+            responsePromise = Promise.resolve({
+              body: errorResponseBody,
+              size: errorResponseBody.length,
+              completed: true,
+            });
           } catch (error) {
             // ignore
           }
         }
 
-        if (response instanceof Response) {
-          if (
-            client.requestLogger.enabled &&
-            client.requestLogger.config.logResponseBody &&
-            client.requestLogger.isSupportedContentType(
-              response.headers.get("content-type"),
-            )
-          ) {
-            responseBody = (await getResponseBody(response, false))[0];
-            responseSize = responseBody.length;
-          } else {
-            responseSize = (await measureResponseSize(response, false))[0];
-          }
-        }
-
         const statusCode = response?.status ?? getStatusCode(set) ?? 200;
-        const responseHeaders = response?.headers ?? set.headers;
+
+        if (!response) {
+          // Create empty fake response for errors without the toResponse method
+          response = new Response(null, {
+            status: statusCode,
+            statusText: "",
+            headers: new Headers(),
+          });
+          responsePromise = Promise.resolve({
+            body: undefined,
+            size: 0,
+            completed: true,
+          });
+        }
 
         const consumer = apitally.consumer
           ? consumerFromStringOrObject(apitally.consumer)
           : null;
         client.consumerRegistry.addOrUpdateConsumer(consumer);
 
-        if (route) {
+        // Log request when response has been fully captured
+        responsePromise?.then(async (capturedResponse) => {
+          const responseHeaders = response?.headers ?? set.headers;
+          const responseSize = capturedResponse.completed
+            ? capturedResponse.size
+            : undefined;
+
           client.requestCounter.addRequest({
             consumer: consumer?.identifier,
             method: request.method,
@@ -206,68 +249,65 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             responseSize,
           });
 
-          // Handle server errors
-          if (statusCode === 500 && error) {
-            client.serverErrorCounter.addServerError({
+          if (client.requestLogger.enabled) {
+            const logs = logsContext.getStore();
+            client.requestLogger.logRequest(
+              {
+                timestamp: (Date.now() - responseTime) / 1000,
+                method: request.method,
+                path: route,
+                url: request.url,
+                headers: convertHeaders(
+                  Object.fromEntries(request.headers.entries()),
+                ),
+                size: requestSize,
+                consumer: consumer?.identifier,
+                body: requestBody,
+              },
+              {
+                statusCode,
+                responseTime: responseTime / 1000,
+                headers: convertHeaders(responseHeaders),
+                size: responseSize,
+                body: capturedResponse.body,
+              },
+              error,
+              logs,
+            );
+          }
+        });
+
+        // Handle validation errors
+        if (
+          (statusCode === 400 || statusCode === 422) &&
+          error instanceof ValidationError
+        ) {
+          try {
+            const parsedMessage = JSON.parse(error.message);
+            client.validationErrorCounter.addValidationError({
               consumer: consumer?.identifier,
               method: request.method,
               path: route,
-              type: error.name,
-              msg: error.message,
-              traceback: error.stack || "",
+              loc:
+                (parsedMessage.on ?? "") + "." + (parsedMessage.property ?? ""),
+              msg: parsedMessage.message,
+              type: "",
             });
-          }
-
-          // Handle validation errors
-          if (
-            (statusCode === 400 || statusCode === 422) &&
-            error instanceof ValidationError
-          ) {
-            try {
-              const parsedMessage = JSON.parse(error.message);
-              client.validationErrorCounter.addValidationError({
-                consumer: consumer?.identifier,
-                method: request.method,
-                path: route,
-                loc:
-                  (parsedMessage.on ?? "") +
-                  "." +
-                  (parsedMessage.property ?? ""),
-                msg: parsedMessage.message,
-                type: "",
-              });
-            } catch (error) {
-              // ignore
-            }
+          } catch (error) {
+            // ignore
           }
         }
 
-        // Request logging
-        if (client.requestLogger.enabled) {
-          const logs = logsContext.getStore();
-          client.requestLogger.logRequest(
-            {
-              timestamp: (Date.now() - responseTime) / 1000,
-              method: request.method,
-              path: route,
-              url: request.url,
-              headers: convertHeaders(
-                Object.fromEntries(request.headers.entries()),
-              ),
-              size: requestSize,
-              consumer: consumer?.identifier,
-              body: requestBody,
-            },
-            {
-              statusCode,
-              responseTime: responseTime / 1000,
-              headers: convertHeaders(responseHeaders),
-              size: responseSize,
-              body: responseBody,
-            },
-            error,
-            logs,
-          );
+        // Handle server errors
+        if (statusCode === 500 && error) {
+          client.serverErrorCounter.addServerError({
+            consumer: consumer?.identifier,
+            method: request.method,
+            path: route,
+            type: error.name,
+            msg: error.message,
+            traceback: error.stack || "",
+          });
         }
       })
       .onError(({ request, error }) => {

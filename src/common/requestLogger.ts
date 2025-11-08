@@ -23,8 +23,10 @@ const BODY_MASKED = Buffer.from("<masked>");
 const MASKED = "******";
 const ALLOWED_CONTENT_TYPES = [
   "application/json",
+  "application/ld+json",
   "application/problem+json",
   "application/vnd.api+json",
+  "application/x-ndjson",
   "text/plain",
   "text/html",
 ];
@@ -200,18 +202,13 @@ export default class RequestLogger {
     return matchPatterns(name, patterns);
   }
 
-  private hasSupportedContentType(headers: [string, string][]) {
-    const contentType = headers.find(
-      ([k]) => k.toLowerCase() === "content-type",
-    )?.[1];
-    return this.isSupportedContentType(contentType);
+  private getContentType(headers: [string, string][]) {
+    return headers.find(([k]) => k.toLowerCase() === "content-type")?.[1];
   }
 
-  private hasJsonContentType(headers: [string, string][]) {
-    const contentType = headers.find(
-      ([k]) => k.toLowerCase() === "content-type",
-    )?.[1];
-    return contentType ? /\bjson\b/i.test(contentType) : null;
+  private hasSupportedContentType(headers: [string, string][]) {
+    const contentType = this.getContentType(headers);
+    return this.isSupportedContentType(contentType);
   }
 
   public isSupportedContentType(contentType?: string | null) {
@@ -304,16 +301,30 @@ export default class RequestLogger {
         continue;
       }
 
-      const headers = item[key].headers;
-      const hasJsonContent = this.hasJsonContentType(headers);
-      if (hasJsonContent === null || hasJsonContent) {
-        try {
+      try {
+        const contentType = this.getContentType(item[key].headers);
+        if (!contentType || /\bjson\b/i.test(contentType)) {
           const parsedBody = JSON.parse(bodyData.toString());
           const maskedBody = this.maskBody(parsedBody);
           item[key].body = Buffer.from(JSON.stringify(maskedBody));
-        } catch {
-          // If parsing fails, leave body as is
+        } else if (/\bndjson\b/i.test(contentType)) {
+          const lines = bodyData
+            .toString()
+            .split("\n")
+            .filter((line) => line.trim());
+          const maskedLines = lines.map((line) => {
+            try {
+              const parsed = JSON.parse(line);
+              const masked = this.maskBody(parsed);
+              return JSON.stringify(masked);
+            } catch {
+              return line; // Keep unparseable lines as is
+            }
+          });
+          item[key].body = Buffer.from(maskedLines.join("\n"));
         }
+      } catch {
+        // If parsing fails, leave body as is
       }
     }
 

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
@@ -21,6 +22,7 @@ describe("Middleware for Hono", () => {
   it("Request counter", async () => {
     let res;
     res = await app.request("/hello?name=John&age=20");
+    await res.text();
     expect(res.status).toBe(200);
 
     const body = JSON.stringify({ name: "John", age: 20 });
@@ -32,11 +34,12 @@ describe("Middleware for Hono", () => {
         "Content-Length": body.length.toString(),
       },
     });
-    const resText = await res.text();
+    let resText = await res.text();
     expect(res.status).toBe(200);
     expect(resText).toBe("Hello John! You are 20 years old!");
 
     res = await app.request("/hello/123");
+    await res.text();
     expect(res.status).toBe(200);
 
     res = await app.request("/hello?name=Bob&age=17");
@@ -46,13 +49,22 @@ describe("Middleware for Hono", () => {
     expect(resJson.error.name).toBe("ZodError");
 
     res = await app.request("/hello?name=X&age=1");
+    await res.text();
     expect(res.status).toBe(400); // invalid (name too short and age < 18)
 
     res = await app.request("/error");
+    await res.text();
     expect(res.status).toBe(500);
 
+    res = await app.request("/stream");
+    expect(res.status).toBe(200);
+    resText = await res.text();
+    expect(resText).toBe("Hello\nworld");
+
+    await setImmediate();
+
     const requests = client.requestCounter.getAndResetRequests();
-    expect(requests.length).toBe(5);
+    expect(requests.length).toBe(6);
     expect(
       requests.some(
         (r) =>
@@ -88,6 +100,16 @@ describe("Middleware for Hono", () => {
     expect(
       requests.some((r) => r.status_code === 500 && r.request_count === 1),
     ).toBe(true);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/stream" &&
+          r.status_code === 200 &&
+          r.request_size_sum === 0 &&
+          r.response_size_sum === 11,
+      ),
+    ).toBe(true);
   });
 
   it("Request logger", async () => {
@@ -96,7 +118,11 @@ describe("Middleware for Hono", () => {
     let res;
 
     res = await app.request("/hello?name=John&age=20");
+    await res.text();
     expect(res.status).toBe(200);
+
+    await setImmediate();
+
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
     expect(call[0].method).toBe("GET");
@@ -128,7 +154,11 @@ describe("Middleware for Hono", () => {
         "Content-Length": body.length.toString(),
       },
     });
+    await res.text();
     expect(res.status).toBe(200);
+
+    await setImmediate();
+
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
     expect(call[0].method).toBe("POST");
@@ -144,9 +174,19 @@ describe("Middleware for Hono", () => {
   });
 
   it("Validation error counter", async () => {
-    await app.request("/hello?name=Bob&age=20");
-    await app.request("/hello?name=Bob&age=17");
-    await app.request("/hello?name=X&age=1");
+    let res = await app.request("/hello?name=Bob&age=20");
+    await res.text();
+    expect(res.status).toBe(200);
+
+    res = await app.request("/hello?name=Bob&age=17");
+    await res.text();
+    expect(res.status).toBe(400);
+
+    res = await app.request("/hello?name=X&age=1");
+    await res.text();
+    expect(res.status).toBe(400);
+
+    await setImmediate();
 
     const validationErrors =
       client.validationErrorCounter.getAndResetValidationErrors();
@@ -161,7 +201,10 @@ describe("Middleware for Hono", () => {
 
   it("Server error counter", async () => {
     const res = await app.request("/error");
+    await res.text();
     expect(res.status).toBe(500);
+
+    await setImmediate();
 
     const serverErrors = client.serverErrorCounter.getAndResetServerErrors();
     expect(serverErrors.length).toBe(1);
@@ -194,6 +237,10 @@ describe("Middleware for Hono", () => {
         method: "GET",
         path: "/error",
       },
+      {
+        method: "GET",
+        path: "/stream",
+      },
     ]);
   });
 
@@ -219,7 +266,10 @@ describe("Middleware for Hono with nested app", () => {
 
   it("Request counter", async () => {
     const res = await app.request("/api/v1/hello");
+    await res.text();
     expect(res.status).toBe(200);
+
+    await setImmediate();
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests).toHaveLength(1);

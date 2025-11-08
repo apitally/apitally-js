@@ -1,4 +1,5 @@
 import type { H3 } from "h3";
+import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
@@ -21,6 +22,7 @@ describe("Middleware for H3", () => {
   it("Request counter", async () => {
     let res;
     res = await app.request("/v1/hello?name=John&age=20", { method: "GET" });
+    await res.text();
     expect(res.status).toBe(200);
 
     const body = JSON.stringify({ name: "John", age: 20 });
@@ -37,6 +39,7 @@ describe("Middleware for H3", () => {
     expect(resText).toBe("Hello John! You are 20 years old!");
 
     res = await app.request("/v1/hello/123", { method: "GET" });
+    await res.text();
     expect(res.status).toBe(200);
 
     res = await app.request("/v1/hello?name=Bob&age=17", { method: "GET" });
@@ -46,10 +49,14 @@ describe("Middleware for H3", () => {
     expect(resJson.data.name).toBe("ZodError");
 
     res = await app.request("/v1/hello?name=X&age=1", { method: "GET" });
+    await res.text();
     expect(res.status).toBe(400); // invalid (name too short and age < 18)
 
     res = await app.request("/v2/error", { method: "GET" });
+    await res.text();
     expect(res.status).toBe(500);
+
+    await setImmediate();
 
     const requests = client.requestCounter.getAndResetRequests();
     expect(requests.length).toBe(5);
@@ -96,7 +103,11 @@ describe("Middleware for H3", () => {
     let res;
 
     res = await app.request("/v1/hello?name=John&age=20", { method: "GET" });
+    await res.text();
     expect(res.status).toBe(200);
+
+    await setImmediate();
+
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
     expect(call[0].method).toBe("GET");
@@ -128,7 +139,11 @@ describe("Middleware for H3", () => {
         "Content-Length": body.length.toString(),
       },
     });
+    await res.text();
     expect(res.status).toBe(200);
+
+    await setImmediate();
+
     expect(spy).toHaveBeenCalledOnce();
     call = spy.mock.calls[0];
     expect(call[0].method).toBe("POST");
