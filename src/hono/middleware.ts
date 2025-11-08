@@ -56,6 +56,8 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
 
       await next();
 
+      const statusCode = c.res.status;
+      const responseHeaders = c.res.headers;
       const [newResponse, responsePromise] = captureResponse(c.res, {
         captureBody:
           (client.requestLogger.enabled &&
@@ -83,13 +85,13 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
           consumer: consumer?.identifier,
           method: c.req.method,
           path: c.req.routePath,
-          statusCode: c.res.status,
+          statusCode,
           responseTime,
           requestSize,
           responseSize,
         });
 
-        if (c.res.status === 400 && capturedResponse.body) {
+        if (statusCode === 400 && capturedResponse.body) {
           const responseJson = getResponseJson(capturedResponse.body);
           const validationErrors = extractZodErrors(responseJson);
           validationErrors.forEach((error) => {
@@ -136,9 +138,9 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
               body: requestBody,
             },
             {
-              statusCode: c.res.status,
+              statusCode: statusCode,
               responseTime: responseTime / 1000,
-              headers: convertHeaders(c.res.headers),
+              headers: convertHeaders(responseHeaders),
               size: responseSize,
               body: responseBody,
             },
