@@ -23,7 +23,7 @@ export function getAppInfo(h3: H3Core, appVersion?: string) {
   }
 
   return {
-    paths: h3._routes
+    paths: h3["~routes"]
       .map((route) => ({
         method: route.method || "",
         path: route.route || "",
