@@ -42,7 +42,7 @@ export async function patchPinoLogger(
 
     const originalStream = logger[originalStreamSym];
     if (originalStream) {
-      const pino = await import("pino");
+      const pino = await import(/* webpackIgnore: true */ "pino");
       const captureStream = new ApitallyLogCaptureStream(
         logsContext,
         logger[messageKeySym],
