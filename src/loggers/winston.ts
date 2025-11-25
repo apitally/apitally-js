@@ -18,8 +18,10 @@ export async function patchWinston(
   }
 
   try {
-    // @ts-expect-error - file is not typed
-    const loggerModule = await import("winston/lib/winston/logger.js");
+    const loggerModule = await import(
+      // @ts-expect-error - file is not typed
+      /* webpackIgnore: true */ "winston/lib/winston/logger.js"
+    );
     if (loggerModule.default?.prototype?.write) {
       const originalWrite = loggerModule.default.prototype.write;
       loggerModule.default.prototype.write = function (info: any) {

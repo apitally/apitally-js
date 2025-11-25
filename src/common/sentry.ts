@@ -5,7 +5,7 @@ let sentry: typeof Sentry | undefined;
 // Initialize Sentry when the module is loaded
 (async () => {
   try {
-    sentry = await import("@sentry/node");
+    sentry = await import(/* webpackIgnore: true */ "@sentry/node");
   } catch (e) {
     // Sentry SDK is not installed, ignore
   }

@@ -20,7 +20,7 @@ export async function patchNestLogger(
   }
 
   try {
-    const { Logger } = await import("@nestjs/common");
+    const { Logger } = await import(/* webpackIgnore: true */ "@nestjs/common");
     const logMethods: LogLevel[] = [
       "log",
       "error",
