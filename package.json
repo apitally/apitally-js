@@ -221,7 +221,8 @@
     "fastify-plugin": "^4 || ^5",
     "h3": "^2",
     "hono": "^4",
-    "koa": "^2 || ^3"
+    "koa": "^2 || ^3",
+    "pino": "^8 || ^9 || ^10"
   },
   "peerDependenciesMeta": {
     "@adonisjs/core": {
@@ -264,6 +265,9 @@
       "optional": true
     },
     "koa": {
+      "optional": true
+    },
+    "pino": {
       "optional": true
     }
   },
