@@ -3,7 +3,7 @@ let lastCpuTime: number | null = null;
 
 export function getCpuMemoryUsage() {
   const currentCpuUsage = process.cpuUsage();
-  const currentTime = Date.now();
+  const currentTime = performance.now();
   const memoryRss = process.memoryUsage().rss;
 
   let cpuPercent = null;
