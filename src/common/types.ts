@@ -94,4 +94,8 @@ export type SyncPayload = {
   validation_errors: Array<ValidationErrorsItem>;
   server_errors: Array<ServerErrorsItem>;
   consumers: Array<ConsumerItem>;
+  resources: {
+    cpu_percent: number;
+    memory_rss: number;
+  } | null;
 };

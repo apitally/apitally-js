@@ -6,6 +6,7 @@ import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
 import RequestLogger from "./requestLogger.js";
+import { getCpuMemoryUsage } from "./resources.js";
 import ServerErrorCounter from "./serverErrorCounter.js";
 import {
   ApitallyConfig,
@@ -225,6 +226,7 @@ export class ApitallyClient {
         this.validationErrorCounter.getAndResetValidationErrors(),
       server_errors: this.serverErrorCounter.getAndResetServerErrors(),
       consumers: this.consumerRegistry.getAndResetUpdatedConsumers(),
+      resources: getCpuMemoryUsage(),
     };
     this.syncDataQueue.push(newPayload);
 
