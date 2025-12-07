@@ -18,6 +18,7 @@ const RESPONSE_SYMBOL = Symbol("apitally.response");
 const RESPONSE_PROMISE_SYMBOL = Symbol("apitally.responsePromise");
 const ERROR_SYMBOL = Symbol("apitally.error");
 const CLIENT_SYMBOL = Symbol("apitally.client");
+const REQUEST_SYMBOL = Symbol("apitally.request");
 
 declare global {
   interface Request {
@@ -29,6 +30,10 @@ declare global {
     [CLIENT_SYMBOL]?: ApitallyClient;
   }
 }
+
+type ContextSet = Context["set"] & {
+  [REQUEST_SYMBOL]?: Request;
+};
 
 interface ApitallyContext {
   consumer?: ApitallyConsumer | string;
@@ -54,8 +59,9 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       const captureMappedResponse = (
         originalResponse: unknown,
         mappedResponse: unknown,
-        request?: Request,
+        set?: ContextSet,
       ) => {
+        const request = set?.[REQUEST_SYMBOL];
         if (
           request instanceof Request &&
           mappedResponse instanceof Response &&
@@ -94,39 +100,36 @@ export default function apitallyPlugin(config: ApitallyConfig) {
 
       handler.mapResponse = function wrappedMapResponse(
         response: unknown,
-        set: Context["set"],
-        request?: Request,
+        set: ContextSet,
       ) {
-        const mappedResponse = originalMapResponse(response, set, request);
+        const mappedResponse = originalMapResponse(response, set);
         const newResponse = captureMappedResponse(
           response,
           mappedResponse,
-          request,
+          set,
         );
         return newResponse;
       };
       handler.mapCompactResponse = function wrappedMapCompactResponse(
         response: unknown,
-        request?: Request,
       ) {
-        const mappedResponse = originalMapCompactResponse(response, request);
+        const mappedResponse = originalMapCompactResponse(response);
         const newResponse = captureMappedResponse(
           response,
           mappedResponse,
-          request,
+          undefined,
         );
         return newResponse;
       };
       handler.mapEarlyResponse = function wrappedMapEarlyResponse(
         response: unknown,
-        set: Context["set"],
-        request?: Request,
+        set: ContextSet,
       ) {
-        const mappedResponse = originalMapEarlyResponse(response, set, request);
+        const mappedResponse = originalMapEarlyResponse(response, set);
         const newResponse = captureMappedResponse(
           response,
           mappedResponse,
-          request,
+          set,
         );
         return newResponse;
       };
@@ -142,13 +145,14 @@ export default function apitallyPlugin(config: ApitallyConfig) {
       .onStop(async () => {
         await client.handleShutdown();
       })
-      .onRequest(async ({ request }) => {
+      .onRequest(async ({ request, set }) => {
         if (!client.isEnabled() || request.method.toUpperCase() === "OPTIONS") {
           return;
         }
 
         request[CLIENT_SYMBOL] = client;
         request[START_TIME_SYMBOL] = performance.now();
+        (set as ContextSet)[REQUEST_SYMBOL] = request;
         logsContext.enterWith([]);
 
         // Capture request body
