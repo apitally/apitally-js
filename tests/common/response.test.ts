@@ -30,7 +30,7 @@ describe("Response utils", () => {
     const responseText = await newResponse.text();
     const capturedResponse = await promise;
     expect(responseText).toBe(body);
-    expect(capturedResponse.body).toBeUndefined();
+    expect(capturedResponse.body?.toString()).toBe("<body too large>");
     expect(capturedResponse.size).toBe(body.length);
   });
 

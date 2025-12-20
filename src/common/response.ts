@@ -15,7 +15,7 @@ export function captureResponse(
   response: Response,
   {
     captureBody = false,
-    maxBodySize = 0,
+    maxBodySize = 50_000,
     readTimeout = 5000,
   }: Partial<CaptureResponseOptions> = {},
 ): [Response, Promise<CapturedResponse>] {
@@ -53,7 +53,12 @@ export function captureResponse(
   const pipePromise = response.body
     .pipeTo(writable)
     .then(() => ({
-      body: chunks.length > 0 ? Buffer.concat(chunks) : undefined,
+      body:
+        chunks.length > 0
+          ? Buffer.concat(chunks)
+          : bodySizeLimitExceeded
+            ? Buffer.from("<body too large>")
+            : undefined,
       size,
       completed: true,
     }))
