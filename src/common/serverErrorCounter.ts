@@ -76,6 +76,9 @@ export function truncateExceptionMessage(msg: string) {
 }
 
 export function truncateExceptionStackTrace(stack: string) {
+  if (stack.length <= MAX_STACKTRACE_LENGTH) {
+    return stack;
+  }
   const suffix = "... (truncated) ...";
   const cutoff = MAX_STACKTRACE_LENGTH - suffix.length;
   const lines = stack.trim().split("\n");
