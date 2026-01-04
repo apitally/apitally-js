@@ -37,6 +37,15 @@ const EXCLUDE_PATH_PATTERNS = [
   /\/ping$/i,
   /\/ready$/i,
   /\/live$/i,
+  /\/favicon(?:-[\w-]+)?\.(ico|png|svg)$/,
+  /\/apple-touch-icon(?:-[\w-]+)?\.png$/,
+  /\/robots\.txt$/,
+  /\/sitemap\.xml$/,
+  /\/manifest\.json$/,
+  /\/site\.webmanifest$/,
+  /\/service-worker\.js$/,
+  /\/sw\.js$/,
+  /\/\.well-known\//,
 ];
 const EXCLUDE_USER_AGENT_PATTERNS = [
   /health[-_ ]?check/i,
