@@ -305,7 +305,7 @@
     "express-validator": "^7.2.1",
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.1",
-    "globals": "^16.2.0",
+    "globals": "^17.0.0",
     "h3": "2.0.1-rc.6",
     "hono": "^4.6.5",
     "koa": "^3.0.0",
