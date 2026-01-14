@@ -1,10 +1,31 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { createWriteStream, readFile, WriteStream } from "node:fs";
+import {
+  createWriteStream,
+  mkdirSync,
+  readFile,
+  unlinkSync,
+  writeFileSync,
+  WriteStream,
+} from "node:fs";
 import { unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGzip, Gzip } from "node:zlib";
+
+const TEMP_DIR = join(tmpdir(), "apitally");
+
+export function checkWritableFs() {
+  try {
+    mkdirSync(TEMP_DIR, { recursive: true });
+    const testPath = join(TEMP_DIR, `test_${randomUUID()}`);
+    writeFileSync(testPath, "test");
+    unlinkSync(testPath);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 
 export default class TempGzipFile {
   public uuid: string;
@@ -14,9 +35,10 @@ export default class TempGzipFile {
   private readyPromise: Promise<void>;
   private closedPromise: Promise<void>;
 
-  constructor() {
+  constructor(name: string) {
+    mkdirSync(TEMP_DIR, { recursive: true });
     this.uuid = randomUUID();
-    this.filePath = join(tmpdir(), `apitally-${this.uuid}.gz`);
+    this.filePath = join(TEMP_DIR, `${name}_${this.uuid}.gz`);
     this.writeStream = createWriteStream(this.filePath);
     this.readyPromise = new Promise<void>((resolve, reject) => {
       this.writeStream.once("ready", resolve);

@@ -1,17 +1,14 @@
 import AsyncLock from "async-lock";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { unlinkSync, writeFileSync } from "node:fs";
 import { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import { getSentryEventId } from "./sentry.js";
 import {
   truncateExceptionMessage,
   truncateExceptionStackTrace,
 } from "./serverErrorCounter.js";
-import TempGzipFile from "./tempGzipFile.js";
+import TempGzipFile, { checkWritableFs } from "./tempGzipFile.js";
 
 const MAX_BODY_SIZE = 50_000; // 50 KB (uncompressed)
 const MAX_FILE_SIZE = 1_000_000; // 1 MB (compressed)
@@ -433,7 +430,7 @@ export default class RequestLogger {
     }
     return this.lock.acquire("file", async () => {
       if (!this.currentFile) {
-        this.currentFile = new TempGzipFile();
+        this.currentFile = new TempGzipFile("request_logs");
       }
       while (this.pendingWrites.length > 0) {
         let item = this.pendingWrites.shift();
@@ -597,15 +594,4 @@ function truncateLogMessage(msg: string) {
     return msg.slice(0, MAX_LOG_MSG_LENGTH - suffix.length) + suffix;
   }
   return msg;
-}
-
-function checkWritableFs() {
-  try {
-    const testPath = join(tmpdir(), `apitally-${randomUUID()}`);
-    writeFileSync(testPath, "test");
-    unlinkSync(testPath);
-    return true;
-  } catch (error) {
-    return false;
-  }
 }

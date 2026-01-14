@@ -6,7 +6,7 @@ import TempGzipFile from "../../src/common/tempGzipFile.js";
 
 describe("Temporary gzip file", () => {
   it("End to end", async () => {
-    const file = new TempGzipFile();
+    const file = new TempGzipFile("test");
     expect(file.size).toBe(0);
 
     await file.writeLine(Buffer.from("test1"));
