@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  closeSync,
   mkdirSync,
-  openSync,
   readFileSync,
   readdirSync,
   statSync,
@@ -34,9 +32,7 @@ export function getOrCreateInstanceUuid(clientId: string, env: string): string {
 
     // Try atomic exclusive create of PID file
     try {
-      const fd = openSync(pidFile, "wx");
-      writeFileSync(fd, String(process.pid));
-      closeSync(fd);
+      writeFileSync(pidFile, String(process.pid), { flag: "wx" });
       return getOrCreateUuid(uuidFile);
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
@@ -51,7 +47,7 @@ export function getOrCreateInstanceUuid(clientId: string, env: string): string {
         return readFileSync(uuidFile, "utf-8").trim();
       }
     } catch {
-      // Read error - try next slot
+      // Ignore read error
     }
   }
 
@@ -115,10 +111,13 @@ export function validateLockFiles(appEnvHash: string) {
   const uuidFiles = files
     .filter((f) => f.startsWith(prefix) && f.endsWith(".uuid"))
     .sort();
-
+  const pidFiles = files
+    .filter((f) => f.startsWith(prefix) && f.endsWith(".pid"))
+    .sort();
   const seenUuids = new Set<string>();
   const now = Date.now();
 
+  // Clean up UUID files
   for (const uuidFileName of uuidFiles) {
     const uuidFile = join(TEMP_DIR, uuidFileName);
     const pidFile = join(TEMP_DIR, uuidFileName.replace(".uuid", ".pid"));
@@ -145,29 +144,21 @@ export function validateLockFiles(appEnvHash: string) {
         continue;
       }
       seenUuids.add(uuid);
-
-      // Delete if PID is dead
-      try {
-        const pid = parseInt(readFileSync(pidFile, "utf-8"), 10);
-        if (!isPidAlive(pid)) {
-          deleteFiles(pidFile);
-        }
-      } catch {
-        // Ignore PID file doesn't exist or read error
-      }
     } catch {
       // Ignore stat or read error
     }
   }
 
-  // Clean up orphaned .pid files (no matching .uuid file)
-  const pidFiles = files.filter(
-    (f) => f.startsWith(prefix) && f.endsWith(".pid"),
-  );
+  // Clean up PID files from dead processes
   for (const pidFileName of pidFiles) {
-    const uuidFileName = pidFileName.replace(".pid", ".uuid");
-    if (!files.includes(uuidFileName)) {
-      deleteFiles(join(TEMP_DIR, pidFileName));
+    const pidFile = join(TEMP_DIR, pidFileName);
+    try {
+      const pid = parseInt(readFileSync(pidFile, "utf-8"), 10);
+      if (!isPidAlive(pid)) {
+        deleteFiles(pidFile);
+      }
+    } catch {
+      // Ignore read error
     }
   }
 }
