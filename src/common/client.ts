@@ -2,6 +2,7 @@ import fetchRetry from "fetch-retry";
 import { randomUUID } from "node:crypto";
 
 import ConsumerRegistry from "./consumerRegistry.js";
+import { getOrCreateInstanceUuid } from "./instance.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
 import RequestCounter from "./requestCounter.js";
@@ -86,7 +87,7 @@ export class ApitallyClient {
     ApitallyClient.instance = this;
     this.clientId = clientId;
     this.env = env;
-    this.instanceUuid = randomUUID();
+    this.instanceUuid = getOrCreateInstanceUuid(clientId, env);
     this.syncDataQueue = [];
     this.requestCounter = new RequestCounter();
     this.requestLogger = new RequestLogger(
