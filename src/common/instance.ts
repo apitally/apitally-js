@@ -48,7 +48,7 @@ export function getOrCreateInstanceUuid(clientId: string, env: string): string {
     try {
       const pid = parseInt(readFileSync(pidFile, "utf-8"), 10);
       if (pid === process.pid) {
-        return readFileSync(uuidFile, "utf-8");
+        return readFileSync(uuidFile, "utf-8").trim();
       }
     } catch {
       // Read error - try next slot
