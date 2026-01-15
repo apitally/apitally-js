@@ -203,6 +203,8 @@
     "printWidth": 80
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
     "async-lock": "^1",
     "fetch-retry": "^6",
     "winston": "^3"

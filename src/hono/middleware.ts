@@ -54,7 +54,8 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
       const timestamp = Date.now() / 1000;
       const startTime = performance.now();
 
-      await next();
+      const getSpanName = () => `${c.req.method} ${c.req.routePath}`;
+      const { spans } = await client.spanCollector.collect(next, getSpanName);
 
       const [newResponse, responsePromise] = captureResponse(c.res, {
         captureBody:
@@ -147,6 +148,7 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
             },
             c.error,
             logs,
+            spans,
           );
         }
       });

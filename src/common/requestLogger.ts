@@ -1,13 +1,14 @@
 import AsyncLock from "async-lock";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
+import type { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
 
 import { getSentryEventId } from "./sentry.js";
 import {
   truncateExceptionMessage,
   truncateExceptionStackTrace,
 } from "./serverErrorCounter.js";
+import type { SpanData } from "./spanCollector.js";
 import TempGzipFile, { checkWritableFs } from "./tempGzipFile.js";
 
 const MAX_BODY_SIZE = 50_000; // 50 KB (uncompressed)
@@ -111,6 +112,7 @@ export type RequestLoggingConfig = {
   logResponseBody: boolean;
   logException: boolean;
   captureLogs: boolean;
+  captureTraces: boolean;
   maskQueryParams: RegExp[];
   maskHeaders: RegExp[];
   maskBodyFields: RegExp[];
@@ -132,6 +134,7 @@ const DEFAULT_CONFIG: RequestLoggingConfig = {
   logResponseBody: false,
   logException: true,
   captureLogs: false,
+  captureTraces: false,
   maskQueryParams: [],
   maskHeaders: [],
   maskBodyFields: [],
@@ -149,6 +152,7 @@ type RequestLogItem = {
     sentryEventId?: string;
   };
   logs?: LogRecord[];
+  spans?: SpanData[];
 };
 
 export default class RequestLogger {
@@ -357,6 +361,7 @@ export default class RequestLogger {
     response: Response,
     error?: Error,
     logs?: LogRecord[],
+    spans?: SpanData[],
   ) {
     if (!this.enabled || this.suspendUntil !== null) return;
 
@@ -417,6 +422,9 @@ export default class RequestLogger {
         message: truncateLogMessage(log.message),
       }));
     }
+    if (spans && spans.length > 0) {
+      item.spans = spans;
+    }
     this.pendingWrites.push(item);
 
     if (this.pendingWrites.length > MAX_PENDING_WRITES) {
@@ -443,6 +451,7 @@ export default class RequestLogger {
             response: skipEmptyValues(item.response),
             exception: item.exception,
             logs: item.logs,
+            spans: item.spans,
           };
 
           // Set up body serialization for JSON
