@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import Koa from "koa";
 import http from "node:http";
 import request from "supertest";
@@ -138,6 +139,24 @@ testCases.forEach(({ name, router, getApp }) => {
       ).toBe(true);
     });
 
+    it("Tracing", async () => {
+      const spy = vi.spyOn(client.requestLogger, "logRequest");
+
+      await appTest.get("/traces").expect(200);
+
+      expect(spy).toHaveBeenCalledOnce();
+      const call = spy.mock.calls[0];
+      const spans = call[4];
+      expect(spans).toBeDefined();
+      expect(spans).toHaveLength(4);
+
+      const spanNames = new Set(spans!.map((s) => s.name));
+      expect(spanNames.has("GET /traces")).toBe(true);
+      expect(spanNames.has("outer_span")).toBe(true);
+      expect(spanNames.has("inner_span_1")).toBe(true);
+      expect(spanNames.has("inner_span_2")).toBe(true);
+    });
+
     if (router === "koa-router") {
       it("List endpoints", async () => {
         expect(client.startupData?.paths).toEqual([
@@ -157,6 +176,10 @@ testCases.forEach(({ name, router, getApp }) => {
             method: "GET",
             path: "/error",
           },
+          {
+            method: "GET",
+            path: "/traces",
+          },
         ]);
       });
     }
@@ -165,6 +188,8 @@ testCases.forEach(({ name, router, getApp }) => {
       if (client) {
         await client.handleShutdown();
       }
+      context.disable();
+      trace.disable();
     });
   });
 });

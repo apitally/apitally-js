@@ -6,6 +6,7 @@ import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
+import type { SpanData } from "../common/spanCollector.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -49,9 +50,12 @@ function getMiddleware(client: ApitallyClient) {
       let path: string | undefined;
       let statusCode: number | undefined;
       let serverError: Error | undefined;
+      let spans: SpanData[] = [];
       const startTime = performance.now();
       try {
-        await next();
+        const getSpanName = () => `${ctx.request.method} ${getPath(ctx)}`;
+        const result = await client.spanCollector.collect(next, getSpanName);
+        spans = result.spans;
       } catch (error: any) {
         path = getPath(ctx);
         statusCode = error.statusCode || error.status || 500;
@@ -120,6 +124,7 @@ function getMiddleware(client: ApitallyClient) {
             },
             serverError,
             logs,
+            spans,
           );
         }
       }
