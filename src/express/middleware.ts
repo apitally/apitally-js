@@ -8,6 +8,7 @@ import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
+import type { SpanData } from "../common/spanCollector.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -95,115 +96,130 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
           return originalSend.call(res, body);
         };
 
-        res.once("finish", () => {
-          try {
-            const responseTime = performance.now() - startTime;
-            const path = getRoutePath(req);
-            const consumer = getConsumer(req);
-            client.consumerRegistry.addOrUpdateConsumer(consumer);
+        let spans: SpanData[] = [];
+        client.spanCollector
+          .collect(
+            () =>
+              new Promise<void>((resolve) => {
+                res.once("finish", resolve);
+                next();
+              }),
+            () => `${req.method} ${getRoutePath(req) || req.path}`,
+          )
+          .then(({ spans: collectedSpans }) => {
+            spans = collectedSpans;
 
-            const requestSize = parseContentLength(req.get("content-length"));
-            const responseSize = parseContentLength(res.get("content-length"));
+            try {
+              const responseTime = performance.now() - startTime;
+              const path = getRoutePath(req);
+              const consumer = getConsumer(req);
+              client.consumerRegistry.addOrUpdateConsumer(consumer);
 
-            if (path) {
-              client.requestCounter.addRequest({
-                consumer: consumer?.identifier,
-                method: req.method,
-                path,
-                statusCode: res.statusCode,
-                responseTime: responseTime,
-                requestSize,
-                responseSize,
-              });
+              const requestSize = parseContentLength(req.get("content-length"));
+              const responseSize = parseContentLength(
+                res.get("content-length"),
+              );
 
-              if (
-                (res.statusCode === 400 || res.statusCode === 422) &&
-                res.locals.body
-              ) {
-                let jsonBody: any;
-                try {
-                  jsonBody = JSON.parse(res.locals.body);
-                } catch {
-                  // Ignore
-                }
-                if (jsonBody) {
-                  const validationErrors: ValidationError[] = [];
-                  if (validationErrors.length === 0) {
-                    validationErrors.push(
-                      ...extractExpressValidatorErrors(jsonBody),
-                    );
+              if (path) {
+                client.requestCounter.addRequest({
+                  consumer: consumer?.identifier,
+                  method: req.method,
+                  path,
+                  statusCode: res.statusCode,
+                  responseTime: responseTime,
+                  requestSize,
+                  responseSize,
+                });
+
+                if (
+                  (res.statusCode === 400 || res.statusCode === 422) &&
+                  res.locals.body
+                ) {
+                  let jsonBody: any;
+                  try {
+                    jsonBody = JSON.parse(res.locals.body);
+                  } catch {
+                    // Ignore
                   }
-                  if (validationErrors.length === 0) {
-                    validationErrors.push(...extractCelebrateErrors(jsonBody));
-                  }
-                  if (validationErrors.length === 0) {
-                    validationErrors.push(
-                      ...extractNestValidationErrors(jsonBody),
-                    );
-                  }
-                  validationErrors.forEach((error) => {
-                    client.validationErrorCounter.addValidationError({
-                      consumer: consumer?.identifier,
-                      method: req.method,
-                      path,
-                      ...error,
+                  if (jsonBody) {
+                    const validationErrors: ValidationError[] = [];
+                    if (validationErrors.length === 0) {
+                      validationErrors.push(
+                        ...extractExpressValidatorErrors(jsonBody),
+                      );
+                    }
+                    if (validationErrors.length === 0) {
+                      validationErrors.push(
+                        ...extractCelebrateErrors(jsonBody),
+                      );
+                    }
+                    if (validationErrors.length === 0) {
+                      validationErrors.push(
+                        ...extractNestValidationErrors(jsonBody),
+                      );
+                    }
+                    validationErrors.forEach((error) => {
+                      client.validationErrorCounter.addValidationError({
+                        consumer: consumer?.identifier,
+                        method: req.method,
+                        path,
+                        ...error,
+                      });
                     });
+                  }
+                }
+
+                if (res.statusCode === 500 && res.locals.serverError) {
+                  const serverError = res.locals.serverError as Error;
+                  client.serverErrorCounter.addServerError({
+                    consumer: consumer?.identifier,
+                    method: req.method,
+                    path,
+                    type: serverError.name,
+                    msg: serverError.message,
+                    traceback: serverError.stack || "",
                   });
                 }
               }
 
-              if (res.statusCode === 500 && res.locals.serverError) {
-                const serverError = res.locals.serverError as Error;
-                client.serverErrorCounter.addServerError({
-                  consumer: consumer?.identifier,
-                  method: req.method,
-                  path,
-                  type: serverError.name,
-                  msg: serverError.message,
-                  traceback: serverError.stack || "",
-                });
+              if (client.requestLogger.enabled) {
+                const logs = logsContext.getStore();
+                client.requestLogger.logRequest(
+                  {
+                    timestamp: Date.now() / 1000,
+                    method: req.method,
+                    path,
+                    url: `${req.protocol}://${req.host}${req.originalUrl}`,
+                    headers: convertHeaders(req.headers),
+                    size: requestSize,
+                    consumer: consumer?.identifier,
+                    body: convertBody(req.body, req.get("content-type")),
+                  },
+                  {
+                    statusCode: res.statusCode,
+                    responseTime: responseTime / 1000,
+                    headers: convertHeaders(res.getHeaders()),
+                    size: responseSize,
+                    body: convertBody(res.locals.body, res.get("content-type")),
+                  },
+                  res.locals.serverError,
+                  logs,
+                  spans,
+                );
               }
-            }
-
-            if (client.requestLogger.enabled) {
-              const logs = logsContext.getStore();
-              client.requestLogger.logRequest(
-                {
-                  timestamp: Date.now() / 1000,
-                  method: req.method,
-                  path,
-                  url: `${req.protocol}://${req.host}${req.originalUrl}`,
-                  headers: convertHeaders(req.headers),
-                  size: requestSize,
-                  consumer: consumer?.identifier,
-                  body: convertBody(req.body, req.get("content-type")),
-                },
-                {
-                  statusCode: res.statusCode,
-                  responseTime: responseTime / 1000,
-                  headers: convertHeaders(res.getHeaders()),
-                  size: responseSize,
-                  body: convertBody(res.locals.body, res.get("content-type")),
-                },
-                res.locals.serverError,
-                logs,
+            } catch (error) {
+              client.logger.error(
+                "Error while logging request in Apitally middleware",
+                { request: req, response: res, error },
               );
             }
-          } catch (error) {
-            client.logger.error(
-              "Error while logging request in Apitally middleware.",
-              { request: req, response: res, error },
-            );
-          }
-        });
+          });
       } catch (error) {
-        client.logger.error("Error in Apitally middleware.", {
+        client.logger.error("Error in Apitally middleware", {
           request: req,
           response: res,
           error,
         });
-      } finally {
-        next();
       }
     });
   };

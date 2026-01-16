@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import { Express } from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -175,13 +176,37 @@ testCases.forEach(({ name, getApp }) => {
           method: "GET",
           path: "/error",
         },
+        {
+          method: "GET",
+          path: "/traces",
+        },
       ]);
+    });
+
+    it("Tracing", async () => {
+      const spy = vi.spyOn(client.requestLogger, "logRequest");
+
+      await appTest.get("/traces").expect(200);
+
+      expect(spy).toHaveBeenCalledOnce();
+      const call = spy.mock.calls[0];
+      const spans = call[4];
+      expect(spans).toBeDefined();
+      expect(spans).toHaveLength(4);
+
+      const spanNames = new Set(spans!.map((s) => s.name));
+      expect(spanNames.has("GET /traces")).toBe(true);
+      expect(spanNames.has("outer_span")).toBe(true);
+      expect(spanNames.has("inner_span_1")).toBe(true);
+      expect(spanNames.has("inner_span_2")).toBe(true);
     });
 
     afterEach(async () => {
       if (client) {
         await client.handleShutdown();
       }
+      context.disable();
+      trace.disable();
     });
   });
 });
@@ -229,6 +254,8 @@ describe("Middleware for Express router", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });
 
@@ -317,5 +344,7 @@ describe("Middleware for Express with nested routers", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });
