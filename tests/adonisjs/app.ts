@@ -3,6 +3,7 @@ import BodyParserMiddleware from "@adonisjs/core/bodyparser_middleware";
 import { AppFactory } from "@adonisjs/core/factories/app";
 import { Router } from "@adonisjs/core/http";
 import { ApplicationService } from "@adonisjs/core/types";
+import { trace } from "@opentelemetry/api";
 import vine from "@vinejs/vine";
 
 import {
@@ -31,6 +32,7 @@ export const createApp = () => {
         logResponseHeaders: true,
         logResponseBody: true,
         captureLogs: true,
+        captureTraces: true,
       },
     }),
   });
@@ -94,6 +96,25 @@ export const createRoutes = (router: Router) => {
       const error = new Error("test");
       captureError(error, ctx);
       throw error;
+    })
+    .middleware(apitallyHandle);
+
+  router
+    .get("/traces", async () => {
+      const tracer = trace.getTracer("test");
+      await tracer.startActiveSpan("outer_span", async (span) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await tracer.startActiveSpan("inner_span_1", async (innerSpan) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan.end();
+        });
+        await tracer.startActiveSpan("inner_span_2", async (innerSpan) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan.end();
+        });
+        span.end();
+      });
+      return "traces";
     })
     .middleware(apitallyHandle);
 
