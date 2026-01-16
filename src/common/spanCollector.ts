@@ -1,4 +1,11 @@
-import { SpanKind, SpanStatusCode, trace, Tracer } from "@opentelemetry/api";
+import {
+  context,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  Tracer,
+} from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
   BasicTracerProvider,
   ReadableSpan,
@@ -23,9 +30,9 @@ export default class SpanCollector implements SpanProcessor {
   private includedSpanIds: Map<string, Set<string>> = new Map();
   private collectedSpans: Map<string, SpanData[]> = new Map();
   private tracer?: Tracer;
-  private logger: Logger;
+  private logger?: Logger;
 
-  constructor(enabled: boolean, logger: Logger) {
+  constructor(enabled: boolean, logger?: Logger) {
     this.enabled = enabled;
     this.logger = logger;
 
@@ -35,13 +42,21 @@ export default class SpanCollector implements SpanProcessor {
   }
 
   private setupTracerProvider() {
+    const contextManager = new AsyncLocalStorageContextManager();
+    if (!context.setGlobalContextManager(contextManager)) {
+      this.enabled = false;
+      this.logger?.warn(
+        "Failed to register ContextManager for Apitally. Trace collection is disabled.",
+      );
+      return;
+    }
+
     const provider = new BasicTracerProvider({
       spanProcessors: [this],
     });
-    const success = trace.setGlobalTracerProvider(provider);
-    if (!success) {
+    if (!trace.setGlobalTracerProvider(provider)) {
       this.enabled = false;
-      this.logger.warn(
+      this.logger?.warn(
         "Failed to register TracerProvider for Apitally. Trace collection is disabled.",
       );
     } else {
@@ -51,7 +66,7 @@ export default class SpanCollector implements SpanProcessor {
 
   async collect<T>(
     next: () => Promise<T>,
-    getSpanName?: () => string,
+    getSpanName?: () => string | undefined | null,
   ): Promise<{ response: T; traceId?: string; spans: SpanData[] }> {
     if (!this.enabled || !this.tracer) {
       const response = await next();
