@@ -61,8 +61,8 @@ describe("Span collector", () => {
     expect(childSpan!.kind).toBe("CLIENT");
     expect(childSpan!.attributes).toEqual({ key: "value" });
     expect(childSpan!.status).toBe("OK");
-    expect(childSpan!.endTime - childSpan!.startTime).toBeGreaterThan(
-      10_000_000,
-    );
+    expect(
+      BigInt(childSpan!.endTime) - BigInt(childSpan!.startTime),
+    ).toBeGreaterThan(10_000_000n);
   });
 });

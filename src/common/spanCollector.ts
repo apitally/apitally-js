@@ -33,8 +33,8 @@ export type SpanData = {
   parentSpanId: string | null;
   name: string;
   kind: string;
-  startTime: number;
-  endTime: number;
+  startTime: string; // bigint as string
+  endTime: string; // bigint as string
   status?: string;
   attributes?: Record<string, unknown>;
 };
@@ -160,9 +160,15 @@ export default class SpanCollector implements SpanProcessor {
       parentSpanId: span.parentSpanContext?.spanId || null,
       name: span.name,
       kind: SpanKind[span.kind] ?? "INTERNAL",
-      // HrTime is [seconds, nanoseconds], convert to nanoseconds
-      startTime: span.startTime[0] * 1_000_000_000 + span.startTime[1],
-      endTime: span.endTime[0] * 1_000_000_000 + span.endTime[1],
+      // HrTime is [seconds, nanoseconds], convert to nanoseconds as string to avoid precision loss
+      startTime: (
+        BigInt(span.startTime[0]) * 1_000_000_000n +
+        BigInt(span.startTime[1])
+      ).toString(),
+      endTime: (
+        BigInt(span.endTime[0]) * 1_000_000_000n +
+        BigInt(span.endTime[1])
+      ).toString(),
     };
 
     if (span.status.code !== SpanStatusCode.UNSET) {
