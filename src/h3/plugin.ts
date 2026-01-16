@@ -10,12 +10,14 @@ import { mergeHeaders, parseContentLength } from "../common/headers.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
 import { captureResponse } from "../common/response.js";
+import type { SpanHandle } from "../common/spanCollector.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { patchConsole, patchWinston } from "../loggers/index.js";
 import { getAppInfo } from "./utils.js";
 
 const REQUEST_TIMESTAMP_SYMBOL = Symbol("apitally.requestTimestamp");
 const REQUEST_BODY_SYMBOL = Symbol("apitally.requestBody");
+const SPAN_HANDLE_SYMBOL = Symbol("apitally.spanHandle");
 
 declare module "h3" {
   interface H3EventContext {
@@ -23,6 +25,7 @@ declare module "h3" {
 
     [REQUEST_TIMESTAMP_SYMBOL]?: number;
     [REQUEST_BODY_SYMBOL]?: Buffer;
+    [SPAN_HANDLE_SYMBOL]?: SpanHandle;
   }
 }
 
@@ -84,6 +87,11 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
 
     responsePromise.then(async (capturedResponse) => {
       const responseTime = startTime ? performance.now() - startTime : 0;
+
+      const spanHandle = event.context[SPAN_HANDLE_SYMBOL];
+      spanHandle?.setName(`${event.req.method} ${path}`);
+      const spans = spanHandle?.end();
+
       const responseSize = capturedResponse.completed
         ? capturedResponse.size
         : undefined;
@@ -129,6 +137,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
           },
           error?.cause instanceof Error ? error.cause : undefined,
           logs,
+          spans,
         );
       }
     });
@@ -171,6 +180,11 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       onRequest(async (event) => {
         logsContext.enterWith([]);
         event.context[REQUEST_TIMESTAMP_SYMBOL] = performance.now();
+
+        const spanHandle = client.spanCollector.startSpan();
+        event.context[SPAN_HANDLE_SYMBOL] = spanHandle;
+        spanHandle.enterContext();
+
         const requestContentType = event.req.headers.get("content-type");
         const requestSize =
           parseContentLength(event.req.headers.get("content-length")) ?? 0;

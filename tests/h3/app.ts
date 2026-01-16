@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import {
   H3,
   defineEventHandler,
@@ -26,6 +27,7 @@ export const getApp = async () => {
           logResponseHeaders: true,
           logResponseBody: true,
           captureLogs: true,
+          captureTraces: true,
         },
       }),
     ],
@@ -77,6 +79,26 @@ export const getApp = async () => {
     "/error",
     defineEventHandler(() => {
       throw new Error("test");
+    }),
+  );
+
+  nestedApp2.get(
+    "/traces",
+    defineEventHandler(async () => {
+      const tracer = trace.getTracer("test");
+      await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan1.end();
+        });
+        await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan2.end();
+        });
+        outerSpan.end();
+      });
+      return "traces";
     }),
   );
 
