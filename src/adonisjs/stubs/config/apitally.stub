@@ -17,6 +17,7 @@ const apitallyConfig = defineConfig({
     logRequestBody: true,
     logResponseBody: true,
     captureLogs: true,
+    captureTraces: true,
   },
 {{/if}}
 })
