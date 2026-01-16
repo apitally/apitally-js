@@ -13,6 +13,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { trace } from "@opentelemetry/api";
 import { IsInt, IsNotEmpty, Min, MinLength } from "class-validator";
 
 import { setConsumer } from "../../src/nestjs/index.js";
@@ -73,5 +74,23 @@ export class AppController {
   @Get("/error")
   getError() {
     throw new Error("test");
+  }
+
+  @Get("/traces")
+  async getTraces() {
+    const tracer = trace.getTracer("test");
+    await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan1.end();
+      });
+      await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan2.end();
+      });
+      outerSpan.end();
+    });
+    return "traces";
   }
 }
