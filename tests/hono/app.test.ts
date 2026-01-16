@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -219,6 +220,28 @@ describe("Middleware for Hono", () => {
     ).toBe(true);
   });
 
+  it("Tracing", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+
+    const res = await app.request("/traces");
+    await res.text();
+    expect(res.status).toBe(200);
+
+    await setImmediate();
+
+    expect(spy).toHaveBeenCalledOnce();
+    const call = spy.mock.calls[0];
+    const spans = call[4];
+    expect(spans).toBeDefined();
+    expect(spans).toHaveLength(4);
+
+    const spanNames = new Set(spans!.map((s) => s.name));
+    expect(spanNames.has("GET /traces")).toBe(true);
+    expect(spanNames.has("outer_span")).toBe(true);
+    expect(spanNames.has("inner_span_1")).toBe(true);
+    expect(spanNames.has("inner_span_2")).toBe(true);
+  });
+
   it("List endpoints", async () => {
     expect(client.startupData?.paths).toEqual([
       {
@@ -241,6 +264,10 @@ describe("Middleware for Hono", () => {
         method: "GET",
         path: "/stream",
       },
+      {
+        method: "GET",
+        path: "/traces",
+      },
     ]);
   });
 
@@ -248,6 +275,8 @@ describe("Middleware for Hono", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });
 
@@ -289,5 +318,7 @@ describe("Middleware for Hono with nested app", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });
