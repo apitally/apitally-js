@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
@@ -181,6 +182,36 @@ describe("Plugin for Hapi", () => {
     ).toBe(true);
   });
 
+  it("Tracing", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/traces",
+    });
+    expect(response.statusCode).toBe(200);
+
+    expect(spy).toHaveBeenCalledOnce();
+    const call = spy.mock.calls[0];
+    const spans = call[4];
+    expect(spans).toBeDefined();
+    expect(spans).toHaveLength(4);
+
+    const spanNames = new Set(spans!.map((s) => s.name));
+    expect(spanNames).toContain("GET /traces");
+    expect(spanNames).toContain("outer_span");
+    expect(spanNames).toContain("inner_span_1");
+    expect(spanNames).toContain("inner_span_2");
+
+    const rootSpan = spans!.find((s) => s.name === "GET /traces");
+    expect(rootSpan).toBeDefined();
+    expect(rootSpan!.parentSpanId).toBeNull();
+
+    const outerSpan = spans!.find((s) => s.name === "outer_span");
+    expect(outerSpan).toBeDefined();
+    expect(outerSpan!.parentSpanId).toBe(rootSpan!.spanId);
+  });
+
   it("List endpoints", async () => {
     const appInfo = getAppInfo(app);
     client.setStartupData(appInfo);
@@ -193,6 +224,10 @@ describe("Plugin for Hapi", () => {
       {
         method: "GET",
         path: "/hello",
+      },
+      {
+        method: "GET",
+        path: "/traces",
       },
       {
         method: "GET",
@@ -209,5 +244,7 @@ describe("Plugin for Hapi", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });

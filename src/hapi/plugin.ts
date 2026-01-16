@@ -6,6 +6,7 @@ import { ApitallyClient } from "../common/client.js";
 import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
+import type { SpanHandle } from "../common/spanCollector.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import {
   handleHapiRequestEvent,
@@ -21,6 +22,7 @@ const REQUEST_SIZE_SYMBOL = Symbol("apitally.requestSize");
 const RESPONSE_BODY_SYMBOL = Symbol("apitally.responseBody");
 const RESPONSE_SIZE_SYMBOL = Symbol("apitally.responseSize");
 const LOGS_SYMBOL = Symbol("apitally.logs");
+const SPAN_HANDLE_SYMBOL = Symbol("apitally.spanHandle");
 
 declare module "@hapi/hapi" {
   interface Request {
@@ -30,6 +32,7 @@ declare module "@hapi/hapi" {
     [RESPONSE_BODY_SYMBOL]?: Buffer;
     [RESPONSE_SIZE_SYMBOL]?: number;
     [LOGS_SYMBOL]?: LogRecord[];
+    [SPAN_HANDLE_SYMBOL]?: SpanHandle;
     apitallyConsumer?: ApitallyConsumer | string;
   }
 
@@ -92,11 +95,14 @@ export default function apitallyPlugin(config: ApitallyConfig) {
 
         request[START_TIME_SYMBOL] = performance.now();
 
-        // Patch the lifecycle function to run with the logs context
-        const lifecycle = (request as any)._lifecycle.bind(request);
+        // Patch the lifecycle function to run with span and logs context
+        const spanHandle = client.spanCollector.startSpan();
         const logs: LogRecord[] = [];
+        request[SPAN_HANDLE_SYMBOL] = spanHandle;
         request[LOGS_SYMBOL] = logs;
-        (request as any)._lifecycle = () => logsContext.run(logs, lifecycle);
+        const lifecycle = (request as any)._lifecycle.bind(request);
+        (request as any)._lifecycle = () =>
+          spanHandle.runInContext(() => logsContext.run(logs, lifecycle));
 
         const captureRequestBody =
           client.requestLogger.enabled &&
@@ -166,6 +172,13 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         const startTime = request[START_TIME_SYMBOL];
         const responseTime = startTime ? performance.now() - startTime : 0;
         const timestamp = (Date.now() - responseTime) / 1000;
+
+        const spanHandle = request[SPAN_HANDLE_SYMBOL];
+        spanHandle?.setName(
+          `${request.method.toUpperCase()} ${request.route.path}`,
+        );
+        const spans = spanHandle?.end();
+
         const requestBody = request[REQUEST_BODY_SYMBOL];
         const requestSize = request[REQUEST_SIZE_SYMBOL];
         const response = request.response;
@@ -265,6 +278,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             },
             error,
             logs,
+            spans,
           );
         }
 
