@@ -14,6 +14,7 @@ import {
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 
+import { ApitallyClient } from "./client.js";
 import { Logger } from "./logging.js";
 
 /**
@@ -65,29 +66,17 @@ export default class SpanCollector implements SpanProcessor {
 
   private setupTracerProvider() {
     this.contextManager = new AsyncLocalStorageContextManager();
-    if (!context.setGlobalContextManager(this.contextManager)) {
-      this.enabled = false;
-      this.logger?.warn(
-        "Failed to register ContextManager for Apitally. Trace collection is disabled.",
-      );
-      return;
-    }
+    context.setGlobalContextManager(this.contextManager);
 
     const provider = new BasicTracerProvider({
       spanProcessors: [this],
     });
-    if (!trace.setGlobalTracerProvider(provider)) {
-      this.enabled = false;
-      this.logger?.warn(
-        "Failed to register TracerProvider for Apitally. Trace collection is disabled.",
-      );
-    } else {
-      this.tracer = trace.getTracer("apitally");
-    }
+    trace.setGlobalTracerProvider(provider);
+    this.tracer = trace.getTracer("apitally");
   }
 
   startSpan(): SpanHandle {
-    if (!this.enabled || !this.tracer || !this.contextManager) {
+    if (!this.enabled || !this.tracer) {
       return {
         setName: () => void 0,
         runInContext: <T>(fn: () => T): T => {
@@ -102,7 +91,6 @@ export default class SpanCollector implements SpanProcessor {
     const spanCtx = span.spanContext();
     const traceId = spanCtx.traceId;
     const ctx = trace.setSpan(context.active(), span);
-    const contextManager = this.contextManager;
 
     this.includedSpanIds.set(traceId, new Set([spanCtx.spanId]));
     this.collectedSpans.set(traceId, []);
@@ -116,7 +104,7 @@ export default class SpanCollector implements SpanProcessor {
         return context.with(ctx, fn);
       },
       enterContext: () => {
-        contextManager.enterWith(ctx);
+        this.contextManager?.enterWith(ctx);
       },
       end: () => {
         span.end();
@@ -196,5 +184,31 @@ export default class SpanCollector implements SpanProcessor {
 
   async forceFlush(): Promise<void> {
     // Nothing to flush since we collect spans synchronously
+  }
+}
+
+export class ApitallySpanProcessor implements SpanProcessor {
+  private getCollector(): SpanCollector | undefined {
+    try {
+      return ApitallyClient.getInstance().spanCollector;
+    } catch {
+      return undefined;
+    }
+  }
+
+  onStart(span: Span) {
+    this.getCollector()?.onStart(span);
+  }
+
+  onEnd(span: ReadableSpan) {
+    this.getCollector()?.onEnd(span);
+  }
+
+  async shutdown() {
+    this.getCollector()?.shutdown();
+  }
+
+  async forceFlush() {
+    this.getCollector()?.forceFlush();
   }
 }
