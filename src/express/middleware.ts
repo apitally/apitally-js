@@ -8,7 +8,6 @@ import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
-import type { SpanData } from "../common/spanCollector.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -87,6 +86,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
     logsContext.run([], () => {
       try {
         const startTime = performance.now();
+
         const originalSend = res.send;
         res.send = (body) => {
           const contentType = res.get("content-type");
@@ -96,22 +96,16 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
           return originalSend.call(res, body);
         };
 
-        let spans: SpanData[] = [];
-        client.spanCollector
-          .collect(
-            () =>
-              new Promise<void>((resolve) => {
-                res.once("finish", resolve);
-                next();
-              }),
-            () => `${req.method} ${getRoutePath(req) || req.path}`,
-          )
-          .then(({ spans: collectedSpans }) => {
-            spans = collectedSpans;
-
+        const spanHandle = client.spanCollector.startSpan();
+        spanHandle.runInContext(() => {
+          res.once("finish", () => {
             try {
               const responseTime = performance.now() - startTime;
               const path = getRoutePath(req);
+
+              spanHandle.setName(`${req.method} ${path}`);
+              const spans = spanHandle.end();
+
               const consumer = getConsumer(req);
               client.consumerRegistry.addOrUpdateConsumer(consumer);
 
@@ -214,6 +208,9 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
               );
             }
           });
+
+          next();
+        });
       } catch (error) {
         client.logger.error("Error in Apitally middleware", {
           request: req,

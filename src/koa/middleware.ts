@@ -6,7 +6,6 @@ import { consumerFromStringOrObject } from "../common/consumerRegistry.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
-import type { SpanData } from "../common/spanCollector.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -50,12 +49,10 @@ function getMiddleware(client: ApitallyClient) {
       let path: string | undefined;
       let statusCode: number | undefined;
       let serverError: Error | undefined;
-      let spans: SpanData[] = [];
       const startTime = performance.now();
+      const spanHandle = client.spanCollector.startSpan();
       try {
-        const getSpanName = () => `${ctx.request.method} ${getPath(ctx)}`;
-        const result = await client.spanCollector.collect(next, getSpanName);
-        spans = result.spans;
+        await spanHandle.runInContext(next);
       } catch (error: any) {
         path = getPath(ctx);
         statusCode = error.statusCode || error.status || 500;
@@ -73,11 +70,17 @@ function getMiddleware(client: ApitallyClient) {
         throw error;
       } finally {
         const responseTime = performance.now() - startTime;
-        const consumer = getConsumer(ctx);
-        client.consumerRegistry.addOrUpdateConsumer(consumer);
+
         if (!path) {
           path = getPath(ctx);
         }
+
+        spanHandle.setName(`${ctx.request.method} ${path}`);
+        const spans = spanHandle.end();
+
+        const consumer = getConsumer(ctx);
+        client.consumerRegistry.addOrUpdateConsumer(consumer);
+
         if (path) {
           try {
             client.requestCounter.addRequest({
@@ -96,6 +99,7 @@ function getMiddleware(client: ApitallyClient) {
             );
           }
         }
+
         if (client.requestLogger.enabled) {
           const logs = logsContext.getStore();
           client.requestLogger.logRequest(

@@ -25,6 +25,13 @@ export type SpanData = {
   attributes?: Record<string, unknown>;
 };
 
+export type SpanHandle = {
+  traceId?: string;
+  setName: (name: string) => void;
+  runInContext: <T>(fn: () => T) => T;
+  end: () => SpanData[] | undefined;
+};
+
 export default class SpanCollector implements SpanProcessor {
   public enabled: boolean;
   private includedSpanIds: Map<string, Set<string>> = new Map();
@@ -64,34 +71,38 @@ export default class SpanCollector implements SpanProcessor {
     }
   }
 
-  async collect<T>(
-    next: () => Promise<T>,
-    getSpanName?: () => string | undefined | null,
-  ): Promise<{ response: T; traceId?: string; spans: SpanData[] }> {
+  startSpan(): SpanHandle {
     if (!this.enabled || !this.tracer) {
-      const response = await next();
-      return { response, spans: [] };
+      return {
+        setName: () => void 0,
+        runInContext: <T>(fn: () => T): T => {
+          return fn();
+        },
+        end: () => undefined,
+      };
     }
 
-    return await this.tracer.startActiveSpan("root", async (span) => {
-      const ctx = span.spanContext();
-      const traceId = ctx.traceId;
+    const span = this.tracer.startSpan("root");
+    const spanCtx = span.spanContext();
+    const traceId = spanCtx.traceId;
+    const ctx = trace.setSpan(context.active(), span);
 
-      this.includedSpanIds.set(traceId, new Set([ctx.spanId]));
-      this.collectedSpans.set(traceId, []);
+    this.includedSpanIds.set(traceId, new Set([spanCtx.spanId]));
+    this.collectedSpans.set(traceId, []);
 
-      let response: T;
-      try {
-        response = await next();
-        const spanName = getSpanName?.()?.trim();
-        if (spanName) {
-          span.updateName(spanName);
-        }
-      } finally {
+    return {
+      traceId,
+      setName: (name: string) => {
+        span.updateName(name);
+      },
+      runInContext: <T>(fn: () => T): T => {
+        return context.with(ctx, fn);
+      },
+      end: () => {
         span.end();
-      }
-      return { response, traceId, spans: this.getAndClearSpans(traceId) };
-    });
+        return this.getAndClearSpans(traceId);
+      },
+    };
   }
 
   private getAndClearSpans(traceId: string): SpanData[] {

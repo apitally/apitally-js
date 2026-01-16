@@ -13,39 +13,41 @@ describe("Span collector", () => {
     const collector = new SpanCollector(false);
     expect(collector.enabled).toBe(false);
 
-    const { traceId, spans } = await collector.collect(async () => {});
-    expect(traceId).toBeUndefined();
-    expect(spans).toEqual([]);
+    const spanHandle = collector.startSpan();
+    expect(spanHandle.traceId).toBeUndefined();
+    await spanHandle.runInContext(async () => {});
+    const spans = spanHandle.end();
+    expect(spans).toBeUndefined();
   });
 
   it("Enabled", async () => {
     const collector = new SpanCollector(true);
     expect(collector.enabled).toBe(true);
 
-    // Span created outside collect() should not be collected
+    // Span created outside startSpan() should not be collected
     const tracer = trace.getTracer("test");
     await tracer.startActiveSpan("outside_span", async (span) => {
       span.end();
     });
 
-    const { traceId, spans } = await collector.collect(
-      async () => {
-        // Child span should be collected
-        await tracer.startActiveSpan(
-          "child_span",
-          { kind: SpanKind.CLIENT },
-          async (span) => {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-            span.setAttribute("key", "value");
-            span.setStatus({ code: SpanStatusCode.OK });
-            span.end();
-          },
-        );
-      },
-      () => "named_root",
-    );
+    const spanHandle = collector.startSpan();
+    await spanHandle.runInContext(async () => {
+      // Child span should be collected
+      await tracer.startActiveSpan(
+        "child_span",
+        { kind: SpanKind.CLIENT },
+        async (span) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          span.setAttribute("key", "value");
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+        },
+      );
+    });
+    spanHandle.setName("named_root");
+    const spans = spanHandle.end()!;
 
-    expect(traceId).toBeDefined();
+    expect(spanHandle.traceId).toBeDefined();
     expect(spans.length).toBe(2);
     expect(spans.some((s) => s.name === "outside_span")).toBe(false);
     expect(spans.some((s) => s.name === "root")).toBe(false);
