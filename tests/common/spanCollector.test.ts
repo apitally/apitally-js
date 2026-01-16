@@ -37,7 +37,7 @@ describe("Span collector", () => {
         "child_span",
         { kind: SpanKind.CLIENT },
         async (span) => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 20));
           span.setAttribute("key", "value");
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();

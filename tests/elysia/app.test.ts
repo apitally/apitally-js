@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -201,6 +202,36 @@ describe("Plugin for Elysia", () => {
     ).toBe(true);
   });
 
+  it("Tracing", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+
+    const res = await app.handle(new Request("http://localhost/traces"));
+    await res.text();
+    expect(res.status).toBe(200);
+
+    await setImmediate();
+
+    expect(spy).toHaveBeenCalledOnce();
+    const call = spy.mock.calls[0];
+    const spans = call[4];
+    expect(spans).toBeDefined();
+    expect(spans).toHaveLength(4);
+
+    const spanNames = new Set(spans!.map((s) => s.name));
+    expect(spanNames).toContain("GET /traces");
+    expect(spanNames).toContain("outer_span");
+    expect(spanNames).toContain("inner_span_1");
+    expect(spanNames).toContain("inner_span_2");
+
+    const rootSpan = spans!.find((s) => s.name === "GET /traces");
+    expect(rootSpan).toBeDefined();
+    expect(rootSpan!.parentSpanId).toBeNull();
+
+    const outerSpan = spans!.find((s) => s.name === "outer_span");
+    expect(outerSpan).toBeDefined();
+    expect(outerSpan!.parentSpanId).toBe(rootSpan!.spanId);
+  });
+
   it("List endpoints", async () => {
     // @ts-expect-error app has complex type
     const appInfo = getAppInfo(app);
@@ -223,6 +254,10 @@ describe("Plugin for Elysia", () => {
         method: "GET",
         path: "/error",
       },
+      {
+        method: "GET",
+        path: "/traces",
+      },
     ]);
   });
 
@@ -230,5 +265,7 @@ describe("Plugin for Elysia", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });

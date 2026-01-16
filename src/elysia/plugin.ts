@@ -8,6 +8,7 @@ import { parseContentLength } from "../common/headers.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertHeaders } from "../common/requestLogger.js";
 import { CapturedResponse, captureResponse } from "../common/response.js";
+import type { SpanHandle } from "../common/spanCollector.js";
 import { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 import { patchConsole, patchWinston } from "../loggers/index.js";
 import { getAppInfo } from "./utils.js";
@@ -19,6 +20,7 @@ const RESPONSE_PROMISE_SYMBOL = Symbol("apitally.responsePromise");
 const ERROR_SYMBOL = Symbol("apitally.error");
 const CLIENT_SYMBOL = Symbol("apitally.client");
 const REQUEST_SYMBOL = Symbol("apitally.request");
+const SPAN_HANDLE_SYMBOL = Symbol("apitally.spanHandle");
 
 declare global {
   interface Request {
@@ -28,6 +30,7 @@ declare global {
     [RESPONSE_PROMISE_SYMBOL]?: Promise<CapturedResponse>;
     [ERROR_SYMBOL]?: Readonly<Error>;
     [CLIENT_SYMBOL]?: ApitallyClient;
+    [SPAN_HANDLE_SYMBOL]?: SpanHandle;
   }
 }
 
@@ -155,6 +158,11 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         (set as ContextSet)[REQUEST_SYMBOL] = request;
         logsContext.enterWith([]);
 
+        // Start span and enter the context for subsequent handlers
+        const spanHandle = client.spanCollector.startSpan();
+        request[SPAN_HANDLE_SYMBOL] = spanHandle;
+        spanHandle.enterContext();
+
         // Capture request body
         if (
           client.requestLogger.enabled &&
@@ -185,6 +193,10 @@ export default function apitallyPlugin(config: ApitallyConfig) {
 
         const startTime = request[START_TIME_SYMBOL];
         const responseTime = startTime ? performance.now() - startTime : 0;
+
+        const spanHandle = request[SPAN_HANDLE_SYMBOL];
+        spanHandle?.setName(`${request.method} ${route}`);
+        const spans = spanHandle?.end();
 
         const requestBody = request[REQUEST_BODY_SYMBOL];
         const requestSize =
@@ -277,6 +289,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
               },
               error,
               logs,
+              spans,
             );
           }
         });
