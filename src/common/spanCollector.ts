@@ -91,6 +91,7 @@ export default class SpanCollector implements SpanProcessor {
     const spanCtx = span.spanContext();
     const traceId = spanCtx.traceId;
     const ctx = trace.setSpan(context.active(), span);
+    let ended = false;
 
     this.includedSpanIds.set(traceId, new Set([spanCtx.spanId]));
     this.collectedSpans.set(traceId, []);
@@ -107,7 +108,9 @@ export default class SpanCollector implements SpanProcessor {
         this.contextManager?.enterWith(ctx);
       },
       end: () => {
+        if (ended) return;
         span.end();
+        ended = true;
         return this.getAndClearSpans(traceId);
       },
     };

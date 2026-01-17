@@ -209,6 +209,10 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
             }
           });
 
+          res.once("close", () => {
+            spanHandle.end();
+          });
+
           next();
         });
       } catch (error) {
