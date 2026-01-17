@@ -47,7 +47,7 @@ describe("Middleware for H3", () => {
     const resJson = await res.json();
     expect(res.status).toBe(400); // invalid (age < 18)
     expect(resJson.statusText).toBe("Validation failed");
-    expect(resJson.data.name).toBe("ZodError");
+    expect(resJson.data.issues).toBeInstanceOf(Array);
 
     res = await app.request("/v1/hello?name=X&age=1", { method: "GET" });
     await res.text();

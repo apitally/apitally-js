@@ -146,10 +146,10 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       path &&
       error?.status === 400 &&
       error.data &&
-      (error.data as any).name === "ZodError"
+      Array.isArray((error.data as any).issues)
     ) {
-      const zodError = error.data as ZodError;
-      zodError.issues?.forEach((issue) => {
+      const issues = (error.data as any).issues as ZodError["issues"];
+      issues.forEach((issue) => {
         client.validationErrorCounter.addValidationError({
           consumer: consumer?.identifier,
           method: event.req.method,
