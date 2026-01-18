@@ -77,6 +77,7 @@ function getMiddleware(client: ApitallyClient) {
 
         spanHandle.setName(`${ctx.request.method} ${path}`);
         const spans = spanHandle.end();
+        const traceId = spanHandle.traceId;
 
         const consumer = getConsumer(ctx);
         client.consumerRegistry.addOrUpdateConsumer(consumer);
@@ -129,6 +130,7 @@ function getMiddleware(client: ApitallyClient) {
             serverError,
             logs,
             spans,
+            traceId,
           );
         }
       }

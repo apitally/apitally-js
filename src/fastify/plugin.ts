@@ -202,6 +202,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
       const spanHandle = request[SPAN_HANDLE_SYMBOL];
       spanHandle?.setName(`${request.method} ${path}`);
       const spans = spanHandle?.end();
+      const traceId = spanHandle?.traceId;
 
       if (client.requestLogger.enabled) {
         const logs = request[LOGS_SYMBOL];
@@ -229,6 +230,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
           reply.serverError,
           logs,
           spans,
+          traceId,
         );
       }
     }

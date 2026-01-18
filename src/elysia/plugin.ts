@@ -197,6 +197,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
         const spanHandle = request[SPAN_HANDLE_SYMBOL];
         spanHandle?.setName(`${request.method} ${route}`);
         const spans = spanHandle?.end();
+        const traceId = spanHandle?.traceId;
 
         const requestBody = request[REQUEST_BODY_SYMBOL];
         const requestSize =
@@ -290,6 +291,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
               error,
               logs,
               spans,
+              traceId,
             );
           }
         });

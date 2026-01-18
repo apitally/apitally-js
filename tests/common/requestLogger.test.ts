@@ -77,6 +77,9 @@ describe("Request logger", () => {
         createRequest(),
         createResponse(),
         new Error("test"),
+        undefined,
+        [],
+        "0123456789abcdef0123456789abcdef",
       );
     }
 
@@ -91,6 +94,7 @@ describe("Request logger", () => {
       expect(atob(item.response.body)).toBe("test");
       expect(item.exception.type).toBe("Error");
       expect(item.exception.message).toBe("test");
+      expect(item.traceId).toBe("0123456789abcdef0123456789abcdef");
     }
   });
 

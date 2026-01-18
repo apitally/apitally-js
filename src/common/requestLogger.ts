@@ -153,6 +153,7 @@ type RequestLogItem = {
   };
   logs?: LogRecord[];
   spans?: SpanData[];
+  traceId?: string;
 };
 
 export default class RequestLogger {
@@ -362,6 +363,7 @@ export default class RequestLogger {
     error?: Error,
     logs?: LogRecord[],
     spans?: SpanData[],
+    traceId?: string,
   ) {
     if (!this.enabled || this.suspendUntil !== null) return;
 
@@ -425,6 +427,9 @@ export default class RequestLogger {
     if (spans && spans.length > 0) {
       item.spans = spans;
     }
+    if (traceId) {
+      item.traceId = traceId;
+    }
     this.pendingWrites.push(item);
 
     if (this.pendingWrites.length > MAX_PENDING_WRITES) {
@@ -452,6 +457,7 @@ export default class RequestLogger {
             exception: item.exception,
             logs: item.logs,
             spans: item.spans,
+            traceId: item.traceId,
           };
 
           // Set up body serialization for JSON

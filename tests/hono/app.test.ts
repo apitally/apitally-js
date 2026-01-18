@@ -240,6 +240,11 @@ describe("Middleware for Hono", () => {
     expect(spanNames.has("outer_span")).toBe(true);
     expect(spanNames.has("inner_span_1")).toBe(true);
     expect(spanNames.has("inner_span_2")).toBe(true);
+
+    const traceId = call[5];
+    expect(traceId).toBeDefined();
+    expect(typeof traceId).toBe("string");
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("List endpoints", async () => {

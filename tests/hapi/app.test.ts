@@ -210,6 +210,11 @@ describe("Plugin for Hapi", () => {
     const outerSpan = spans!.find((s) => s.name === "outer_span");
     expect(outerSpan).toBeDefined();
     expect(outerSpan!.parentSpanId).toBe(rootSpan!.spanId);
+
+    const traceId = call[5];
+    expect(traceId).toBeDefined();
+    expect(typeof traceId).toBe("string");
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("List endpoints", async () => {

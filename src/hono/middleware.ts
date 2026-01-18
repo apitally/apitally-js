@@ -78,6 +78,7 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
 
         spanHandle.setName(`${c.req.method} ${c.req.routePath}`);
         const spans = spanHandle.end();
+        const traceId = spanHandle.traceId;
 
         const requestSize = parseContentLength(c.req.header("content-length"));
         const responseSize = capturedResponse.completed
@@ -153,6 +154,7 @@ function getMiddleware(client: ApitallyClient): MiddlewareHandler {
             c.error,
             logs,
             spans,
+            traceId,
           );
         }
       });
