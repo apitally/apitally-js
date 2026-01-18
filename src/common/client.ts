@@ -9,6 +9,7 @@ import RequestCounter from "./requestCounter.js";
 import RequestLogger from "./requestLogger.js";
 import { getCpuMemoryUsage } from "./resources.js";
 import ServerErrorCounter from "./serverErrorCounter.js";
+import SpanCollector from "./spanCollector.js";
 import {
   ApitallyConfig,
   StartupData,
@@ -48,6 +49,7 @@ export class ApitallyClient {
 
   public requestCounter: RequestCounter;
   public requestLogger: RequestLogger;
+  public spanCollector: SpanCollector;
   public validationErrorCounter: ValidationErrorCounter;
   public serverErrorCounter: ServerErrorCounter;
   public consumerRegistry: ConsumerRegistry;
@@ -93,6 +95,12 @@ export class ApitallyClient {
     this.requestLogger = new RequestLogger(
       requestLogging ?? requestLoggingConfig,
     );
+    this.spanCollector = new SpanCollector(
+      this.enabled &&
+        this.requestLogger.enabled &&
+        this.requestLogger.config.captureTraces,
+      this.logger,
+    );
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
     this.consumerRegistry = new ConsumerRegistry();
@@ -121,6 +129,7 @@ export class ApitallyClient {
     this.stopSync();
     await this.sendSyncData();
     await this.sendLogData();
+    await this.spanCollector.shutdown();
     await this.requestLogger.close();
     ApitallyClient.instance = undefined;
   }

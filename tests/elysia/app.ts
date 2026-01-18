@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import { Elysia, t } from "elysia";
 
 import { apitallyPlugin } from "../../src/elysia/index.js";
@@ -16,6 +17,7 @@ export const getApp = () => {
           logRequestBody: true,
           logResponseBody: true,
           captureLogs: true,
+          captureTraces: true,
         },
       }),
     )
@@ -53,6 +55,22 @@ export const getApp = () => {
     )
     .get("/error", () => {
       throw new Error("test");
+    })
+    .get("/traces", async () => {
+      const tracer = trace.getTracer("test");
+      await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan1.end();
+        });
+        await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan2.end();
+        });
+        outerSpan.end();
+      });
+      return "traces";
     });
 
   return app;

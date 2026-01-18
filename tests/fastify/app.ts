@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import Fastify from "fastify";
 
 import { apitallyPlugin, setConsumer } from "../../src/fastify/index.js";
@@ -21,6 +22,7 @@ export const getApp = async () => {
       logResponseHeaders: true,
       logResponseBody: true,
       captureLogs: true,
+      captureTraces: true,
     },
   });
 
@@ -80,6 +82,23 @@ export const getApp = async () => {
   );
   app.get("/error", async function () {
     throw new Error("test");
+  });
+
+  app.get("/traces", async function () {
+    const tracer = trace.getTracer("test");
+    await tracer.startActiveSpan("outer_span", async (span) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await tracer.startActiveSpan("inner_span_1", async (innerSpan) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan.end();
+      });
+      await tracer.startActiveSpan("inner_span_2", async (innerSpan) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan.end();
+      });
+      span.end();
+    });
+    return "traces";
   });
 
   return app;

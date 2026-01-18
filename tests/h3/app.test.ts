@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import type { H3 } from "h3";
 import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,7 +47,7 @@ describe("Middleware for H3", () => {
     const resJson = await res.json();
     expect(res.status).toBe(400); // invalid (age < 18)
     expect(resJson.statusText).toBe("Validation failed");
-    expect(resJson.data.name).toBe("ZodError");
+    expect(resJson.data.issues).toBeInstanceOf(Array);
 
     res = await app.request("/v1/hello?name=X&age=1", { method: "GET" });
     await res.text();
@@ -191,6 +192,36 @@ describe("Middleware for H3", () => {
     ).toBe(true);
   });
 
+  it("Tracing", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+
+    const res = await app.request("/v2/traces", { method: "GET" });
+    await res.text();
+    expect(res.status).toBe(200);
+
+    await setImmediate();
+
+    expect(spy).toHaveBeenCalledOnce();
+    const call = spy.mock.calls[0];
+    const spans = call[4];
+    expect(spans).toBeDefined();
+    expect(spans).toHaveLength(4);
+
+    const spanNames = new Set(spans!.map((s) => s.name));
+    expect(spanNames).toContain("GET /v2/traces");
+    expect(spanNames).toContain("outer_span");
+    expect(spanNames).toContain("inner_span_1");
+    expect(spanNames).toContain("inner_span_2");
+
+    const rootSpan = spans!.find((s) => s.name === "GET /v2/traces");
+    expect(rootSpan).toBeDefined();
+    expect(rootSpan!.parentSpanId).toBeNull();
+
+    const outerSpan = spans!.find((s) => s.name === "outer_span");
+    expect(outerSpan).toBeDefined();
+    expect(outerSpan!.parentSpanId).toBe(rootSpan!.spanId);
+  });
+
   it("List endpoints", async () => {
     expect(client.startupData?.paths).toEqual([
       {
@@ -209,6 +240,10 @@ describe("Middleware for H3", () => {
         method: "GET",
         path: "/v2/error",
       },
+      {
+        method: "GET",
+        path: "/v2/traces",
+      },
     ]);
   });
 
@@ -216,5 +251,7 @@ describe("Middleware for H3", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });

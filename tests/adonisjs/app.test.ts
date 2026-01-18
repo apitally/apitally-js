@@ -1,5 +1,6 @@
 import { ServerFactory } from "@adonisjs/core/factories/http";
 import type { ApplicationService, LoggerService } from "@adonisjs/core/types";
+import { context, trace } from "@opentelemetry/api";
 import { createServer } from "node:http";
 import supertest from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -74,6 +75,10 @@ describe("Middleware for AdonisJS", () => {
       {
         method: "GET",
         path: "/error",
+      },
+      {
+        method: "GET",
+        path: "/traces",
       },
     ]);
     expect(startupData?.versions["adonisjs"]).toBeDefined();
@@ -199,7 +204,33 @@ describe("Middleware for AdonisJS", () => {
     ).toBe(true);
   });
 
+  it("Tracing", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+    await testAgent.get("/traces").expect(200);
+    expect(spy).toHaveBeenCalledOnce();
+    const call = spy.mock.calls[0];
+    const spans = call[4];
+    expect(spans).toBeDefined();
+    expect(spans).toHaveLength(4);
+
+    const spanNames = new Set(spans!.map((s) => s.name));
+    expect(spanNames).toContain("GET /traces");
+    expect(spanNames).toContain("outer_span");
+    expect(spanNames).toContain("inner_span_1");
+    expect(spanNames).toContain("inner_span_2");
+
+    const rootSpan = spans!.find((s) => s.name === "GET /traces");
+    expect(rootSpan).toBeDefined();
+    expect(rootSpan!.parentSpanId).toBeNull();
+
+    const outerSpan = spans!.find((s) => s.name === "outer_span");
+    expect(outerSpan).toBeDefined();
+    expect(outerSpan!.parentSpanId).toBe(rootSpan!.spanId);
+  });
+
   afterEach(async () => {
     await provider.shutdown();
+    context.disable();
+    trace.disable();
   });
 });

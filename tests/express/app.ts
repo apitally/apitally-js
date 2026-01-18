@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import { Joi, Segments, celebrate, errors } from "celebrate";
 import type { Request } from "express";
 import express from "express";
@@ -25,6 +26,7 @@ const requestLoggingConfig = {
   logResponseHeaders: true,
   logResponseBody: true,
   captureLogs: true,
+  captureTraces: true,
 };
 
 export const getAppWithCelebrate = () => {
@@ -81,6 +83,23 @@ export const getAppWithCelebrate = () => {
   );
   app.get("/error", () => {
     throw new Error("test");
+  });
+
+  app.get("/traces", async (req, res) => {
+    const tracer = trace.getTracer("test");
+    await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan1.end();
+      });
+      await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan2.end();
+      });
+      outerSpan.end();
+    });
+    res.send("traces");
   });
 
   app.use(errors());
@@ -140,6 +159,23 @@ export const getAppWithValidator = () => {
   );
   app.get("/error", () => {
     throw new Error("test");
+  });
+
+  app.get("/traces", async (req, res) => {
+    const tracer = trace.getTracer("test");
+    await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan1.end();
+      });
+      await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan2.end();
+      });
+      outerSpan.end();
+    });
+    res.send("traces");
   });
 
   return app;

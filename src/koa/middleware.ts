@@ -50,8 +50,9 @@ function getMiddleware(client: ApitallyClient) {
       let statusCode: number | undefined;
       let serverError: Error | undefined;
       const startTime = performance.now();
+      const spanHandle = client.spanCollector.startSpan();
       try {
-        await next();
+        await spanHandle.runInContext(next);
       } catch (error: any) {
         path = getPath(ctx);
         statusCode = error.statusCode || error.status || 500;
@@ -69,11 +70,17 @@ function getMiddleware(client: ApitallyClient) {
         throw error;
       } finally {
         const responseTime = performance.now() - startTime;
-        const consumer = getConsumer(ctx);
-        client.consumerRegistry.addOrUpdateConsumer(consumer);
+
         if (!path) {
           path = getPath(ctx);
         }
+
+        spanHandle.setName(`${ctx.request.method} ${path}`);
+        const spans = spanHandle.end();
+
+        const consumer = getConsumer(ctx);
+        client.consumerRegistry.addOrUpdateConsumer(consumer);
+
         if (path) {
           try {
             client.requestCounter.addRequest({
@@ -92,6 +99,7 @@ function getMiddleware(client: ApitallyClient) {
             );
           }
         }
+
         if (client.requestLogger.enabled) {
           const logs = logsContext.getStore();
           client.requestLogger.logRequest(
@@ -120,6 +128,7 @@ function getMiddleware(client: ApitallyClient) {
             },
             serverError,
             logs,
+            spans,
           );
         }
       }

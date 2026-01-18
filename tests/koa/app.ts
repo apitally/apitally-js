@@ -1,4 +1,5 @@
 import Router from "@koa/router";
+import { trace } from "@opentelemetry/api";
 import Koa from "koa";
 import bodyParser from "koa-bodyparser";
 import route from "koa-route";
@@ -14,6 +15,7 @@ const requestLoggingConfig = {
   logResponseHeaders: true,
   logResponseBody: true,
   captureLogs: true,
+  captureTraces: true,
 };
 
 export const getAppWithKoaRouter = () => {
@@ -41,6 +43,22 @@ export const getAppWithKoaRouter = () => {
   });
   router.get("/error", async () => {
     throw new Error("test");
+  });
+  router.get("/traces", async (ctx) => {
+    const tracer = trace.getTracer("test");
+    await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan1.end();
+      });
+      await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan2.end();
+      });
+      outerSpan.end();
+    });
+    ctx.body = "traces";
   });
 
   app.use(bodyParser());
@@ -82,6 +100,24 @@ export const getAppWithKoaRoute = () => {
   app.use(
     route.get("/error", async () => {
       throw new Error("test");
+    }),
+  );
+  app.use(
+    route.get("/traces", async (ctx) => {
+      const tracer = trace.getTracer("test");
+      await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan1.end();
+        });
+        await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan2.end();
+        });
+        outerSpan.end();
+      });
+      ctx.body = "traces";
     }),
   );
 

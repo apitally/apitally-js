@@ -1,4 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
+import { trace } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { streamText } from "hono/streaming";
 import { z } from "zod";
@@ -21,6 +22,7 @@ export const getApp = async () => {
       logResponseHeaders: true,
       logResponseBody: true,
       captureLogs: true,
+      captureTraces: true,
     },
   });
 
@@ -63,6 +65,23 @@ export const getApp = async () => {
       await stream.sleep(100);
       await stream.write("world");
     });
+  });
+
+  app.get("/traces", async (c) => {
+    const tracer = trace.getTracer("test");
+    await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan1.end();
+      });
+      await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        innerSpan2.end();
+      });
+      outerSpan.end();
+    });
+    return c.text("traces");
   });
 
   return app;

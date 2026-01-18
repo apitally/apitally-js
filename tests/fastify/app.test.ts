@@ -1,3 +1,4 @@
+import { context, trace } from "@opentelemetry/api";
 import { FastifyInstance } from "fastify";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -139,6 +140,30 @@ describe("Plugin for Fastify", () => {
     ).toBe(true);
   });
 
+  it("Tracing", async () => {
+    const spy = vi.spyOn(client.requestLogger, "logRequest");
+    await appTest.get("/traces").expect(200);
+    expect(spy).toHaveBeenCalledOnce();
+    const call = spy.mock.calls[0];
+    const spans = call[4];
+    expect(spans).toBeDefined();
+    expect(spans).toHaveLength(4);
+
+    const spanNames = new Set(spans!.map((s) => s.name));
+    expect(spanNames).toContain("GET /traces");
+    expect(spanNames).toContain("outer_span");
+    expect(spanNames).toContain("inner_span_1");
+    expect(spanNames).toContain("inner_span_2");
+
+    const rootSpan = spans!.find((s) => s.name === "GET /traces");
+    expect(rootSpan).toBeDefined();
+    expect(rootSpan!.parentSpanId).toBeNull();
+
+    const outerSpan = spans!.find((s) => s.name === "outer_span");
+    expect(outerSpan).toBeDefined();
+    expect(outerSpan!.parentSpanId).toBe(rootSpan!.spanId);
+  });
+
   it("List endpoints", async () => {
     expect(client.startupData?.paths).toEqual([
       {
@@ -157,6 +182,10 @@ describe("Plugin for Fastify", () => {
         method: "GET",
         path: "/error",
       },
+      {
+        method: "GET",
+        path: "/traces",
+      },
     ]);
   });
 
@@ -164,5 +193,7 @@ describe("Plugin for Fastify", () => {
     if (client) {
       await client.handleShutdown();
     }
+    context.disable();
+    trace.disable();
   });
 });

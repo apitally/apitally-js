@@ -38,9 +38,13 @@ export default class ApitallyMiddleware {
       const timestamp = Date.now() / 1000;
       const startTime = performance.now();
 
-      await next();
+      const spanHandle = client.spanCollector.startSpan();
+      await spanHandle.runInContext(next);
 
       const responseTime = performance.now() - startTime;
+      spanHandle.setName(`${ctx.request.method()} ${path}`);
+      const spans = spanHandle.end();
+
       const requestSize = parseContentLength(
         ctx.request.header("content-length"),
       );
@@ -130,6 +134,7 @@ export default class ApitallyMiddleware {
             client.requestLogger.isSupportedContentType(responseContentType)
               ? chunk
               : undefined;
+
           client.requestLogger.logRequest(
             {
               timestamp,
@@ -150,6 +155,7 @@ export default class ApitallyMiddleware {
             },
             ctx.apitallyError,
             logs,
+            spans,
           );
         };
 

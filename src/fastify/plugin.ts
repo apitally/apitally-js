@@ -13,6 +13,7 @@ import { parseContentLength } from "../common/headers.js";
 import { getPackageVersion } from "../common/packageVersions.js";
 import type { LogRecord } from "../common/requestLogger.js";
 import { convertBody, convertHeaders } from "../common/requestLogger.js";
+import type { SpanHandle } from "../common/spanCollector.js";
 import {
   ApitallyConfig,
   ApitallyConsumer,
@@ -27,7 +28,8 @@ import {
 } from "../loggers/index.js";
 
 const LOGS_SYMBOL = Symbol("apitally.logs");
-const ASYNC_RESOURCE_SYMBOL = Symbol("apitally.logsContextAsyncResource");
+const ASYNC_RESOURCE_SYMBOL = Symbol("apitally.asyncResource");
+const SPAN_HANDLE_SYMBOL = Symbol("apitally.spanHandle");
 
 declare module "fastify" {
   interface FastifyReply {
@@ -41,6 +43,7 @@ declare module "fastify" {
 
     [LOGS_SYMBOL]?: LogRecord[];
     [ASYNC_RESOURCE_SYMBOL]?: AsyncResource;
+    [SPAN_HANDLE_SYMBOL]?: SpanHandle;
   }
 }
 
@@ -86,15 +89,19 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
     await client.handleShutdown();
   });
 
-  // Establish logs context for each request
+  // Establish logs context and start span for each request
   fastify.addHook("onRequest", (request, reply, done) => {
     if (client.isEnabled()) {
       const logs: LogRecord[] = [];
       request[LOGS_SYMBOL] = logs;
       logsContext.run(logs, () => {
-        const asyncResource = new AsyncResource("ApitallyLogsContext");
-        request[ASYNC_RESOURCE_SYMBOL] = asyncResource;
-        asyncResource.runInAsyncScope(done, request.raw);
+        const spanHandle = client.spanCollector.startSpan();
+        request[SPAN_HANDLE_SYMBOL] = spanHandle;
+        spanHandle.runInContext(() => {
+          const asyncResource = new AsyncResource("ApitallyContext");
+          request[ASYNC_RESOURCE_SYMBOL] = asyncResource;
+          asyncResource.runInAsyncScope(done, request.raw);
+        });
       });
     } else {
       done();
@@ -192,6 +199,10 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
         });
       }
 
+      const spanHandle = request[SPAN_HANDLE_SYMBOL];
+      spanHandle?.setName(`${request.method} ${path}`);
+      const spans = spanHandle?.end();
+
       if (client.requestLogger.enabled) {
         const logs = request[LOGS_SYMBOL];
         client.requestLogger.logRequest(
@@ -217,6 +228,7 @@ const apitallyPlugin: FastifyPluginAsync<ApitallyConfig> = async (
           },
           reply.serverError,
           logs,
+          spans,
         );
       }
     }

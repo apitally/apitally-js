@@ -1,4 +1,5 @@
 import { Server } from "@hapi/hapi";
+import { trace } from "@opentelemetry/api";
 import Joi from "joi";
 
 import { apitallyPlugin, setConsumer } from "../../src/hapi/index.js";
@@ -21,6 +22,7 @@ export const getApp = async () => {
         logRequestBody: true,
         logResponseBody: true,
         captureLogs: true,
+        captureTraces: true,
       },
     }),
   });
@@ -76,6 +78,27 @@ export const getApp = async () => {
     path: "/error",
     handler: () => {
       throw new Error("test");
+    },
+  });
+
+  server.route({
+    method: "GET",
+    path: "/traces",
+    handler: async () => {
+      const tracer = trace.getTracer("test");
+      await tracer.startActiveSpan("outer_span", async (outerSpan) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await tracer.startActiveSpan("inner_span_1", async (innerSpan1) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan1.end();
+        });
+        await tracer.startActiveSpan("inner_span_2", async (innerSpan2) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          innerSpan2.end();
+        });
+        outerSpan.end();
+      });
+      return "traces";
     },
   });
 
