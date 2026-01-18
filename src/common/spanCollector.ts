@@ -47,10 +47,14 @@ export type SpanHandle = {
   end: () => SpanData[] | undefined;
 };
 
+const TRACE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
+
 export default class SpanCollector implements SpanProcessor {
   public enabled: boolean;
   private includedSpanIds: Map<string, Set<string>> = new Map();
   private collectedSpans: Map<string, SpanData[]> = new Map();
+  private traceStartTimes: Map<string, number> = new Map();
+  private maintainIntervalId?: NodeJS.Timeout;
   private contextManager?: AsyncLocalStorageContextManager;
   private tracer?: Tracer;
   private logger?: Logger;
@@ -61,6 +65,9 @@ export default class SpanCollector implements SpanProcessor {
 
     if (enabled) {
       this.setupTracerProvider();
+      this.maintainIntervalId = setInterval(() => {
+        this.maintain();
+      }, 60_000);
     }
   }
 
@@ -95,6 +102,7 @@ export default class SpanCollector implements SpanProcessor {
 
     this.includedSpanIds.set(traceId, new Set([spanCtx.spanId]));
     this.collectedSpans.set(traceId, []);
+    this.traceStartTimes.set(traceId, Date.now());
 
     return {
       traceId,
@@ -120,6 +128,7 @@ export default class SpanCollector implements SpanProcessor {
     const spans = this.collectedSpans.get(traceId) ?? [];
     this.collectedSpans.delete(traceId);
     this.includedSpanIds.delete(traceId);
+    this.traceStartTimes.delete(traceId);
     return spans;
   }
 
@@ -185,10 +194,25 @@ export default class SpanCollector implements SpanProcessor {
     return data;
   }
 
+  private maintain() {
+    const now = Date.now();
+    for (const [traceId, startTime] of this.traceStartTimes) {
+      if (now - startTime > TRACE_MAX_AGE) {
+        this.collectedSpans.delete(traceId);
+        this.includedSpanIds.delete(traceId);
+        this.traceStartTimes.delete(traceId);
+      }
+    }
+  }
+
   async shutdown(): Promise<void> {
     this.enabled = false;
     this.includedSpanIds.clear();
     this.collectedSpans.clear();
+    this.traceStartTimes.clear();
+    if (this.maintainIntervalId) {
+      clearInterval(this.maintainIntervalId);
+    }
   }
 
   async forceFlush(): Promise<void> {
