@@ -105,6 +105,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
 
               spanHandle.setName(`${req.method} ${path}`);
               const spans = spanHandle.end();
+              const traceId = spanHandle.traceId;
 
               const consumer = getConsumer(req);
               client.consumerRegistry.addOrUpdateConsumer(consumer);
@@ -199,6 +200,7 @@ function getMiddleware(app: Express | Router, client: ApitallyClient) {
                   res.locals.serverError,
                   logs,
                   spans,
+                  traceId,
                 );
               }
             } catch (error) {

@@ -44,6 +44,7 @@ export default class ApitallyMiddleware {
       const responseTime = performance.now() - startTime;
       spanHandle.setName(`${ctx.request.method()} ${path}`);
       const spans = spanHandle.end();
+      const traceId = spanHandle.traceId;
 
       const requestSize = parseContentLength(
         ctx.request.header("content-length"),
@@ -156,6 +157,7 @@ export default class ApitallyMiddleware {
             ctx.apitallyError,
             logs,
             spans,
+            traceId,
           );
         };
 

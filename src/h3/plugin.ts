@@ -91,6 +91,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
       const spanHandle = event.context[SPAN_HANDLE_SYMBOL];
       spanHandle?.setName(`${event.req.method} ${path}`);
       const spans = spanHandle?.end();
+      const traceId = spanHandle?.traceId;
 
       const responseSize = capturedResponse.completed
         ? capturedResponse.size
@@ -138,6 +139,7 @@ export const apitallyPlugin = definePlugin<ApitallyConfig>((app, config) => {
           error?.cause instanceof Error ? error.cause : undefined,
           logs,
           spans,
+          traceId,
         );
       }
     });

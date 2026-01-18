@@ -178,6 +178,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
           `${request.method.toUpperCase()} ${request.route.path}`,
         );
         const spans = spanHandle?.end();
+        const traceId = spanHandle?.traceId;
 
         const requestBody = request[REQUEST_BODY_SYMBOL];
         const requestSize = request[REQUEST_SIZE_SYMBOL];
@@ -279,6 +280,7 @@ export default function apitallyPlugin(config: ApitallyConfig) {
             error,
             logs,
             spans,
+            traceId,
           );
         }
 
