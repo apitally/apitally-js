@@ -1,3 +1,4 @@
+import { fixImportsPlugin } from "esbuild-fix-imports-plugin";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -10,4 +11,5 @@ export default defineConfig({
   bundle: false,
   clean: true,
   onSuccess: 'copyfiles "src/**/*.stub" --up="1" dist',
+  esbuildPlugins: [fixImportsPlugin()],
 });
