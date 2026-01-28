@@ -160,6 +160,16 @@
         "default": "./dist/nestjs/index.cjs"
       }
     },
+    "./otel": {
+      "import": {
+        "types": "./dist/otel/index.d.ts",
+        "default": "./dist/otel/index.js"
+      },
+      "require": {
+        "types": "./dist/otel/index.d.cts",
+        "default": "./dist/otel/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
@@ -196,6 +206,9 @@
       ],
       "nestjs": [
         "./dist/nestjs/index.d.ts"
+      ],
+      "otel": [
+        "./dist/otel/index.d.ts"
       ]
     }
   },

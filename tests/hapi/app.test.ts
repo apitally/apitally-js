@@ -1,9 +1,8 @@
-import { context, trace } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { getAppInfo } from "../../src/hapi/utils.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { getApp } from "./app.js";
 
 describe("Plugin for Hapi", () => {
@@ -14,6 +13,7 @@ describe("Plugin for Hapi", () => {
     mockApitallyHub();
     app = await getApp();
     client = ApitallyClient.getInstance();
+    setupOtel();
   });
 
   it("Request counter", async () => {
@@ -249,7 +249,6 @@ describe("Plugin for Hapi", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });

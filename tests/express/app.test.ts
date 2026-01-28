@@ -1,11 +1,10 @@
-import { context, trace } from "@opentelemetry/api";
 import { Express } from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
 import { getRouterInfo } from "../../src/express/utils.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import {
   getAppWithCelebrate,
   getAppWithMiddlewareOnRouter,
@@ -35,6 +34,7 @@ testCases.forEach(({ name, getApp }) => {
       app = getApp();
       appTest = request(app);
       client = ApitallyClient.getInstance();
+      setupOtel();
 
       // Wait for 600 ms for startup data to be set
       await new Promise((resolve) => setTimeout(resolve, 600));
@@ -210,8 +210,7 @@ testCases.forEach(({ name, getApp }) => {
       if (client) {
         await client.handleShutdown();
       }
-      context.disable();
-      trace.disable();
+      teardownOtel();
     });
   });
 });
@@ -226,6 +225,7 @@ describe("Middleware for Express router", () => {
     app = getAppWithMiddlewareOnRouter();
     appTest = request(app);
     client = ApitallyClient.getInstance();
+    setupOtel();
 
     // Wait for 1.2 seconds for startup data to be set
     await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -259,8 +259,7 @@ describe("Middleware for Express router", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });
 
@@ -274,6 +273,7 @@ describe("Middleware for Express with nested routers", () => {
     app = getAppWithNestedRouters();
     appTest = request(app);
     client = ApitallyClient.getInstance();
+    setupOtel();
 
     // Wait for 1.2 seconds for startup data to be set
     await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -349,7 +349,6 @@ describe("Middleware for Express with nested routers", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });

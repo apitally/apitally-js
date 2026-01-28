@@ -1,10 +1,9 @@
 import { INestApplication } from "@nestjs/common";
-import { context, trace } from "@opentelemetry/api";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { getApp } from "./app.js";
 
 describe("Middleware for NestJS (Express)", () => {
@@ -17,6 +16,7 @@ describe("Middleware for NestJS (Express)", () => {
     app = await getApp();
     appTest = request(app.getHttpServer());
     client = ApitallyClient.getInstance();
+    setupOtel();
 
     // Wait for 1.2 seconds for startup data to be set
     await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -195,7 +195,6 @@ describe("Middleware for NestJS (Express)", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });

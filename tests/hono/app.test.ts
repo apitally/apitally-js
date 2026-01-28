@@ -1,10 +1,9 @@
-import { context, trace } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { setImmediate } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { getApp, getNestedApp } from "./app.js";
 
 describe("Middleware for Hono", () => {
@@ -15,6 +14,7 @@ describe("Middleware for Hono", () => {
     mockApitallyHub();
     app = await getApp();
     client = ApitallyClient.getInstance();
+    setupOtel();
 
     // Wait for 600 ms for startup data to be set
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -280,8 +280,7 @@ describe("Middleware for Hono", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });
 
@@ -293,6 +292,7 @@ describe("Middleware for Hono with nested app", () => {
     mockApitallyHub();
     app = await getNestedApp();
     client = ApitallyClient.getInstance();
+    setupOtel();
 
     // Wait for 600 ms for startup data to be set
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -323,7 +323,6 @@ describe("Middleware for Hono with nested app", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });

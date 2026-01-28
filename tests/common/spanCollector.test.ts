@@ -1,17 +1,19 @@
-import { context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
+import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it } from "vitest";
 
 import SpanCollector from "../../src/common/spanCollector.js";
+import { setupOtel, teardownOtel } from "../utils.js";
 
 describe("Span collector", () => {
-  afterEach(async () => {
-    context.disable();
-    trace.disable();
+  afterEach(() => {
+    teardownOtel();
   });
 
   it("Disabled", async () => {
     const collector = new SpanCollector(false);
     expect(collector.enabled).toBe(false);
+
+    setupOtel(collector);
 
     const spanHandle = collector.startSpan();
     expect(spanHandle.traceId).toBeUndefined();
@@ -23,6 +25,8 @@ describe("Span collector", () => {
   it("Enabled", async () => {
     const collector = new SpanCollector(true);
     expect(collector.enabled).toBe(true);
+
+    setupOtel(collector);
 
     // Span created outside startSpan() should not be collected
     const tracer = trace.getTracer("test");
