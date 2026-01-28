@@ -99,7 +99,6 @@ export class ApitallyClient {
       this.enabled &&
         this.requestLogger.enabled &&
         this.requestLogger.config.captureTraces,
-      this.logger,
     );
     this.validationErrorCounter = new ValidationErrorCounter();
     this.serverErrorCounter = new ServerErrorCounter();
