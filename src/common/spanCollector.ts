@@ -1,32 +1,17 @@
 import {
   context,
-  type Context,
   SpanKind,
   SpanStatusCode,
   trace,
   type Tracer,
 } from "@opentelemetry/api";
-import { AsyncLocalStorageContextManager as _AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
-  BasicTracerProvider,
   type ReadableSpan,
   type Span,
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 
 import { ApitallyClient } from "./client.js";
-import { Logger } from "./logging.js";
-
-/**
- * Extends the official AsyncLocalStorageContextManager to add enterWith support
- * for frameworks that need to persist context across hook boundaries (e.g. Elysia).
- */
-class AsyncLocalStorageContextManager extends _AsyncLocalStorageContextManager {
-  enterWith(ctx: Context): void {
-    // @ts-expect-error: _asyncLocalStorage is private
-    this._asyncLocalStorage.enterWith(ctx);
-  }
-}
 
 export type SpanData = {
   spanId: string;
@@ -55,31 +40,17 @@ export default class SpanCollector implements SpanProcessor {
   private collectedSpans: Map<string, SpanData[]> = new Map();
   private traceStartTimes: Map<string, number> = new Map();
   private maintainIntervalId?: NodeJS.Timeout;
-  private contextManager?: AsyncLocalStorageContextManager;
   private tracer?: Tracer;
-  private logger?: Logger;
 
-  constructor(enabled: boolean, logger?: Logger) {
+  constructor(enabled: boolean) {
     this.enabled = enabled;
-    this.logger = logger;
 
     if (enabled) {
-      this.setupTracerProvider();
+      this.tracer = trace.getTracer("apitally");
       this.maintainIntervalId = setInterval(() => {
         this.maintain();
       }, 60_000);
     }
-  }
-
-  private setupTracerProvider() {
-    this.contextManager = new AsyncLocalStorageContextManager();
-    context.setGlobalContextManager(this.contextManager);
-
-    const provider = new BasicTracerProvider({
-      spanProcessors: [this],
-    });
-    trace.setGlobalTracerProvider(provider);
-    this.tracer = trace.getTracer("apitally");
   }
 
   startSpan(): SpanHandle {
@@ -113,7 +84,13 @@ export default class SpanCollector implements SpanProcessor {
         return context.with(ctx, fn);
       },
       enterContext: () => {
-        this.contextManager?.enterWith(ctx);
+        try {
+          // Access the global context manager's internal AsyncLocalStorage
+          const contextManager = (context as any)._getContextManager?.();
+          contextManager?._asyncLocalStorage?.enterWith(ctx);
+        } catch {
+          // Ignore errors accessing internals
+        }
       },
       end: () => {
         if (ended) return;

@@ -1,11 +1,10 @@
-import { context, trace } from "@opentelemetry/api";
 import Koa from "koa";
 import http from "node:http";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { getAppWithKoaRoute, getAppWithKoaRouter } from "./app.js";
 
 const testCases = [
@@ -33,6 +32,7 @@ testCases.forEach(({ name, router, getApp }) => {
       const server = http.createServer(app.callback());
       appTest = request(server);
       client = ApitallyClient.getInstance();
+      setupOtel();
 
       // Wait for 600 ms for startup data to be set
       await new Promise((resolve) => setTimeout(resolve, 600));
@@ -193,8 +193,7 @@ testCases.forEach(({ name, router, getApp }) => {
       if (client) {
         await client.handleShutdown();
       }
-      context.disable();
-      trace.disable();
+      teardownOtel();
     });
   });
 });

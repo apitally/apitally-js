@@ -1,10 +1,9 @@
-import { context, trace } from "@opentelemetry/api";
 import { FastifyInstance } from "fastify";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { getApp } from "./app.js";
 
 describe("Plugin for Fastify", () => {
@@ -17,6 +16,7 @@ describe("Plugin for Fastify", () => {
     app = await getApp();
     appTest = request(app.server);
     client = ApitallyClient.getInstance();
+    setupOtel();
     await app.ready();
 
     // Wait for 0.2 seconds for startup data to be set
@@ -198,7 +198,6 @@ describe("Plugin for Fastify", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });

@@ -1,13 +1,12 @@
 import { ServerFactory } from "@adonisjs/core/factories/http";
 import type { ApplicationService, LoggerService } from "@adonisjs/core/types";
-import { context, trace } from "@opentelemetry/api";
 import { createServer } from "node:http";
 import supertest from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ApitallyProvider from "../../src/adonisjs/provider.js";
 import { ApitallyClient } from "../../src/common/client.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { createApp, createRoutes } from "./app.js";
 
 describe("Middleware for AdonisJS", () => {
@@ -48,6 +47,7 @@ describe("Middleware for AdonisJS", () => {
     await server.boot();
 
     client = await app.container.make("apitallyClient");
+    setupOtel();
 
     const httpServer = createServer(server.handle.bind(server));
     testAgent = supertest(httpServer);
@@ -235,7 +235,6 @@ describe("Middleware for AdonisJS", () => {
 
   afterEach(async () => {
     await provider.shutdown();
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });

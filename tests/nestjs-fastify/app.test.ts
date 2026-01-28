@@ -1,10 +1,9 @@
 import { INestApplication } from "@nestjs/common";
-import { context, trace } from "@opentelemetry/api";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApitallyClient } from "../../src/common/client.js";
-import { mockApitallyHub } from "../utils.js";
+import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import { getApp } from "./app.js";
 
 describe("Middleware for NestJS (Fastify)", () => {
@@ -17,6 +16,7 @@ describe("Middleware for NestJS (Fastify)", () => {
     app = await getApp();
     appTest = request(app.getHttpServer());
     client = ApitallyClient.getInstance();
+    setupOtel();
 
     const httpAdapter = app.getHttpAdapter();
     const instance = httpAdapter.getInstance();
@@ -196,7 +196,6 @@ describe("Middleware for NestJS (Fastify)", () => {
     if (client) {
       await client.handleShutdown();
     }
-    context.disable();
-    trace.disable();
+    teardownOtel();
   });
 });
