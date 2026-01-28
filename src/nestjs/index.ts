@@ -8,7 +8,6 @@ import {
 import { catchError, throwError } from "rxjs";
 
 import type { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
-export { ApitallySpanProcessor } from "../common/spanCollector.js";
 export type { ApitallyConfig, ApitallyConsumer } from "../common/types.js";
 
 let setConsumerFn:
