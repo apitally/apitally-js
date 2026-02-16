@@ -8,7 +8,7 @@
   </a>
 </p>
 <p align="center"><b>API monitoring & analytics made simple</b></p>
-<p align="center" style="color: #ccc;">Real-time metrics, request logs, and alerts for your APIs — with just a few lines of code.</p>
+<p align="center" style="color: #ccc;">Metrics, logs, traces, and alerts for your APIs — with just a few lines of code.</p>
 <br>
 <img alt="Apitally screenshots" src="https://assets.apitally.io/screenshots/overview.png">
 <br>
@@ -19,18 +19,8 @@
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-This SDK for Apitally currently supports the following Node.js web
-frameworks:
-
-- [Express](https://docs.apitally.io/frameworks/express)
-- [Fastify](https://docs.apitally.io/frameworks/fastify)
-- [NestJS](https://docs.apitally.io/frameworks/nestjs)
-- [AdonisJS](https://docs.apitally.io/frameworks/adonisjs)
-- [Hono](https://docs.apitally.io/frameworks/hono)
-- [H3](https://docs.apitally.io/frameworks/h3) (v2)
-- [Elysia](https://docs.apitally.io/frameworks/elysia)
-- [Koa](https://docs.apitally.io/frameworks/koa)
-- [Hapi](https://docs.apitally.io/frameworks/hapi)
+Apitally is a simple API monitoring and analytics tool that makes it easy to understand how your APIs are used
+and helps you troubleshoot API issues faster. Setup is easy and takes less than 5 minutes.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out
 the 📚 [documentation](https://docs.apitally.io).
@@ -39,44 +29,61 @@ the 📚 [documentation](https://docs.apitally.io).
 
 ### API analytics
 
-Track traffic, error and performance metrics for your API, each endpoint and individual API consumers, allowing you to make informed, data-driven engineering and product decisions.
+Track traffic, error and performance metrics for your API, each endpoint and
+individual API consumers, allowing you to make informed, data-driven engineering
+and product decisions.
+
+### Request logs
+
+Drill down from insights to individual API requests or use powerful search and filters to
+find specific requests. View correlated application logs and traces for a complete picture
+of each request, making troubleshooting faster and easier.
 
 ### Error tracking
 
-Understand which validation rules in your endpoints cause client errors. Capture error details and stack traces for 500 error responses, and have them linked to Sentry issues automatically.
+Understand which validation rules in your endpoints cause client errors. Capture
+error details and stack traces for 500 error responses, and have them linked to
+Sentry issues automatically.
 
-### Request logging
+### API monitoring & alerts
 
-Drill down from insights to individual requests or use powerful filtering to understand how consumers have interacted with your API. Configure exactly what is included in the logs to meet your requirements.
+Get notified immediately if something isn't right using custom alerts, synthetic
+uptime checks and heartbeat monitoring. Alert notifications can be delivered via
+email, Slack and Microsoft Teams.
 
-### API monitoring & alerting
+## Supported frameworks
 
-Get notified immediately if something isn't right using custom alerts, synthetic uptime checks and heartbeat monitoring. Notifications can be delivered via email, Slack or Microsoft Teams.
+| Framework                                           | Supported versions    | Setup guide                                            |
+| --------------------------------------------------- | --------------------- | ------------------------------------------------------ |
+| [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x`          | [Link](https://docs.apitally.io/setup-guides/express)  |
+| [**Fastify**](https://github.com/fastify/fastify)   | `4.x`, `5.x`          | [Link](https://docs.apitally.io/setup-guides/fastify)  |
+| [**NestJS**](https://github.com/nestjs/nest)        | `9.x`, `10.x`, `11.x` | [Link](https://docs.apitally.io/setup-guides/nestjs)   |
+| [**AdonisJS**](https://github.com/adonisjs/core)    | `6.x`                 | [Link](https://docs.apitally.io/setup-guides/adonisjs) |
+| [**Hono**](https://github.com/honojs/hono) \*       | `4.x`                 | [Link](https://docs.apitally.io/setup-guides/hono)     |
+| [**H3**](https://github.com/h3js/h3)                | `2.x`                 | [Link](https://docs.apitally.io/setup-guides/h3)       |
+| [**Elysia**](https://github.com/elysiajs/elysia)    | `1.x`                 | [Link](https://docs.apitally.io/setup-guides/elysia)   |
+| [**Koa**](https://github.com/koajs/koa)             | `2.x`, `3.x`          | [Link](https://docs.apitally.io/setup-guides/koa)      |
+| [**Hapi**](https://github.com/hapijs/hapi)          | `21.x`                | [Link](https://docs.apitally.io/setup-guides/hapi)     |
 
-## Installation
+\* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 
-You can install this library in your project using `npm` or `yarn`:
+Apitally also supports many other web frameworks in [Python](https://github.com/apitally/apitally-py), [Go](https://github.com/apitally/apitally-go), [.NET](https://github.com/apitally/apitally-dotnet) and [Java](https://github.com/apitally/apitally-java) via our other SDKs.
+
+## Getting started
+
+If you don't have an Apitally account yet, first [sign up here](https://app.apitally.io/?signup). Then create an app in the Apitally dashboard. You'll see detailed setup instructions with code snippets you can copy and paste. These also include your client ID.
+
+See the [SDK reference](https://docs.apitally.io/sdk-reference/javascript) for all available configuration options, including how to mask sensitive data, customize request logging, and more.
+
+### Express
+
+Install the SDK:
 
 ```bash
 npm install apitally
 ```
 
-or
-
-```bash
-yarn add apitally
-```
-
-## Usage
-
-Our comprehensive [setup guides](https://docs.apitally.io/quickstart) include
-all the details you need to get started.
-
-### Express
-
-This is an example of how to use the Apitally middleware with an Express
-application. For further instructions, see our
-[setup guide for Express](https://docs.apitally.io/frameworks/express).
+Then add the Apitally middleware to your application:
 
 ```javascript
 const express = require("express");
@@ -91,50 +98,50 @@ useApitally(app, {
 });
 ```
 
+For further instructions, see our
+[setup guide for Express](https://docs.apitally.io/setup-guides/express).
+
 ### Fastify
 
-This is an example of how to register the Apitally plugin with a Fastify
-application. For further instructions, see our
-[setup guide for Fastify](https://docs.apitally.io/frameworks/fastify).
-
-The Apitally plugin requires the
-[`fastify-plugin`](https://www.npmjs.com/package/fastify-plugin) package to be
-installed.
+Install the SDK with the `fastify-plugin` peer dependency:
 
 ```bash
-npm install fastify-plugin
+npm install apitally fastify-plugin
 ```
 
-```javascript
-const fastify = require("fastify")({ logger: true });
-const { apitallyPlugin } = require("apitally/fastify");
+Then register the Apitally plugin with your application:
 
-fastify.register(apitallyPlugin, {
+```javascript
+import Fastify from "fastify";
+import { apitallyPlugin } from "apitally/fastify";
+
+const fastify = Fastify({ logger: true });
+
+await fastify.register(apitallyPlugin, {
   clientId: "your-client-id",
   env: "dev", // or "prod" etc.
 });
-
-// Wrap your routes in a plugin, so Apitally can detect them
-fastify.register((instance, opts, done) => {
-  instance.get("/", (request, reply) => {
-    reply.send("hello");
-  });
-  done();
-});
 ```
 
-_Note:_ If your project uses ES modules you can use `await fastify.register(...)` and don't need to wrap your routes in a plugin. See the [Fastify V4 migration guide](https://fastify.dev/docs/latest/Guides/Migration-Guide-V4/#synchronous-route-definitions-2954) for more details.
+_Note:_ If your project uses CommonJS you need to wrap your routes in a plugin, so Apitally can detect them.
+
+For further instructions, see our
+[setup guide for Fastify](https://docs.apitally.io/setup-guides/fastify).
 
 ### NestJS
 
-This is an example of how to use the Apitally middleware with a NestJS
-application. For further instructions, see our
-[setup guide for NestJS](https://docs.apitally.io/frameworks/nestjs).
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then add the Apitally middleware to your application:
 
 ```javascript
-const { NestFactory } = require("@nestjs/core");
-const { useApitally } = require("apitally/nestjs");
-const { AppModule } = require("./app.module");
+import { NestFactory } from "@nestjs/core";
+import { useApitally } from "apitally/nestjs";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -150,29 +157,35 @@ async function bootstrap() {
 bootstrap();
 ```
 
+For further instructions, see our
+[setup guide for NestJS](https://docs.apitally.io/setup-guides/nestjs).
+
 ### AdonisJS
 
-You can use the following Ace command to configure Apitally in your AdonisJS application:
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then use the following Ace command to configure Apitally in your AdonisJS application:
 
 ```bash
 node ace configure apitally/adonisjs
 ```
 
-This command will automatically:
-
-- Create a config file at `config/apitally.ts`
-- Register the Apitally provider in `adonisrc.ts`
-- Add the Apitally middleware to `start/kernel.ts`
-- Add required environment variables to `.env` and `start/env.ts`
-
 For further instructions, see our
-[setup guide for AdonisJS](https://docs.apitally.io/frameworks/adonisjs).
+[setup guide for AdonisJS](https://docs.apitally.io/setup-guides/adonisjs).
 
 ### Hono
 
-This is an example of how to use the Apitally middleware with a Hono application.
-For further instructions, see our
-[setup guide for Hono](https://docs.apitally.io/frameworks/hono).
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then add the Apitally middleware to your application:
 
 ```javascript
 import { Hono } from "hono";
@@ -186,11 +199,18 @@ useApitally(app, {
 });
 ```
 
+For further instructions, see our
+[setup guide for Hono](https://docs.apitally.io/setup-guides/hono).
+
 ### H3
 
-This is an example of how to register the Apitally plugin with an H3 application.
-For further instructions, see our
-[setup guide for H3](https://docs.apitally.io/frameworks/h3).
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then register the Apitally plugin with your application:
 
 ```javascript
 import { H3 } from "h3";
@@ -206,13 +226,18 @@ const app = new H3({
 });
 ```
 
-_Note:_ Apitally only works with H3 v2 and currently doesn't support nested apps.
+For further instructions, see our
+[setup guide for H3](https://docs.apitally.io/setup-guides/h3).
 
 ### Elysia
 
-This is an example of how to use the Apitally plugin with an Elysia application.
-For further instructions, see our
-[setup guide for Elysia](https://docs.apitally.io/frameworks/elysia).
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then add the Apitally plugin to your application:
 
 ```javascript
 import { Elysia } from "elysia";
@@ -228,11 +253,18 @@ const app = new Elysia()
   .get("/", () => "hello");
 ```
 
+For further instructions, see our
+[setup guide for Elysia](https://docs.apitally.io/setup-guides/elysia).
+
 ### Koa
 
-This is an example of how to use the Apitally middleware with a Koa application.
-For further instructions, see our
-[setup guide for Koa](https://docs.apitally.io/frameworks/koa).
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then add the Apitally middleware to your application:
 
 ```javascript
 const Koa = require("koa");
@@ -246,11 +278,18 @@ useApitally(app, {
 });
 ```
 
+For further instructions, see our
+[setup guide for Koa](https://docs.apitally.io/setup-guides/koa).
+
 ### Hapi
 
-This is an example of how to use the Apitally plugin with a Hapi application.
-For further instructions, see our
-[setup guide for Hapi](https://docs.apitally.io/frameworks/hapi).
+Install the SDK:
+
+```bash
+npm install apitally
+```
+
+Then register the Apitally plugin with your application:
 
 ```javascript
 const Hapi = require("@hapi/hapi");
@@ -273,11 +312,15 @@ const init = async () => {
 init();
 ```
 
+For further instructions, see our
+[setup guide for Hapi](https://docs.apitally.io/setup-guides/hapi).
+
 ## Getting help
 
-If you need help please [create a new discussion](https://github.com/orgs/apitally/discussions/categories/q-a) on GitHub
-or [join our Slack workspace](https://join.slack.com/t/apitally-community/shared_invite/zt-2b3xxqhdu-9RMq2HyZbR79wtzNLoGHrg).
+If you need help please
+[create a new discussion](https://github.com/orgs/apitally/discussions/categories/q-a)
+on GitHub or email us at [support@apitally.io](mailto:support@apitally.io). We'll get back to you as soon as possible.
 
 ## License
 
-This library is licensed under the terms of the MIT license.
+This library is licensed under the terms of the [MIT license](LICENSE).
