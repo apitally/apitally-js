@@ -222,7 +222,10 @@ export default class RequestLogger {
     return this.isSupportedContentType(contentType);
   }
 
-  public isSupportedContentType(contentType?: string | null) {
+  public isSupportedContentType(contentType?: string | string[] | null) {
+    if (Array.isArray(contentType) && contentType.length > 0) {
+      contentType = contentType[0];
+    }
     return (
       typeof contentType === "string" &&
       ALLOWED_CONTENT_TYPES.some((t) => contentType.startsWith(t))
