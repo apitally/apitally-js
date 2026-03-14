@@ -1,4 +1,5 @@
 import fetchRetry from "fetch-retry";
+import Denque from "denque";
 import { randomUUID } from "node:crypto";
 
 import ConsumerRegistry from "./consumerRegistry.js";
@@ -41,7 +42,7 @@ export class ApitallyClient {
 
   private static instance?: ApitallyClient;
   private instanceUuid: string;
-  private syncDataQueue: SyncPayload[];
+  private syncDataQueue = new Denque<SyncPayload>();
   private syncIntervalId?: NodeJS.Timeout;
   public startupData?: StartupData;
   private startupDataSent: boolean = false;
@@ -90,7 +91,6 @@ export class ApitallyClient {
     this.clientId = clientId;
     this.env = env;
     this.instanceUuid = getOrCreateInstanceUuid(clientId, env);
-    this.syncDataQueue = [];
     this.requestCounter = new RequestCounter();
     this.requestLogger = new RequestLogger(
       requestLogging ?? requestLoggingConfig,
