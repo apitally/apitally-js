@@ -1,4 +1,5 @@
 import AsyncLock from "async-lock";
+import Denque from "denque";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import type { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
@@ -160,9 +161,9 @@ export default class RequestLogger {
   public config: RequestLoggingConfig;
   public enabled: boolean;
   public suspendUntil: number | null = null;
-  private pendingWrites: RequestLogItem[] = [];
+  private pendingWrites = new Denque<RequestLogItem>();
   private currentFile: TempGzipFile | null = null;
-  private files: TempGzipFile[] = [];
+  private files = new Denque<TempGzipFile>();
   private maintainIntervalId?: NodeJS.Timeout;
   private lock = new AsyncLock();
 
@@ -514,12 +515,12 @@ export default class RequestLogger {
   }
 
   async clear() {
-    this.pendingWrites = [];
+    this.pendingWrites.clear();
     await this.rotateFile();
     this.files.forEach((file) => {
       file.delete();
     });
-    this.files = [];
+    this.files.clear();
   }
 
   async close() {
