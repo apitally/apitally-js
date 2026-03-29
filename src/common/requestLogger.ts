@@ -240,7 +240,7 @@ export default class RequestLogger {
         case "x-forwarded-scheme":
         case "x-url-scheme":
         case "x-scheme":
-          return v.toLowerCase() === "https";
+          return v.toLowerCase().includes("https");
         case "front-end-https":
         case "x-forwarded-ssl":
           return v.toLowerCase() === "on";
