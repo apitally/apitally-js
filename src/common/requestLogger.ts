@@ -396,17 +396,17 @@ export default class RequestLogger {
       ([k]) => k.toLowerCase() === "user-agent",
     )?.[1];
 
+    if (url.protocol === "http:" && RequestLogger.isHttps(request.headers)) {
+      url.protocol = "https:";
+      request.url = url.toString();
+    }
+
     if (
       this.shouldExcludePath(path) ||
       this.shouldExcludeUserAgent(userAgent) ||
       (this.config.excludeCallback?.(request, response) ?? false)
     ) {
       return;
-    }
-
-    if (url.protocol === "http:" && RequestLogger.isHttps(request.headers)) {
-      url.protocol = "https:";
-      request.url = url.toString();
     }
 
     if (
