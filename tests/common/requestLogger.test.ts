@@ -157,6 +157,39 @@ describe("Request logger", () => {
     expect(items.length).toBe(0);
   });
 
+  it("HTTPS detection", async () => {
+    const response = createResponse();
+
+    // x-forwarded-proto: https
+    const request1 = createRequest();
+    request1.headers.push(["x-forwarded-proto", "https"]);
+    requestLogger.logRequest(request1, response);
+
+    // forwarded: proto=https
+    const request2 = createRequest();
+    request2.headers.push([
+      "forwarded",
+      "for=192.0.2.1;proto=https;host=example.com",
+    ]);
+    requestLogger.logRequest(request2, response);
+
+    // x-forwarded-ssl: on
+    const request3 = createRequest();
+    request3.headers.push(["x-forwarded-ssl", "on"]);
+    requestLogger.logRequest(request3, response);
+
+    // No proxy header (should remain http)
+    const request4 = createRequest();
+    requestLogger.logRequest(request4, response);
+
+    const items = await getLoggedItems(requestLogger);
+    expect(items.length).toBe(4);
+    expect(items[0].request.url).toBe("https://localhost:8000/test?foo=bar");
+    expect(items[1].request.url).toBe("https://localhost:8000/test?foo=bar");
+    expect(items[2].request.url).toBe("https://localhost:8000/test?foo=bar");
+    expect(items[3].request.url).toBe("http://localhost:8000/test?foo=bar");
+  });
+
   it("Mask headers", async () => {
     requestLogger.config.maskHeaders = [/test/i];
 

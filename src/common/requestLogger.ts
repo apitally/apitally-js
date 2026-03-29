@@ -232,6 +232,26 @@ export default class RequestLogger {
     );
   }
 
+  private static isHttps(headers: [string, string][]): boolean {
+    return headers.some(([k, v]) => {
+      switch (k.toLowerCase()) {
+        case "x-forwarded-proto":
+        case "x-forwarded-protocol":
+        case "x-forwarded-scheme":
+        case "x-url-scheme":
+        case "x-scheme":
+          return v.toLowerCase().includes("https");
+        case "front-end-https":
+        case "x-forwarded-ssl":
+          return v.toLowerCase() === "on";
+        case "forwarded":
+          return v.toLowerCase().includes("proto=https");
+        default:
+          return false;
+      }
+    });
+  }
+
   private maskQueryParams(search: string) {
     const params = new URLSearchParams(search);
     for (const [key] of params) {
@@ -375,6 +395,11 @@ export default class RequestLogger {
     const userAgent = request.headers.find(
       ([k]) => k.toLowerCase() === "user-agent",
     )?.[1];
+
+    if (url.protocol === "http:" && RequestLogger.isHttps(request.headers)) {
+      url.protocol = "https:";
+      request.url = url.toString();
+    }
 
     if (
       this.shouldExcludePath(path) ||
