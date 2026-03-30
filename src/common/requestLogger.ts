@@ -240,12 +240,12 @@ export default class RequestLogger {
         case "x-forwarded-scheme":
         case "x-url-scheme":
         case "x-scheme":
-          return v.toLowerCase().includes("https");
+          return v.split(",")[0].trim().toLowerCase() === "https";
         case "front-end-https":
         case "x-forwarded-ssl":
           return v.toLowerCase() === "on";
         case "forwarded":
-          return v.toLowerCase().includes("proto=https");
+          return v.split(",")[0].trim().toLowerCase().includes("proto=https");
         default:
           return false;
       }
