@@ -18,7 +18,7 @@ const regExpToParseExpressPathRegExp =
   /^\/\^\\?\/?(?:(:?[\w\\.-]*(?:\\\/:?[\w\\.-]*)*)|(\(\?:\\?\/?\([^)]+\)\)))\\\/.*/;
 const regExpToReplaceExpressPathRegExpParams = /\(\?:\\?\/?\([^)]+\)\)/;
 const regexpExpressParamRegexp = /\(\?:\\?\\?\/?\([^)]+\)\)/g;
-const regexpExpressPathParamRegexp = /(:[^)]+)\([^)]+\)/g;
+export const regexpExpressPathParamRegexp = /(:[^)]+)\([^)]+\)/g;
 
 const EXPRESS_ROOT_PATH_REGEXP_VALUE = "/^\\/?(?=\\/|$)/i";
 const STACK_ITEM_VALID_NAMES = ["router", "bound dispatch", "mounted_app"];

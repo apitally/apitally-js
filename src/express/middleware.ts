@@ -25,6 +25,7 @@ import {
   getRouterInfo,
   parseExpressPath,
   parseExpressPathRegExp,
+  regexpExpressPathParamRegexp,
 } from "./utils.js";
 
 declare module "express" {
@@ -233,17 +234,16 @@ function getRoutePath(req: Request) {
     return;
   }
   // req.route.path can be a string, a RegExp, or an array of either
-  const path: unknown = req.route.path;
-  const raw: unknown = Array.isArray(path)
-    ? (path.find((p) => typeof p === "string") ?? path[0])
-    : path;
-  const routePath =
-    typeof raw === "string"
-      ? raw
-      : raw instanceof RegExp
-        ? `RegExp(${raw})`
-        : undefined;
-  if (routePath === undefined) {
+  let routePath: unknown = req.route.path;
+  if (Array.isArray(routePath)) {
+    routePath = routePath.find((p) => typeof p === "string") ?? routePath[0];
+  }
+  if (typeof routePath === "string") {
+    routePath = routePath.replace(regexpExpressPathParamRegexp, "$1");
+  } else if (routePath instanceof RegExp) {
+    routePath = `RegExp(${routePath})`;
+  }
+  if (typeof routePath !== "string") {
     return;
   }
   if (req.baseUrl) {
