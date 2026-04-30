@@ -19,7 +19,7 @@ const regExpToParseExpressPathRegExp =
 const regExpToReplaceExpressPathRegExpParams = /\(\?:\\?\/?\([^)]+\)\)/;
 const regExpExpressParamRegExp = /\(\?:\\?\\?\/?\([^)]+\)\)/g;
 const regExpExpressPathParamRegExp = /(:[^)]+)\([^)]+\)/g;
-const regExpRootPath = "/^\\/?(?=\\/|$)/i";
+const rootPathRegExpValue = "/^\\/?(?=\\/|$)/i";
 const stackItemValidNames = ["router", "bound dispatch", "mounted_app"];
 
 /**
@@ -269,7 +269,7 @@ const parseStack = function (stack, basePath, endpoints, version) {
         } else if (
           !stackItem.path &&
           stackItem.regexp &&
-          stackItem.regexp.toString() !== regExpRootPath
+          stackItem.regexp.toString() !== rootPathRegExpValue
         ) {
           newBasePath += `/${formatRegExpRoutePath(stackItem.regexp)}`;
         }
