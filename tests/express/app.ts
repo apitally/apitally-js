@@ -201,6 +201,38 @@ export const getAppWithMiddlewareOnRouter = () => {
   return app;
 };
 
+export const getAppWithMultiplePaths = () => {
+  const app = express();
+
+  useApitally(app, {
+    clientId: CLIENT_ID,
+    env: ENV,
+    appVersion: "1.2.3",
+    requestLogging: requestLoggingConfig,
+  });
+
+  app.get(["/openapi.json", "/.well-known/openapi.json"], (req, res) => {
+    res.send({ openapi: "3.0.0" });
+  });
+
+  app.get(/^\/regex\/.+$/, (req, res) => {
+    res.send("regex");
+  });
+
+  // Simulates an Express 4 route registered with an inline regex param like
+  // "/users/:id(\\d+)". Express 5's path-to-regexp rejects that syntax at
+  // registration, so we register a plain path and overwrite req.route.path to
+  // exercise the param-stripping branch in getRoutePath.
+  app.get("/users/:id", (req, res) => {
+    if (req.route) {
+      req.route.path = "/users/:id(\\d+)";
+    }
+    res.send("user");
+  });
+
+  return app;
+};
+
 export const getAppWithNestedRouters = () => {
   const app = express();
   const router1 = express.Router();

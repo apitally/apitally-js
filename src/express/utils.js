@@ -17,11 +17,30 @@
 const regExpToParseExpressPathRegExp =
   /^\/\^\\?\/?(?:(:?[\w\\.-]*(?:\\\/:?[\w\\.-]*)*)|(\(\?:\\?\/?\([^)]+\)\)))\\\/.*/;
 const regExpToReplaceExpressPathRegExpParams = /\(\?:\\?\/?\([^)]+\)\)/;
-const regexpExpressParamRegexp = /\(\?:\\?\\?\/?\([^)]+\)\)/g;
-const regexpExpressPathParamRegexp = /(:[^)]+)\([^)]+\)/g;
+const regExpExpressParamRegExp = /\(\?:\\?\\?\/?\([^)]+\)\)/g;
+const regExpExpressPathParamRegExp = /(:[^)]+)\([^)]+\)/g;
+const rootPathRegExpValue = "/^\\/?(?=\\/|$)/i";
+const stackItemValidNames = ["router", "bound dispatch", "mounted_app"];
 
-const EXPRESS_ROOT_PATH_REGEXP_VALUE = "/^\\/?(?=\\/|$)/i";
-const STACK_ITEM_VALID_NAMES = ["router", "bound dispatch", "mounted_app"];
+/**
+ * Strips inline RegExp validators from Express path params, e.g.
+ * "/users/:id(\\d+)" → "/users/:id".
+ * @param {string} path
+ * @returns {string}
+ */
+export const stripExpressPathParamRegex = function (path) {
+  return path.replace(regExpExpressPathParamRegExp, "$1");
+};
+
+/**
+ * Formats a RegExp route as a stable string identifier, e.g.
+ * /^\/foo$/ → "RegExp(/^\\/foo$/)".
+ * @param {RegExp} re
+ * @returns {string}
+ */
+export const formatRegExpRoutePath = function (re) {
+  return `RegExp(${re})`;
+};
 
 /**
  * Detects Express version and returns router information
@@ -73,7 +92,7 @@ const getRouteMiddlewares = function (route) {
  * @returns {boolean}
  */
 const hasParams = function (expressPathRegExp) {
-  return regexpExpressParamRegexp.test(expressPathRegExp);
+  return regExpExpressParamRegExp.test(expressPathRegExp);
 };
 
 /**
@@ -82,27 +101,28 @@ const hasParams = function (expressPathRegExp) {
  * @return {Endpoint[]} Endpoints info
  */
 const parseExpressRoute = function (route, basePath) {
-  const paths = [];
-
-  if (Array.isArray(route.path)) {
-    paths.push(...route.path);
-  } else {
-    paths.push(route.path);
-  }
+  // route.path can be a string, a RegExp, or an array of either
+  const paths = Array.isArray(route.path) ? route.path : [route.path];
 
   /** @type {Endpoint[]} */
-  const endpoints = paths.map((path) => {
+  const endpoints = paths.flatMap((path) => {
+    let pathStr;
+    if (typeof path === "string") {
+      pathStr = stripExpressPathParamRegex(path);
+    } else if (path instanceof RegExp) {
+      pathStr = formatRegExpRoutePath(path);
+    } else {
+      return [];
+    }
     const completePath =
-      basePath && path === "/" ? basePath : `${basePath}${path}`;
-
-    /** @type {Endpoint} */
-    const endpoint = {
-      path: completePath.replace(regexpExpressPathParamRegexp, "$1"),
-      methods: getRouteMethods(route),
-      middlewares: getRouteMiddlewares(route),
-    };
-
-    return endpoint;
+      basePath && pathStr === "/" ? basePath : `${basePath}${pathStr}`;
+    return [
+      {
+        path: completePath,
+        methods: getRouteMethods(route),
+        middlewares: getRouteMiddlewares(route),
+      },
+    ];
   });
 
   return endpoints;
@@ -233,7 +253,7 @@ const parseStack = function (stack, basePath, endpoints, version) {
       const newEndpoints = parseExpressRoute(stackItem.route, basePath);
 
       endpoints = addEndpoints(endpoints, newEndpoints);
-    } else if (STACK_ITEM_VALID_NAMES.includes(stackItem.name)) {
+    } else if (stackItemValidNames.includes(stackItem.name)) {
       let newBasePath = basePath;
 
       if (version === "v4") {
@@ -249,10 +269,9 @@ const parseStack = function (stack, basePath, endpoints, version) {
         } else if (
           !stackItem.path &&
           stackItem.regexp &&
-          stackItem.regexp.toString() !== EXPRESS_ROOT_PATH_REGEXP_VALUE
+          stackItem.regexp.toString() !== rootPathRegExpValue
         ) {
-          const regExpPath = `RegExp(${stackItem.regexp})`;
-          newBasePath += `/${regExpPath}`;
+          newBasePath += `/${formatRegExpRoutePath(stackItem.regexp)}`;
         }
       } else if (version === "v5") {
         if (!stackItem.path) {

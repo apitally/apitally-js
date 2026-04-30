@@ -8,6 +8,7 @@ import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import {
   getAppWithCelebrate,
   getAppWithMiddlewareOnRouter,
+  getAppWithMultiplePaths,
   getAppWithNestedRouters,
   getAppWithValidator,
 } from "./app.js";
@@ -253,6 +254,64 @@ describe("Middleware for Express router", () => {
         path: "/api/hello",
       },
     ]);
+  });
+
+  afterEach(async () => {
+    if (client) {
+      await client.handleShutdown();
+    }
+    teardownOtel();
+  });
+});
+
+describe("Middleware for Express with multiple paths", () => {
+  let app: Express;
+  let appTest: request.Agent;
+  let client: ApitallyClient;
+
+  beforeEach(async () => {
+    mockApitallyHub();
+    app = getAppWithMultiplePaths();
+    appTest = request(app);
+    client = ApitallyClient.getInstance();
+    setupOtel();
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  });
+
+  it("Request counter", async () => {
+    await appTest.get("/openapi.json").expect(200);
+    await appTest.get("/.well-known/openapi.json").expect(200);
+    await appTest.get("/regex/foo").expect(200);
+    await appTest.get("/regex/bar").expect(200);
+    await appTest.get("/users/123").expect(200);
+
+    const requests = client.requestCounter.getAndResetRequests();
+    expect(requests.length).toBe(3);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/openapi.json" &&
+          r.request_count === 2,
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "RegExp(/^\\/regex\\/.+$/)" &&
+          r.request_count === 2,
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/users/:id" &&
+          r.request_count === 1,
+      ),
+    ).toBe(true);
   });
 
   afterEach(async () => {

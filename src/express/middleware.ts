@@ -21,10 +21,12 @@ import {
   patchWinston,
 } from "../loggers/index.js";
 import {
+  formatRegExpRoutePath,
   getEndpoints,
   getRouterInfo,
   parseExpressPath,
   parseExpressPathRegExp,
+  stripExpressPathParamRegex,
 } from "./utils.js";
 
 declare module "express" {
@@ -232,14 +234,27 @@ function getRoutePath(req: Request) {
   if (!req.route) {
     return;
   }
+  // req.route.path can be a string, a RegExp, or an array of either
+  let routePath: unknown = req.route.path;
+  if (Array.isArray(routePath)) {
+    routePath = routePath.find((p) => typeof p === "string") ?? routePath[0];
+  }
+  if (typeof routePath === "string") {
+    routePath = stripExpressPathParamRegex(routePath);
+  } else if (routePath instanceof RegExp) {
+    routePath = formatRegExpRoutePath(routePath);
+  }
+  if (typeof routePath !== "string") {
+    return;
+  }
   if (req.baseUrl) {
     const routerInfo = getRouterInfo(req.app);
     if (routerInfo.stack) {
       const routerPath = getRouterPath(routerInfo.stack, req.baseUrl);
-      return req.route.path === "/" ? routerPath : routerPath + req.route.path;
+      return routePath === "/" ? routerPath : routerPath + routePath;
     }
   }
-  return req.route.path;
+  return routePath;
 }
 
 function getRouterPath(stack: any[], baseUrl: string) {
