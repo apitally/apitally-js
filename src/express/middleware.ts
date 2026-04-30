@@ -233,9 +233,10 @@ function getRoutePath(req: Request) {
     return;
   }
   // req.route.path can be a string, a RegExp, or an array of either
-  const raw: unknown = Array.isArray(req.route.path)
-    ? req.route.path[0]
-    : req.route.path;
+  const path: unknown = req.route.path;
+  const raw: unknown = Array.isArray(path)
+    ? (path.find((p) => typeof p === "string") ?? path[0])
+    : path;
   const routePath =
     typeof raw === "string"
       ? raw
