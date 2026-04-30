@@ -21,11 +21,12 @@ import {
   patchWinston,
 } from "../loggers/index.js";
 import {
+  formatRegExpRoutePath,
   getEndpoints,
   getRouterInfo,
   parseExpressPath,
   parseExpressPathRegExp,
-  regexpExpressPathParamRegexp,
+  stripExpressPathParamRegex,
 } from "./utils.js";
 
 declare module "express" {
@@ -239,9 +240,9 @@ function getRoutePath(req: Request) {
     routePath = routePath.find((p) => typeof p === "string") ?? routePath[0];
   }
   if (typeof routePath === "string") {
-    routePath = routePath.replace(regexpExpressPathParamRegexp, "$1");
+    routePath = stripExpressPathParamRegex(routePath);
   } else if (routePath instanceof RegExp) {
-    routePath = `RegExp(${routePath})`;
+    routePath = formatRegExpRoutePath(routePath);
   }
   if (typeof routePath !== "string") {
     return;
