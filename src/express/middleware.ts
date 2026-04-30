@@ -233,10 +233,9 @@ function getRoutePath(req: Request) {
     return;
   }
   // req.route.path can be an array when a route is registered with multiple paths
-  const rawPath: unknown = req.route.path;
-  const routePath = Array.isArray(rawPath)
-    ? rawPath.find((p) => typeof p === "string")
-    : rawPath;
+  const routePath = Array.isArray(req.route.path)
+    ? req.route.path.find((p: unknown) => typeof p === "string")
+    : req.route.path;
   if (typeof routePath !== "string") {
     return;
   }
