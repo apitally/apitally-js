@@ -82,27 +82,28 @@ const hasParams = function (expressPathRegExp) {
  * @return {Endpoint[]} Endpoints info
  */
 const parseExpressRoute = function (route, basePath) {
-  const paths = [];
-
-  if (Array.isArray(route.path)) {
-    paths.push(...route.path);
-  } else {
-    paths.push(route.path);
-  }
+  // route.path can be a string, a RegExp, or an array of either
+  const paths = Array.isArray(route.path) ? route.path : [route.path];
 
   /** @type {Endpoint[]} */
-  const endpoints = paths.map((path) => {
+  const endpoints = paths.flatMap((path) => {
+    let pathStr;
+    if (typeof path === "string") {
+      pathStr = path.replace(regexpExpressPathParamRegexp, "$1");
+    } else if (path instanceof RegExp) {
+      pathStr = `RegExp(${path})`;
+    } else {
+      return [];
+    }
     const completePath =
-      basePath && path === "/" ? basePath : `${basePath}${path}`;
-
-    /** @type {Endpoint} */
-    const endpoint = {
-      path: completePath.replace(regexpExpressPathParamRegexp, "$1"),
-      methods: getRouteMethods(route),
-      middlewares: getRouteMiddlewares(route),
-    };
-
-    return endpoint;
+      basePath && pathStr === "/" ? basePath : `${basePath}${pathStr}`;
+    return [
+      {
+        path: completePath,
+        methods: getRouteMethods(route),
+        middlewares: getRouteMiddlewares(route),
+      },
+    ];
   });
 
   return endpoints;

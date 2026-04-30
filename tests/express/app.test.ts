@@ -282,12 +282,27 @@ describe("Middleware for Express with multiple paths", () => {
   it("Request counter", async () => {
     await appTest.get("/openapi.json").expect(200);
     await appTest.get("/.well-known/openapi.json").expect(200);
+    await appTest.get("/regex/foo").expect(200);
+    await appTest.get("/regex/bar").expect(200);
 
     const requests = client.requestCounter.getAndResetRequests();
-    expect(requests.length).toBe(1);
-    expect(requests[0].method).toBe("GET");
-    expect(requests[0].path).toBe("/openapi.json");
-    expect(requests[0].request_count).toBe(2);
+    expect(requests.length).toBe(2);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "/openapi.json" &&
+          r.request_count === 2,
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (r) =>
+          r.method === "GET" &&
+          r.path === "RegExp(/^\\/regex\\/.+$/)" &&
+          r.request_count === 2,
+      ),
+    ).toBe(true);
   });
 
   afterEach(async () => {

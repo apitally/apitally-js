@@ -232,11 +232,17 @@ function getRoutePath(req: Request) {
   if (!req.route) {
     return;
   }
-  // req.route.path can be an array when a route is registered with multiple paths
-  const routePath = Array.isArray(req.route.path)
-    ? req.route.path.find((p: unknown) => typeof p === "string")
+  // req.route.path can be a string, a RegExp, or an array of either
+  const raw: unknown = Array.isArray(req.route.path)
+    ? req.route.path[0]
     : req.route.path;
-  if (typeof routePath !== "string") {
+  const routePath =
+    typeof raw === "string"
+      ? raw
+      : raw instanceof RegExp
+        ? `RegExp(${raw})`
+        : undefined;
+  if (routePath === undefined) {
     return;
   }
   if (req.baseUrl) {

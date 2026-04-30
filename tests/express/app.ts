@@ -215,6 +215,10 @@ export const getAppWithMultiplePaths = () => {
     res.send({ openapi: "3.0.0" });
   });
 
+  app.get(/^\/regex\/.+$/, (req, res) => {
+    res.send("regex");
+  });
+
   return app;
 };
 
