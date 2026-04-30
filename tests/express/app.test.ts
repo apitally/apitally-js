@@ -8,6 +8,7 @@ import { mockApitallyHub, setupOtel, teardownOtel } from "../utils.js";
 import {
   getAppWithCelebrate,
   getAppWithMiddlewareOnRouter,
+  getAppWithMultiplePaths,
   getAppWithNestedRouters,
   getAppWithValidator,
 } from "./app.js";
@@ -253,6 +254,40 @@ describe("Middleware for Express router", () => {
         path: "/api/hello",
       },
     ]);
+  });
+
+  afterEach(async () => {
+    if (client) {
+      await client.handleShutdown();
+    }
+    teardownOtel();
+  });
+});
+
+describe("Middleware for Express with multiple paths", () => {
+  let app: Express;
+  let appTest: request.Agent;
+  let client: ApitallyClient;
+
+  beforeEach(async () => {
+    mockApitallyHub();
+    app = getAppWithMultiplePaths();
+    appTest = request(app);
+    client = ApitallyClient.getInstance();
+    setupOtel();
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  });
+
+  it("Request counter", async () => {
+    await appTest.get("/openapi.json").expect(200);
+    await appTest.get("/.well-known/openapi.json").expect(200);
+
+    const requests = client.requestCounter.getAndResetRequests();
+    expect(requests.length).toBe(1);
+    expect(requests[0].method).toBe("GET");
+    expect(requests[0].path).toBe("/openapi.json");
+    expect(requests[0].request_count).toBe(2);
   });
 
   afterEach(async () => {

@@ -201,6 +201,23 @@ export const getAppWithMiddlewareOnRouter = () => {
   return app;
 };
 
+export const getAppWithMultiplePaths = () => {
+  const app = express();
+
+  useApitally(app, {
+    clientId: CLIENT_ID,
+    env: ENV,
+    appVersion: "1.2.3",
+    requestLogging: requestLoggingConfig,
+  });
+
+  app.get(["/openapi.json", "/.well-known/openapi.json"], (req, res) => {
+    res.send({ openapi: "3.0.0" });
+  });
+
+  return app;
+};
+
 export const getAppWithNestedRouters = () => {
   const app = express();
   const router1 = express.Router();

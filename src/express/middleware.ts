@@ -232,14 +232,22 @@ function getRoutePath(req: Request) {
   if (!req.route) {
     return;
   }
+  // req.route.path can be an array when a route is registered with multiple paths
+  const rawPath: unknown = req.route.path;
+  const routePath = Array.isArray(rawPath)
+    ? rawPath.find((p) => typeof p === "string")
+    : rawPath;
+  if (typeof routePath !== "string") {
+    return;
+  }
   if (req.baseUrl) {
     const routerInfo = getRouterInfo(req.app);
     if (routerInfo.stack) {
       const routerPath = getRouterPath(routerInfo.stack, req.baseUrl);
-      return req.route.path === "/" ? routerPath : routerPath + req.route.path;
+      return routePath === "/" ? routerPath : routerPath + routePath;
     }
   }
-  return req.route.path;
+  return routePath;
 }
 
 function getRouterPath(stack: any[], baseUrl: string) {
