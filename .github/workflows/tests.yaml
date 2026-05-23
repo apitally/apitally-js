@@ -23,7 +23,7 @@ jobs:
       - name: Build package
         run: npm run build
       - name: Check if types are wrong with attw
-        run: npx -p @arethetypeswrong/cli attw --pack .
+        run: npx attw --pack .
 
   test-coverage:
     runs-on: ubuntu-latest

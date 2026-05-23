@@ -287,8 +287,14 @@
       "optional": true
     }
   },
+  "overrides": {
+    "@arethetypeswrong/cli": {
+      "fflate": "0.8.2"
+    }
+  },
   "devDependencies": {
     "@adonisjs/core": "^7.0.0",
+    "@arethetypeswrong/cli": "^0.18.2",
     "@eslint/js": "^9.29.0",
     "@hapi/hapi": "^21.4.3",
     "@hono/zod-validator": "^0.7.0",
