@@ -69,6 +69,30 @@ export default class TempGzipFile {
     });
   }
 
+  async writeLines(lines: Buffer[]) {
+    if (lines.length === 0) return;
+    await this.readyPromise;
+    // Batch every line into a single gzip.write so the caller awaits once
+    // per drain instead of once per item — drops O(N) awaits/syscalls down
+    // to one, which is the difference between sustaining ~7 req/s and
+    // sustaining thousands.
+    const parts: Buffer[] = [];
+    const newline = Buffer.from("\n");
+    for (const line of lines) {
+      parts.push(line, newline);
+    }
+    const combined = Buffer.concat(parts);
+    return new Promise<void>((resolve, reject) => {
+      this.gzip.write(combined, (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
   async getContent() {
     return new Promise<Buffer>((resolve, reject) => {
       readFile(this.filePath, (error, data) => {

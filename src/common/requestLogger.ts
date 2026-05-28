@@ -164,6 +164,7 @@ export default class RequestLogger {
   private currentFile: TempGzipFile | null = null;
   private files: TempGzipFile[] = [];
   private maintainIntervalId?: NodeJS.Timeout;
+  private maintainInProgress = false;
   private lock = new AsyncLock();
 
   constructor(config?: Partial<RequestLoggingConfig>) {
@@ -172,7 +173,9 @@ export default class RequestLogger {
 
     if (this.enabled) {
       this.maintainIntervalId = setInterval(() => {
-        this.maintain();
+        // A monitoring library must never crash the host. The maintenance
+        // promise is otherwise unobserved, so swallow rejections here.
+        this.maintain().catch(() => {});
       }, 1000);
     }
   }
@@ -470,39 +473,49 @@ export default class RequestLogger {
       return;
     }
     return this.lock.acquire("file", async () => {
+      // Snapshot the queue so the drain is bounded by what was pending when
+      // the lock was acquired. Items pushed during this drain land in a fresh
+      // array and are picked up on the next tick. Without this snapshot,
+      // under sustained traffic the while-loop could hold the lock for far
+      // longer than the maintain() interval, stacking up subsequent acquires.
+      const items = this.pendingWrites;
+      this.pendingWrites = [];
+      if (items.length === 0) {
+        return;
+      }
       if (!this.currentFile) {
         this.currentFile = new TempGzipFile("request_logs");
       }
-      while (this.pendingWrites.length > 0) {
-        let item = this.pendingWrites.shift();
-        if (item) {
-          item = this.applyMasking(item);
 
-          const finalItem = {
-            uuid: item.uuid,
-            request: skipEmptyValues(item.request),
-            response: skipEmptyValues(item.response),
-            exception: item.exception,
-            logs: item.logs,
-            spans: item.spans,
-            traceId: item.traceId,
-          };
+      const lines: Buffer[] = [];
+      for (let item of items) {
+        item = this.applyMasking(item);
 
-          // Set up body serialization for JSON
-          [finalItem.request.body, finalItem.response.body].forEach((body) => {
-            if (body) {
-              // @ts-expect-error Override Buffer's default JSON serialization
-              body.toJSON = function () {
-                return this.toString("base64");
-              };
-            }
-          });
+        const finalItem = {
+          uuid: item.uuid,
+          request: skipEmptyValues(item.request),
+          response: skipEmptyValues(item.response),
+          exception: item.exception,
+          logs: item.logs,
+          spans: item.spans,
+          traceId: item.traceId,
+        };
 
-          await this.currentFile.writeLine(
-            Buffer.from(JSON.stringify(finalItem)),
-          );
-        }
+        // Set up body serialization for JSON
+        [finalItem.request.body, finalItem.response.body].forEach((body) => {
+          if (body) {
+            // @ts-expect-error Override Buffer's default JSON serialization
+            body.toJSON = function () {
+              return this.toString("base64");
+            };
+          }
+        });
+
+        lines.push(Buffer.from(JSON.stringify(finalItem)));
       }
+
+      // One awaited write per drain instead of one per item — N awaits become 1.
+      await this.currentFile.writeLines(lines);
     });
   }
 
@@ -525,16 +538,30 @@ export default class RequestLogger {
   }
 
   async maintain() {
-    await this.writeToFile();
-    if (this.currentFile && this.currentFile.size > MAX_FILE_SIZE) {
-      await this.rotateFile();
+    // Non-reentrant: if a previous maintain() is still running, drop this
+    // tick. Without this, every interval tick that arrives while the
+    // current drain is in progress would push another acquire onto the
+    // "file" lock queue, eventually exceeding async-lock's maxPending and
+    // throwing "Too many pending tasks in queue file" from inside the
+    // (unawaited) setInterval callback — crashing the host process.
+    if (this.maintainInProgress) {
+      return;
     }
-    while (this.files.length > MAX_FILES) {
-      const file = this.files.shift();
-      file?.delete();
-    }
-    if (this.suspendUntil !== null && this.suspendUntil < Date.now()) {
-      this.suspendUntil = null;
+    this.maintainInProgress = true;
+    try {
+      await this.writeToFile();
+      if (this.currentFile && this.currentFile.size > MAX_FILE_SIZE) {
+        await this.rotateFile();
+      }
+      while (this.files.length > MAX_FILES) {
+        const file = this.files.shift();
+        file?.delete();
+      }
+      if (this.suspendUntil !== null && this.suspendUntil < Date.now()) {
+        this.suspendUntil = null;
+      }
+    } finally {
+      this.maintainInProgress = false;
     }
   }
 
