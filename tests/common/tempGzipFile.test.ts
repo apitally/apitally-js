@@ -1,4 +1,3 @@
-import { setImmediate } from "node:timers/promises";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
@@ -9,14 +8,12 @@ describe("Temporary gzip file", () => {
     const file = new TempGzipFile("test");
     expect(file.size).toBe(0);
 
-    await file.writeLine(Buffer.from("test1"));
-    await file.writeLine(Buffer.from("test2"));
+    await file.writeLines([Buffer.from("test1"), Buffer.from("test2")]);
 
-    // Wait for the next event loop cycle to ensure gzip stream has flushed to file
-    await setImmediate();
-    expect(file.size).toBeGreaterThan(0);
-
+    // gzip buffers compressed output internally, so size only reflects bytes
+    // written to the underlying file once the stream is flushed on close.
     await file.close();
+    expect(file.size).toBeGreaterThan(0);
 
     const compressedData = await file.getContent();
     const content = gunzipSync(compressedData).toString();

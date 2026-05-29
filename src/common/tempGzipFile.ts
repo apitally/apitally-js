@@ -56,10 +56,17 @@ export default class TempGzipFile {
     return this.writeStream.bytesWritten;
   }
 
-  async writeLine(data: Buffer) {
+  async writeLines(lines: Buffer[]) {
+    if (lines.length === 0) return;
     await this.readyPromise;
+    const parts: Buffer[] = [];
+    const newline = Buffer.from("\n");
+    for (const line of lines) {
+      parts.push(line, newline);
+    }
+    const combined = Buffer.concat(parts);
     return new Promise<void>((resolve, reject) => {
-      this.gzip.write(Buffer.concat([data, Buffer.from("\n")]), (error) => {
+      this.gzip.write(combined, (error) => {
         if (error) {
           reject(error);
         } else {

@@ -1,5 +1,5 @@
 import { gunzipSync } from "node:zlib";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import RequestLogger, {
   Request,
@@ -362,5 +362,50 @@ describe("Request logger", () => {
     expect(maskedRequestLines[1].normal).toBe("text");
     expect(maskedResponseLines[0].status).toBe("ok");
     expect(maskedResponseLines[1].id).toBe(42);
+  });
+
+  it("Maintain backpressure", async () => {
+    // Repeated maintain() ticks while a drain holds the "file" lock must not
+    // stack lock.acquire() calls past async-lock's maxPending (1000) and reject.
+    for (let i = 0; i < 10; i++) {
+      requestLogger.logRequest(createRequest(), createResponse());
+    }
+
+    const promises: Promise<unknown>[] = [];
+    for (let i = 0; i < 2500; i++) {
+      promises.push(requestLogger.maintain());
+    }
+    const results = await Promise.allSettled(promises);
+    const rejections = results.filter((r) => r.status === "rejected");
+    expect(rejections).toHaveLength(0);
+  });
+
+  it("Maintain error handling", async () => {
+    // The interval callback swallows errors so a failing tick never crashes
+    // the host; direct callers still see the rejection.
+    vi.useFakeTimers();
+    let isolatedLogger: RequestLogger | undefined;
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      isolatedLogger = new RequestLogger({ enabled: true });
+      vi.spyOn(isolatedLogger, "writeToFile").mockRejectedValue(
+        new Error("Too many pending tasks in queue file"),
+      );
+      isolatedLogger.logRequest(createRequest(), createResponse());
+      await vi.advanceTimersByTimeAsync(1500);
+
+      await expect(isolatedLogger.maintain()).rejects.toThrow(
+        /Too many pending tasks/,
+      );
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      vi.useRealTimers();
+      if (isolatedLogger) {
+        await isolatedLogger.close().catch(() => undefined);
+      }
+    }
+    expect(unhandled).toEqual([]);
   });
 });
