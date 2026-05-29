@@ -173,8 +173,6 @@ export default class RequestLogger {
 
     if (this.enabled) {
       this.maintainIntervalId = setInterval(() => {
-        // A monitoring library must never crash the host. The maintenance
-        // promise is otherwise unobserved, so swallow rejections here.
         this.maintain().catch(() => {});
       }, 1000);
     }
@@ -514,7 +512,6 @@ export default class RequestLogger {
         lines.push(Buffer.from(JSON.stringify(finalItem)));
       }
 
-      // One awaited write per drain instead of one per item — N awaits become 1.
       await this.currentFile.writeLines(lines);
     });
   }
@@ -541,9 +538,7 @@ export default class RequestLogger {
     // Non-reentrant: if a previous maintain() is still running, drop this
     // tick. Without this, every interval tick that arrives while the
     // current drain is in progress would push another acquire onto the
-    // "file" lock queue, eventually exceeding async-lock's maxPending and
-    // throwing "Too many pending tasks in queue file" from inside the
-    // (unawaited) setInterval callback — crashing the host process.
+    // "file" lock queue, eventually exceeding async-lock's maxPending.
     if (this.maintainInProgress) {
       return;
     }

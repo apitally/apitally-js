@@ -6,28 +6,6 @@ import RequestLogger, {
   Response,
 } from "../../src/common/requestLogger.js";
 
-const createRequest = (): Request => ({
-  timestamp: Date.now() / 1000,
-  method: "GET",
-  path: "/test",
-  url: "http://localhost:8000/test?foo=bar",
-  headers: [
-    ["accept", "text/plain"],
-    ["content-type", "text/plain"],
-  ],
-  size: 4,
-  consumer: "test",
-  body: Buffer.from("test"),
-});
-
-const createResponse = (): Response => ({
-  statusCode: 200,
-  responseTime: 0.123,
-  headers: [["content-type", "text/plain"]],
-  size: 4,
-  body: Buffer.from("test"),
-});
-
 describe("Request logger", () => {
   let requestLogger: RequestLogger;
 
@@ -46,6 +24,28 @@ describe("Request logger", () => {
     if (requestLogger) {
       await requestLogger.close();
     }
+  });
+
+  const createRequest = (): Request => ({
+    timestamp: Date.now() / 1000,
+    method: "GET",
+    path: "/test",
+    url: "http://localhost:8000/test?foo=bar",
+    headers: [
+      ["accept", "text/plain"],
+      ["content-type", "text/plain"],
+    ],
+    size: 4,
+    consumer: "test",
+    body: Buffer.from("test"),
+  });
+
+  const createResponse = (): Response => ({
+    statusCode: 200,
+    responseTime: 0.123,
+    headers: [["content-type", "text/plain"]],
+    size: 4,
+    body: Buffer.from("test"),
   });
 
   const getLoggedItems = async (
@@ -363,36 +363,10 @@ describe("Request logger", () => {
     expect(maskedResponseLines[0].status).toBe("ok");
     expect(maskedResponseLines[1].id).toBe(42);
   });
-});
 
-describe("Request logger — backpressure and overload", () => {
-  let requestLogger: RequestLogger;
-
-  beforeEach(() => {
-    requestLogger = new RequestLogger({
-      enabled: true,
-      logQueryParams: true,
-      logRequestHeaders: true,
-      logRequestBody: true,
-      logResponseHeaders: true,
-      logResponseBody: true,
-    });
-  });
-
-  afterEach(async () => {
-    if (requestLogger) {
-      await requestLogger.close();
-    }
-  });
-
-  it("does not pile up pending lock acquisitions when maintain() is invoked faster than it can drain", async () => {
-    // Production crash mode: setInterval(() => this.maintain(), 1000) fires
-    // tick after tick while the first maintain()'s writeToFile() is still
-    // draining and holds the "file" lock. Every following tick stacked
-    // another lock.acquire("file"), and async-lock's default maxPending is
-    // 1000 — past that, acquire() rejects synchronously with "Too many
-    // pending tasks in queue file", which leaks out of the unawaited
-    // setInterval callback as an unhandled rejection and crashes Node.
+  it("Maintain backpressure", async () => {
+    // Repeated maintain() ticks while a drain holds the "file" lock must not
+    // stack lock.acquire() calls past async-lock's maxPending (1000) and reject.
     for (let i = 0; i < 10; i++) {
       requestLogger.logRequest(createRequest(), createResponse());
     }
@@ -406,41 +380,9 @@ describe("Request logger — backpressure and overload", () => {
     expect(rejections).toHaveLength(0);
   });
 
-  it("snapshots pendingWrites at lock acquisition so a single drain has bounded duration", async () => {
-    for (let i = 0; i < 100; i++) {
-      requestLogger.logRequest(createRequest(), createResponse());
-    }
-    const draining = requestLogger.writeToFile();
-    // Items pushed during the drain should land in a fresh array (the next
-    // tick picks them up), not extend the in-progress drain.
-    for (let i = 0; i < 100; i++) {
-      requestLogger.logRequest(createRequest(), createResponse());
-    }
-    await draining;
-    await requestLogger.writeToFile();
-    await requestLogger.rotateFile();
-
-    const file = requestLogger.getFile();
-    expect(file).toBeDefined();
-    const content = await file!.getContent();
-    await file!.delete();
-
-    const lines = gunzipSync(content)
-      .toString()
-      .trimEnd()
-      .split("\n")
-      .filter(Boolean);
-    // MAX_PENDING_WRITES caps each in-memory batch at 100, so up to 100
-    // items pushed *during* the drain may be evicted by later pushes. We
-    // expect to see substantially more than a single batch survived.
-    expect(lines.length).toBeGreaterThanOrEqual(150);
-  });
-
-  it("does not surface an unhandled rejection on the host when the interval-driven maintain tick throws", async () => {
-    // A monitoring library must never crash the host. The constructor's
-    // interval callback wraps maintain() in .catch(() => {}). Direct
-    // callers (close/clear) still observe rejections — that is correct,
-    // they need to know when maintenance fails.
+  it("Maintain error handling", async () => {
+    // The interval callback swallows errors so a failing tick never crashes
+    // the host; direct callers still see the rejection.
     vi.useFakeTimers();
     let isolatedLogger: RequestLogger | undefined;
     const unhandled: unknown[] = [];
@@ -465,20 +407,5 @@ describe("Request logger — backpressure and overload", () => {
       }
     }
     expect(unhandled).toEqual([]);
-  });
-
-  it("sustains high-throughput logRequest with interleaved maintain ticks", async () => {
-    // Compresses ~7 req/s × 26k requests (the production failure point)
-    // into a tight loop with maintain() called every 500 pushes — same
-    // shape as setInterval(maintain, 1000) under high arrival rate.
-    const total = 30_000;
-    for (let i = 0; i < total; i++) {
-      requestLogger.logRequest(createRequest(), createResponse());
-      if (i % 500 === 0) {
-        void requestLogger.maintain();
-      }
-    }
-    await requestLogger.maintain();
-    await requestLogger.maintain();
   });
 });

@@ -56,26 +56,9 @@ export default class TempGzipFile {
     return this.writeStream.bytesWritten;
   }
 
-  async writeLine(data: Buffer) {
-    await this.readyPromise;
-    return new Promise<void>((resolve, reject) => {
-      this.gzip.write(Buffer.concat([data, Buffer.from("\n")]), (error) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
-
   async writeLines(lines: Buffer[]) {
     if (lines.length === 0) return;
     await this.readyPromise;
-    // Batch every line into a single gzip.write so the caller awaits once
-    // per drain instead of once per item — drops O(N) awaits/syscalls down
-    // to one, which is the difference between sustaining ~7 req/s and
-    // sustaining thousands.
     const parts: Buffer[] = [];
     const newline = Buffer.from("\n");
     for (const line of lines) {
