@@ -72,7 +72,7 @@ Replace the v0 SDK with a v1 built on OpenTelemetry: the SDK produces spans, log
 
 Design-level decisions live in `design-js.md` (D1-D7) and are not restated here. Plan-owned decisions:
 
-- KTD1. **No-placeholder sequencing.** Exports-map entries, CI jobs, and the root entry land only with their real files: `./express` in U13, `./hono` in U14, `"."` in U15; CI `check` starts as biome+tsc, `build`/`coverage` join in U3, attw joins in U13 alongside the first exports-map entry, `test-bun` in U15, `test-matrix` in U16.
+- KTD1. **No-placeholder sequencing.** Exports-map entries, CI jobs, and the root entry land only with their real files: `./express` in U13, `./hono` in U14, `"."` in U15; CI `check` starts as biome+tsc; `test`, `build`, and `coverage` join in U3; attw joins in U13 alongside the first exports-map entry, `test-bun` in U15, `test-matrix` in U16.
 - KTD2. **Module-lands-with-test rhythm.** Each module commits together with its focused test module; module order within units is dependency order. Where a module's concrete peer lands later, it is written against interface types — OTel's where one exists, otherwise a small SDK-internal seam interface declared in the earlier unit's module — and wired centrally in `src/activation.ts` (U12).
 - KTD3. **Unit clustering.** Units are cohesive module clusters sized for meaningful review, not per-module micro-units; the per-unit Files lists preserve the v0/Python porting map as the authority on provenance.
 - KTD4. **Test conventions** (aligned decisions, recorded in design-js §16, enforced via `AGENTS.md`): two-tier layout; independent per-framework files with a cross-framework naming and ordering contract plus shared helpers; subject-predicate naming; lifecycle-arc ordering; contract-derived scenario selection with authority citations (Python suite mined as evidence, not authority); deterministic seams only; exact-by-default assertions.
@@ -92,6 +92,7 @@ flowchart TB
   U3 --> U6[U6 providers]
   U3 --> U9[U9 metrics]
   U5 --> U9
+  U7 --> U9
   U3 --> U10[U10 startup + capture]
   U4 --> U7[U7 span pipeline]
   U7 --> U8[U8 log pipeline + capture patches]
@@ -201,8 +202,8 @@ tests/
 | U5 | Spool and export worker | 1b | `src/spool.ts`, `src/exportWorker.ts`, `tests/stubOtlpServer.ts` | U3 |
 | U6 | Providers | 1b | `src/providers.ts` | U3 |
 | U7 | Span pipeline | 1b | `src/spanProcessor.ts`, `src/exporter.ts` | U4 |
-| U8 | Log pipeline and capture patches | 1b | `src/logPipeline.ts`, `src/logCapture/*.ts` | U7 |
-| U9 | Metrics | 1b | `src/metrics.ts` | U3, U5 |
+| U8 | Log pipeline and capture patches | 1b | `src/logPipeline.ts`, `src/logCapture.ts` | U7 |
+| U9 | Metrics | 1b | `src/metrics.ts` | U3, U5, U7 |
 | U10 | Startup event and capture helpers | 1b | `src/startup.ts`, `src/capture.ts` | U3 |
 | U11 | Sentry and manual tracing | 1b | `src/sentry.ts`, `src/tracing.ts` | U7 |
 | U12 | Activation orchestration | 1b | `src/activation.ts` | U5, U6, U8, U9, U10, U11 |
@@ -215,8 +216,8 @@ tests/
 
 - **Goal:** one commit that resets the repo for v1; v0 stays reachable via git history and `main` for porting reference.
 - **Requirements:** R9, R11, R12.
-- **Files:** delete `src/` and `tests/`; rewrite `package.json`; add `biome.json`; adapt `tsconfig.json` (strict, ES2022, NodeNext; drop decorator flags until the NestJS phase), `tsup.config.ts` (drop the stub copy step until the Adonis phase), `vitest.config.ts` (drop swc/decorators until NestJS); keep Renovate config; rewrite `.github/workflows/` to a single `tests.yaml` (delete `publish.yaml` and `summary.yaml`); author `AGENTS.md`.
-- **Approach:** `package.json` gets `engines: {"node": ">=20.6.0"}`, `sideEffects: false`, dependencies per design-js §16 (OTel stable `^2.9.0`/api `^1.9.0`, experimental `^0.220.0`, `instrumentation-undici` `^0.30.0`, undici; optional peers: express, hono, winston, pino, `@sentry/node`); the exports map starts empty and grows per KTD1. Scripts: `check` (biome + tsc), `test` (vitest), `build` (tsup, all `src/` modules as unbundled entries — the exports map independently governs the public surface per KTD1), package-shape check via attw. CI `check` job runs biome+tsc only; `tests.yaml` is modeled on the py workflow and ends in a `ci-gate` job (`needs` every other job, `if: always()`, fails on any failure or cancellation) as the single required status check — jobs join the gate as they land per KTD1. Coverage is flag-gated, never forced on in config (v0 weakness). `AGENTS.md` is authored from design §16 + design-js §16, modeled on the Python `AGENTS.md`: the KTD8 code, naming, and comment rules plus the finer-grained py rules (renaming a function renames its associated constants; public API names stay stable; a comment sits next to the code it justifies and stays accurate), the no-references-to-planning-artifacts rule (the `v1/` docs are deleted before release; comments stand alone), no `instanceof` across OTel package copies, the test philosophy (every test pins a spec MUST, a settled design decision, or a plausible regression; mock only at process boundaries; one end-to-end test over several micro-tests), the test conventions from KTD4, the coverage-ownership rule from KTD7 (one behavior, one home; extend an existing helper over adding a sibling), the sleep/fake-timer ban, and the check/test commands.
+- **Files:** delete `src/`, `tests/`, `eslint.config.js`, and `scripts/`; rewrite `package.json`; add `biome.json`; adapt `tsconfig.json` (strict, ES2022, NodeNext; drop decorator flags until the NestJS phase), `tsup.config.ts` (drop the stub copy step until the Adonis phase), `vitest.config.ts` (drop swc/decorators until NestJS); keep Renovate config; rewrite `.github/workflows/` to a single `tests.yaml` (delete `publish.yaml` and `summary.yaml`); author `AGENTS.md`.
+- **Approach:** `package.json` gets `engines: {"node": ">=20.6.0"}`, `sideEffects: false`, dependencies per design-js §14/§16 (OTel stable `^2.9.0`/api `^1.9.0`, experimental `^0.220.0`, `instrumentation-undici` `^0.30.0`, undici; optional peers: express, hono, winston, pino, `@sentry/node`); the exports map starts empty and grows per KTD1. Scripts: `check` (biome + tsc), `test` (vitest), `build` (tsup, all `src/` modules as unbundled entries — the exports map independently governs the public surface per KTD1), package-shape check via attw. CI `check` job runs biome+tsc only; `tests.yaml` is modeled on the py workflow and ends in a `ci-gate` job (`needs` every other job, `if: always()`, fails on any failure or cancellation) as the single required status check — jobs join the gate as they land per KTD1. Coverage is flag-gated, never forced on in config (v0 weakness). `AGENTS.md` is authored from design §16 + design-js §16, modeled on the Python `AGENTS.md`: the KTD8 code, naming, and comment rules plus the finer-grained py rules (renaming a function renames its associated constants; public API names stay stable; a comment sits next to the code it justifies and stays accurate), the no-references-to-planning-artifacts rule (the `v1/` docs are deleted before release; comments stand alone), no `instanceof` across OTel package copies, the test philosophy (every test pins a spec MUST, a settled design decision, or a plausible regression; mock only at process boundaries; one end-to-end test over several micro-tests), the test conventions from KTD4, the coverage-ownership rule from KTD7 (one behavior, one home; extend an existing helper over adding a sibling), the sleep/fake-timer ban, and the check/test commands.
 - **Test scenarios:** none — pure toolchain and scaffolding; the pipeline proves itself green on U3's first real module.
 - **Verification:** `npm run check` green on the empty skeleton (tsconfig includes the root `*.config.ts` files so tsc has inputs before U3); CI `check` job green; `AGENTS.md` review against design §16 + design-js §16.
 
@@ -232,20 +233,21 @@ tests/
 
 ### U3. Foundation and test harness
 
-- **Goal:** the three dependency-root modules plus the global test infrastructure; CI `build` and `coverage` jobs join `check` here.
+- **Goal:** the three dependency-root modules plus the global test infrastructure; CI `test`, `build`, and `coverage` jobs join `check` here.
 - **Requirements:** R1, R2, R9, R10.
 - **Dependencies:** U2.
 - **Files:** `src/internalLogger.ts` (new, ~20 lines), `src/config.ts` (ported from py `shared/config.py`; v0 `common/paramValidation.ts`), `src/context.ts` (ported from py `shared/context.py` + `consumer.py` holder), `tests/shared/internalLogger.test.ts`, `tests/shared/config.test.ts`, `tests/shared/context.test.ts`, `tests/setup.ts`, `tests/utils.ts`, CI workflow edits.
-- **Approach:** `internalLogger.ts` is the console-backed SDK-diagnostics logger gated on `APITALLY_DEBUG` with warn dedup (design §12). `config.ts` carries `ApitallyOptions`, env-var resolution, validation, first-call-wins/re-call semantics, the content-type allowlist, and default pattern tables (design §3); a missing or format-invalid write token logs an error with the token masked to a short prefix and force-disables the SDK (design §3, §12 credential invariant). `context.ts` holds the request-scoped holders (span handle, per-request record, consumer holder) and context keys. `tests/setup.ts` implements the isolation contract from design-js §16: global `afterEach` teardown resets for OTel API globals, the config singleton, env vars, and patches — tests never pre-clean (Python conftest model). `tests/utils.ts` starts with in-memory pipeline builders and force-flush read helpers (`exportedSpans`, `expectSingle`), growing as later units need drivers; it also carries a `configureAndActivate` helper that clears the test-runner markers (`VITEST`, `JEST_WORKER_ID`, `NODE_ENV`) before driving configure/activate and asserts activation succeeded (py conftest `configure_and_activate` parity; the global teardown restores env). Integration suites follow the py `exporters` fixture model, adapted to ESM: the spool-exporter factories are replaceable properties on a small factory object (ESM module namespaces are immutable and `bun test` has no vitest-style module mocking, so py-style module patching does not port); tests swap them so real activation constructs in-memory exporters and the worker performs no I/O; the global teardown restores them.
+- **Approach:** `internalLogger.ts` is the console-backed SDK-diagnostics logger — warnings and errors always emit, debug output only under `APITALLY_DEBUG` — with warn dedup (design §12; design-js §12). `config.ts` carries `ApitallyOptions`, env-var resolution, validation, and first-call-wins/re-call semantics (design §3), plus the content-type allowlist (spec §6.3) and default pattern tables (spec §6.7/§6.8); a missing or format-invalid write token logs an error with the token masked to a short prefix and force-disables the SDK (design §3, §12 credential invariant). `context.ts` holds the request-scoped holders (span handle, per-request record, consumer holder) and context keys. `tests/setup.ts` implements the isolation contract from design-js §16: global `afterEach` teardown resets for OTel API globals, the config singleton, env vars, and patches — tests never pre-clean (Python conftest model). `tests/utils.ts` starts with in-memory pipeline builders and force-flush read helpers (`exportedSpans`, `expectSingle`), growing as later units need drivers; it also carries a `configureAndActivate` helper that clears the test-runner markers (`VITEST`, `JEST_WORKER_ID`, `NODE_ENV`) before driving configure/activate and asserts activation succeeded (py conftest `configure_and_activate` parity; the global teardown restores env). Integration suites follow the py `exporters` fixture model, adapted to ESM: the spool-exporter factories are replaceable properties on a small factory object (ESM module namespaces are immutable and `bun test` has no vitest-style module mocking, so py-style module patching does not port); tests swap them so real activation constructs in-memory exporters and the worker performs no I/O; the global teardown restores them.
 - **Test scenarios:**
   - config resolves option > env var > default precedence per option (design §3)
-  - invalid option values fall back to defaults with a warning, table-driven via `it.each` (design §3; py parity)
+  - invalid option values resolve per option — an invalid `sampleRate` silently resolves to capture-everything, invalid patterns are dropped individually with an error log while remaining patterns stay in effect — table-driven via `it.each` (design §3; py parity)
   - a missing or format-invalid write token logs an error with the token masked to a short prefix, never verbatim, and force-disables the SDK (design §3, §12 credential invariant)
   - a second `configure` call keeps first-call-wins semantics (design §3)
+  - `OTEL_SDK_DISABLED` disables the SDK, parsing the same truthy values as `APITALLY_DISABLED`, with option-over-env precedence (design §3)
   - omitted options stay `undefined` and keep env-var fallbacks in effect (design-js §3)
   - content-type allowlist admits and rejects per the table, `it.each` (design §7; py parity)
-  - internal logger emits only when `APITALLY_DEBUG` is set, and deduplicates repeated warnings (design §12)
-  - span-handle and consumer holders resolve inside a request context and are empty outside it (design §4; py parity — JS `AsyncLocalStorage` semantics)
+  - internal logger warnings and errors always emit and repeated warnings deduplicate; debug output appears only when `APITALLY_DEBUG` is set (design §12; design-js §12)
+  - span-handle and consumer holders resolve inside a request context and are empty outside it (design §13; py parity — JS `AsyncLocalStorage` semantics)
 - **Verification:** first real modules green through the full pipeline: `npm run check`, `npm test`, `npm run build`, CI `coverage` job green.
 
 ### U4. Redaction and consumer
@@ -254,13 +256,13 @@ tests/
 - **Requirements:** R1, R5.
 - **Dependencies:** U3.
 - **Files:** `src/redaction.ts` (ported from py `shared/redaction.py`; v0 `common/requestLogger.ts` masking), `src/consumer.ts` (ported from v0 `common/consumerRegistry.ts` `consumerFromStringOrObject`; py `shared/consumer.py`), `tests/shared/redaction.test.ts`, `tests/shared/consumer.test.ts`.
-- **Approach:** redaction engine covers query params, headers, and JSON body fields with defaults plus user patterns and `[REDACTED]` semantics (spec §6.7); the JSON walker masks nested fields. Consumer core enforces identifier/name/group caps and trimming (spec §6.2).
+- **Approach:** redaction engine covers query params, headers, and JSON body fields with defaults plus user patterns and `[REDACTED]` semantics (spec §6.7); the JSON walker masks nested fields. Consumer core enforces identifier/name/group caps and trimming (spec §6.2; design §13).
 - **Test scenarios:**
   - default and user-configured query params are masked in URL-bearing attributes across both semconv normalizations (spec §6.7; design §7)
   - list-valued headers redact to a single `[REDACTED]` value; `Location`/`Content-Location` get query redaction (design §7)
   - nested JSON body fields matching mask patterns are masked, non-matching siblings untouched (spec §6.7; py parity)
   - non-UTF-8 bodies skip field redaction and pass through as bytes (design §7)
-  - consumer identifier/name/group are trimmed and length-capped; invalid identifiers are dropped (spec §6.2; v0 parity)
+  - consumer identifier/name/group are trimmed and length-capped; invalid identifiers are dropped (spec §6.2; design §13; v0 parity)
 - **Verification:** module suites green; redaction behavior re-verified end-to-end in U7's export-copy tests.
 
 ### U5. Spool and export worker
@@ -275,12 +277,12 @@ tests/
   - the size cap evicts oldest non-metrics files first (design §10; py parity)
   - files older than retention after first send attempt are dropped; orphans older than 2h are cleaned, driven by mtime manipulation (design §10; py parity)
   - an unwritable temp dir falls back to memory (design §10; py parity)
-  - created spool files have mode 0600 (design §10; py `tempfile` parity)
-  - an export cycle posts all three signals in lockstep with correct headers (`Authorization`, `Apitally-Env`, `Content-Type`, `Content-Encoding`, `User-Agent`) (spec §2-§4; py parity)
-  - a failed send retries next cycle with byte-identical payload, protobuf-decoded (spec §10; py parity)
-  - during an outage one probe per cycle is sent without unbounded file accumulation, and data is delivered byte-identical after recovery (spec §10; py parity)
-  - permanent 4xx drops the file with a once-per-status warning; 408/429/5xx/connection errors are retryable, with one immediate inline re-POST on connection error (spec §10)
-  - the `Apitally-Export-Interval` response header adjusts the interval, clamped to [5, 60] (spec §10)
+  - created spool files have mode 0600 (py `tempfile` parity)
+  - an export cycle posts all three signals in lockstep with correct headers (`Authorization`, `Apitally-Env`, `Content-Type`, `Content-Encoding`, `User-Agent`) (spec §2-§4; design §10; design-js §10)
+  - a failed send retries next cycle with byte-identical payload, protobuf-decoded (design §10; py parity)
+  - during an outage one probe per cycle is sent without unbounded file accumulation, and data is delivered byte-identical after recovery (design §10; py parity)
+  - permanent 4xx drops the file with a once-per-status warning; 408/429/5xx/connection errors are retryable, with one immediate inline re-POST on connection error (design §10; spec §10 status table)
+  - the `Apitally-Export-Interval` response header adjusts the interval, clamped to [5, 60] (design §10)
   - a hung POST aborts at the injected timeout (design §10)
   - jitter and pacing values stay within design bounds, tested as pure functions (design §10)
   - the worker timer is unref'd (design-js §4 — JS-only)
@@ -292,14 +294,17 @@ tests/
 - **Requirements:** R1, R3.
 - **Dependencies:** U3 (spike 1 informs D1 attach shapes).
 - **Files:** `src/providers.ts` (ported from py `shared/providers.py`), `tests/shared/providers.test.ts`.
-- **Approach:** per design-js §2: detection via the OTel proxy delegate (never `instanceof`); no-provider path constructs `NodeTracerProvider` with always-on sampler, registers it globally, registers `AsyncLocalStorageContextManager` and the W3C propagator each only when unset, and pins attribute value length limits to 65,536 on `generalLimits` and `spanLimits`; user-provider path attaches `ApitallySpanProcessor` through the internal processor list with defensive shape checks (D1, per spike 1) and warns once when unrecognized, instructing to add the root-exported `ApitallySpanProcessor` to the provider's `spanProcessors`. Resource built once per design §2/spec §5.
+- **Approach:** per design-js §2: detection via the OTel proxy delegate (never `instanceof`); no-provider path constructs `NodeTracerProvider` with always-on sampler, registers it globally, registers `AsyncLocalStorageContextManager` and the W3C propagator each only when unset, and pins attribute value length limits to 65,536 on `generalLimits` and `spanLimits`; user-provider path attaches `ApitallySpanProcessor` through the internal processor list with defensive shape checks (D1, per spike 1), reads the provider's public `resource` property for env resolution, and warns once when unrecognized, instructing to add the root-exported `ApitallySpanProcessor` to the provider's `spanProcessors`. Resource built once per design §2/spec §5.
 - **Test scenarios:**
   - with no user provider, the SDK registers its provider as the OTel global with an always-on sampler (design §2)
   - context manager and propagator are registered only when unset; pre-registered ones are left untouched (design-js §2 — JS-only)
   - attribute length limits are pinned so an `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` env var never clips captured bodies (design-js §2 — JS-only)
   - the resource carries `service.instance.id` (UUIDv4), `deployment.environment.name`, and the distro name/version pair (spec §5)
   - with a user-owned 2.x provider, the processor is attached additively and the user's exporters keep receiving their spans (D1; py parity)
+  - with a user-owned provider, the env resolves from its resource's `deployment.environment.name` when present; a conflicting configured env warns once and the resource value wins (design §2)
   - an unrecognized provider shape warns once with the actionable `spanProcessors` fix (D1)
+  - a user provider with a recognizably span-dropping sampler (always-off, ratio-based, or parent-based on such a root) warns once naming the coverage consequence; unrecognized custom samplers stay silent (design §2)
+  - an adopted provider whose effective attribute length limit is below 65,536 warns once when a capture option is enabled (design §2)
   - meter and logger providers are never registered into OTel globals (design §2)
 - **Verification:** module suite green.
 
@@ -313,20 +318,24 @@ tests/
 - **Test scenarios:**
   - nothing is exported before both release conditions hold; whichever of transport completion and span end comes second triggers release (D2)
   - non-SERVER local roots and their children are dropped; in-flight map miss means dropped (design §5; py parity)
-  - OPTIONS, websocket-scheme, and path/user-agent-excluded requests drop spans at start (spec §6.8; py parity)
+  - OPTIONS, websocket-scheme, and path/user-agent-excluded requests drop spans at start (design §5; spec §6.5/§6.8; py parity)
+  - when the producing instrumentation omits path attributes, path and query are derived from the full-URL attribute at span start and written onto the span (design §5)
   - sampling is deterministic by trace id, both stages test the same value, overall probability is the minimum (design §6; py parity)
   - response-stage sampling keeps errors and drops healthy requests (design §6; py parity)
   - a throwing, invalid-returning, or Promise-returning sampling callback warns and resolves to keep (design §6; design-js §6 — callbacks are synchronous)
-  - per-request buffers cap at 1,000 spans and 1,000 logs (design §6)
+  - per-request span buffers cap at 1,000 spans (design §6)
   - a late descendant follows its request's keep/drop decision (design §6; py parity)
   - contrib per-message send/receive spans are dropped while user socket spans are kept (spec §6.6; py parity)
   - a nested SERVER span under an in-flight request binds to the same entry, exports as INTERNAL on Apitally's copy, and warns once (design-js §8 — JS-only)
   - processor shutdown releases transport-complete requests and discards in-flight buffers (design §6)
   - capture payloads never appear on the live span: a second exporter on the same provider sees none of them (design §7 MUST)
   - the export copy applies the request record idempotently; late-learned attributes reach the exported span (design §6)
+  - `setRequestAttribute` writes reach the live span and the export copy through the write-through helper; `captureException` records the exception event, coercing non-Error values; both are safe no-ops outside a request (design-js §13; design §12)
+  - a consumer set in the holder before SERVER-span start is written onto the span at start (design §13; design-js §13)
   - mask callbacks returning nothing, throwing, or returning a wrong type yield `[REDACTED]` (design §7)
   - a span whose redaction fails is dropped, never exported raw (design §7)
-  - body processing order is mask → parse → redact → serialize; oversized bodies carry `[BODY_TOO_LARGE]`; aborted partial buffers are suppressed (design §7)
+  - body processing order is mask → parse → redact → serialize; a stashed `[BODY_TOO_LARGE]` sentinel bypasses the pipeline and exports unchanged (design §7)
+  - pre-compressed (gzip) response bodies pass through to the export copy as bytes without decompression (design §7)
 - **Verification:** module suites green; the payload-isolation scenario doubles as the review gate for D2's write-through helper.
 
 ### U8. Log pipeline and capture patches
@@ -338,12 +347,14 @@ tests/
 - **Approach:** per design §9/D4: patches emit into the private `LoggerProvider` through `api-logs` with severity mapping per spec §8 and instrumentation scope = logger name (`console` for console); winston and pino are peer-resolved via synchronous `createRequire` (design-js §16) so the user's copy is patched under strict layouts (pnpm). Request linkage, drop rule, self-log exclusion, buffering, and 2,048-char truncation per design §9. Code-location attributes omitted (D7).
 - **Test scenarios:**
   - a log emitted inside a request carries the request linkage and follows the request's keep/drop decision (spec §8; design §9; py parity)
+  - a log record emitted outside any request is dropped; `apitally`-scoped records are exempt from the drop rule and from truncation (spec §8; design §9)
+  - a request's log buffer caps at 1,000 records (design §6)
   - SDK-internal and OTel diagnostic logs are never captured (design §9; py parity)
   - log bodies truncate at 2,048 characters (design §9)
-  - console method wraps map severities per spec §8 with scope `console` (spec §8)
+  - console method wraps map severities per spec §8 with scope `console` (spec §8; design-js §9)
   - a winston logger created before `useApitally` is captured via the prototype patch (D4 — the contrib-gap rationale)
   - pino loggers created before and after `useApitally` are both captured via the `writeSym` prototype patch (D4 — JS-only)
-  - patches are idempotent across double `useApitally` and safe when the library is absent (design §12)
+  - patches are idempotent across double `useApitally` and safe when the library is absent (design §3 re-call semantics; design §12)
   - captured logs reach only the private provider: a user-registered global logger provider receives none of them (design §2/§9 — pins the privacy invariant)
 - **Verification:** module suites green against the devDependency-pinned winston and pino versions.
 
@@ -351,15 +362,16 @@ tests/
 
 - **Goal:** request histograms, process gauges, the non-periodic reader, and the exponential-histogram downscale.
 - **Requirements:** R1.
-- **Dependencies:** U3, U5 (spike 5 informs the downscale and selector behavior; U5's stub server carries the decoded-protobuf verification).
+- **Dependencies:** U3, U5, U7 (spike 5 informs the downscale and selector behavior; U5's stub server carries the decoded-protobuf verification; U7's release machinery drives the recording scenarios).
 - **Files:** `src/metrics.ts` (ported from py `shared/metrics.py`; v0 `common/resources.ts` gauges), `tests/shared/metrics.test.ts`.
-- **Approach:** per design §11/spec §7: three request histograms under scope `apitally`, exponential buckets, delta temporality via reader selectors scoped to histogram instruments; recorded at the release point from the per-request record, sampling-independent. Downscale exponential data points to scale <= 3 by power-of-two bucket-merge before serialization (ingest accepts [-2, 6]). Process gauges (`process.cpu.utilization`, `process.memory.usage`, `process.uptime`) as observable gauges on the private MeterProvider (D5), observed in the worker's collection cycle. The reader collects only when the worker calls it.
+- **Approach:** per design §11/spec §7: three request histograms under scope `apitally`, exponential buckets, delta temporality via reader selectors scoped to histogram instruments; recorded at transport completion from the per-request record, independent of span-end timing and sampling. Downscale exponential data points to scale <= 3 by power-of-two bucket-merge before serialization (ingest accepts [-2, 6]). Process gauges (`process.cpu.utilization`, `process.memory.usage`, `process.uptime`) as observable gauges on the private MeterProvider (D5), observed in the worker's collection cycle. The reader collects only when the worker calls it.
 - **Test scenarios:**
-  - histograms record at release with the spec §7.1 attribute set plus `url.scheme` and `error.type` (5xx-only, string) (spec §7.1)
+  - histograms record at transport completion with the spec §7.1 attribute set plus `url.scheme` and `error.type` (5xx-only, string) (spec §7.1; design §11; design-js §6)
+  - an unknown body size skips the body-size histogram observation (design §7)
   - excluded and sampled-out requests are counted; OPTIONS, websocket, and unmatched-route requests are skipped (spec §7.1; design §11; py parity)
-  - metrics record independently of span sampling: `sampleRate: 0` drops spans but keeps metrics (design §6; py parity)
+  - metrics record independently of span sampling: `sampleRate: 0` drops spans but keeps metrics (design §11; py parity)
   - delta temporality and exponential aggregation apply to histograms only; gauges keep last-value (design §11; spike 5)
-  - downscaling merges buckets correctly down to scale <= 3 on real data points (design §11 — JS-only; spike 5)
+  - downscaling merges buckets correctly down to scale <= 3 on real data points (design-js §11 — JS-only; spike 5)
   - process gauges observe on collection with cpu utilization normalized across CPUs and RSS memory (spec §7.2; D5)
   - the reader produces data only when the worker's cycle collects (design §10)
 - **Verification:** module suite green; decoded-protobuf scale assertion rides U5's stub-server round-trip.
@@ -374,9 +386,9 @@ tests/
 - **Test scenarios:**
   - the startup event carries scope, event name, and the JSON body shape from spec §9, emitted once (spec §9)
   - `eventName` lands in the native field, or the attribute fallback when unsupported (spec §9; spike 4)
-  - bodies over the cap yield the `[BODY_TOO_LARGE]` sentinel; disallowed content types are not captured (design §7)
-  - `captureResponse` tees a web stream without consuming or delaying it (design §7; v0 parity)
-  - size attributes use trusted Content-Length, else a running count finalized at completion; unknown size skips attribute and histogram observation (design §7)
+  - bodies over the cap yield the `[BODY_TOO_LARGE]` sentinel; disallowed content types are not captured; a partial buffer from an aborted stream is suppressed, never exported (design §7)
+  - `captureResponse` tees a web stream without consuming or delaying it (design-js §7; v0 parity)
+  - size attributes use trusted Content-Length, else a running count finalized at completion; unknown size skips the size attribute (design §7)
 - **Verification:** module suites green.
 
 ### U11. Sentry and manual tracing
@@ -399,16 +411,16 @@ tests/
 - **Requirements:** R1, R2, R3.
 - **Dependencies:** U5, U6, U8, U9, U10, U11.
 - **Files:** `src/activation.ts` (ported from py `shared/activation.py`), `tests/shared/activation.test.ts`.
-- **Approach:** per design §4: configure is synchronous inside `useApitally()` (validate, wrap, compile patterns); activation is gated in the outermost per-request wrapper, first request as the universal trigger, fully synchronous, at most once per process; the config/activation singleton lives in a `Symbol.for`-keyed `globalThis` slot so both ESM and CJS build copies share one instance (design-js §4); test-environment detection skips activation permanently; `beforeExit` is the clean-exit floor; all timers unref'd. Enables `instrumentation-undici` only when the SDK constructed its own tracer provider (D6). Sets `OTEL_SEMCONV_STABILITY_OPT_IN=http/dup` only when unset (design-js §3). Public async `shutdown()` performs the final drain.
+- **Approach:** per design §4: configure is synchronous inside `useApitally()` (validate, wrap, compile patterns, set `OTEL_SEMCONV_STABILITY_OPT_IN=http/dup` only when unset — design-js §3, at configure time so user instrumentations constructed afterwards see it); activation is gated in the outermost per-request wrapper, first request as the universal trigger, fully synchronous, at most once per process; the config/activation singleton lives in a `Symbol.for`-keyed `globalThis` slot so both ESM and CJS build copies share one instance (design-js §4); test-environment detection skips activation permanently; `beforeExit` is the clean-exit floor; all timers unref'd. Enables `instrumentation-undici` only when the SDK constructed its own tracer provider (D6). Public async `shutdown()` performs the final drain.
 - **Test scenarios:**
   - activation runs exactly once on the first request, including concurrent first requests, synchronously (design §4)
   - test-environment guards (`JEST_WORKER_ID`, `VITEST`, `NODE_ENV=test`, `APITALLY_DISABLED`, `disabled`) each skip activation permanently, `it.each` (design §4; py parity)
   - an activation failure logs at error level and the app keeps serving untelemetered (design §4/§12)
   - the startup event is emitted during activation (spec §9)
   - undici instrumentation is enabled only on the SDK-owned-provider path; adopted setups leave client-span production to the user (D6 — JS-only)
-  - the semconv opt-in env var is set only when unset (design-js §3)
-  - `shutdown()` drains pending exports and is idempotent; `beforeExit` triggers the same drain (design §4)
-  - every SDK timer is unref'd so the SDK never holds the event loop open (design-js §4 — JS-only)
+  - configure sets the semconv opt-in env var, only when unset (design-js §3)
+  - `shutdown()` drains pending exports and is idempotent; `beforeExit` triggers the same drain (design §4; design-js §13 idempotency)
+  - an activated SDK holds no ref'd timers: the event loop can drain with the SDK active (design-js §4 — JS-only; the worker's own timer is pinned in U5)
   - a second copy of the activation module (fresh module registry, same process) observes the existing activation through the `globalThis` slot instead of re-activating (design-js §4 — JS-only, dual-build safety)
 - **Verification:** module suite green; end-to-end wiring re-proven through U13/U14 integration tests. Shared-suite audit gate (KTD7): with all core modules landed, read `tests/shared/` and `tests/utils.ts` end-to-end as one artifact — dedupe against the coverage-ownership rule, consolidate helpers, normalize naming and ordering; fixes land in this unit.
 
@@ -418,21 +430,22 @@ tests/
 - **Requirements:** R2, R3, R5, R6.
 - **Dependencies:** U12.
 - **Files:** `src/express/index.ts` (adapter `useApitally`), `src/express/middleware.ts`, `src/express/routes.ts` (ported from v0 `express/utils.js`, converted to TS), `tests/express/app.ts` (uniform app fixture), `tests/express/express.test.ts` (integration), `tests/express/routes.test.ts` (route reconstruction unit tests), `package.json` exports edit.
-- **Approach:** per design-js §8: `useApitally` wraps `app.handle` — position-independent, covering 404/`finalhandler` and error-handler responses; the middleware starts or adopts the SERVER span under a fresh context, sets RPC metadata, observes responses via `res.write`/`res.end` patches plus `finish`/`close` listeners, taps request bodies passively via a `req.emit` wrap, releases per the D2 condition, attaches the `req.socket.server` close listener for shutdown (once per process), and lazily appends the error middleware on first request. Route templates from the ported v0 reconstruction (nested routers, mount prefixes, Express 4/5 differences, inline regex params). The uniform app fixture carries the canonical route set (item GET/POST, healthz, error, consumer, streaming, mounted sub-router); the error route throws synchronously — Express 4 never routes async handler rejections to error middleware (Express 5 does), so only the sync path behaves uniformly across the matrix. Integration binds the fixture to one long-lived listening server per suite and drives supertest against that server — supertest given a bare app starts and closes a server per request, which would fire the close-triggered final drain after the first test — with exact-count assertions on the in-memory pipeline; the shutdown scenario closes the long-lived server deliberately.
-- **Test scenarios:** (integration names below form the canonical cross-framework set shared verbatim with U14)
+- **Approach:** per design-js §8: `useApitally` wraps `app.handle` — position-independent, covering 404/`finalhandler` and error-handler responses; the middleware starts the SERVER span under a fresh context (or adopts an active one in the user's context — design-js §4), sets RPC metadata, observes responses via `res.write`/`res.end` patches plus `finish`/`close` listeners, taps request bodies passively via a `req.emit` wrap, releases per the D2 condition, attaches the `req.socket.server` close listener for shutdown (once per process), and lazily appends the error middleware on first request. Route templates from the ported v0 reconstruction (nested routers, mount prefixes, Express 4/5 differences, inline regex params). The uniform app fixture carries the canonical route set (item GET/POST, healthz, error, consumer, streaming, mounted sub-router); the error route throws synchronously — Express 4 never routes async handler rejections to error middleware (Express 5 does), so only the sync path behaves uniformly across the matrix. Integration binds the fixture to one long-lived listening server per suite and drives supertest against that server — supertest given a bare app starts and closes a server per request, which would fire the close-triggered final drain after the first test — with exact-count assertions on the in-memory pipeline; the shutdown scenario closes the long-lived server deliberately.
+- **Test scenarios:** (integration names below form the canonical cross-framework set shared verbatim with U14; scenarios marked U13-only are outside the shared set)
   - a request exports a single SERVER span with stable semconv attributes and `{method} {route}` name (spec §6.1; design §8)
+  - a request carrying `traceparent` continues the remote trace as a SERVER span, and an unsampled upstream flag does not suppress it (spec §6.5; design §2/§5)
   - route templates include mount prefixes and nested routers; unmatched requests export a cleared route and are skipped by histograms (design §8; v0 parity in `routes.test.ts`, both Express 4 and 5 shapes)
   - healthz is excluded from spans but counted in metrics; OPTIONS in neither (spec §6.8/§7.1; py parity)
   - an unhandled route error produces the exception event and a 5xx span (spec §6.4)
   - a pre-instrumented app (active SERVER span) is adopted without a duplicate span, and the SDK layers record/capture/metrics on top (design-js §8; py parity)
   - RPC metadata is set on the request context, visible to downstream middleware (design-js §8 — JS-only)
-  - a request body is captured only when the app consumes it; an unread body leaves the stream untouched and uncaptured (design §7 — JS-only, the passive-tap contract)
+  - a request body is captured only when the app consumes it; an unread body leaves the stream untouched and uncaptured (design-js §7 — JS-only, the passive-tap contract; U13-only — Hono's body-cache capture differs, U14)
   - request/response bodies are captured, masked, and redacted per config toggles; captured payloads stay off the live span (spec §6.3/§6.7; design §7)
   - streaming responses report correct sizes and complete-body capture semantics (design §7; py parity)
-  - a consumer set in a handler reaches metrics dimensions (spec §6.2; py parity)
-  - the first request activates the SDK; double `useApitally` is idempotent (design §4; py parity)
-  - `sampleRate: 0` drops spans but keeps metrics (design §6; py parity)
-  - closing the server triggers the final drain (design-js §4 — JS-only)
+  - a consumer set in a handler reaches metrics dimensions (spec §7.1; design §13; py parity)
+  - the first request activates the SDK; double `useApitally` is idempotent (design §4/§3; py parity)
+  - `sampleRate: 0` drops spans but keeps metrics (design §11; py parity)
+  - closing the server triggers the final drain (design-js §4 — JS-only; U13-only — Hono's shutdown path is the public `shutdown()`, covered in U12)
   - full-chain assembly smoke (U13-only, outside the shared set): real `useApitally` and activation with the export endpoint pointed at the stub OTLP server; one directly-driven worker cycle delivers spans, logs, and metrics through batch processors, spool, and POST, protobuf-decoded (design §10 — first end-to-end proof of the production assembly on Node)
 - **Verification:** integration suite green through the subpath `useApitally` with exact-count pipeline assertions; attw validates the subpath (the attw CI gate starts here, with the first exports-map entry).
 
@@ -443,11 +456,11 @@ tests/
 - **Dependencies:** U12.
 - **Files:** `src/hono/index.ts`, `src/hono/middleware.ts`, `src/hono/routes.ts` (ported from v0 `hono/utils.ts`; mount-prefix handling for `app.route()` sub-apps), `tests/hono/app.ts`, `tests/hono/hono.test.ts`, `tests/hono/routes.test.ts`, `package.json` exports edit.
 - **Approach:** per design-js §8: `useApitally` wraps `app.fetch` (span, fresh context, response observation — `onError`-synthesized responses return through it) and registers a thin inner middleware for context-bound data (`c.req.routePath`, consumer). The existing `onError` handler is wrapped through the runtime-accessible `errorHandler` property (duck-typed, defensively); 404-ness derives from route-match state plus response status. Response bodies via the ported `captureResponse` teeing helper. Integration drives the same canonical scenario set as U13 via `app.request()`, identical `it` strings and order.
-- **Test scenarios:** the canonical cross-framework set from U13 (same names, same order), plus:
+- **Test scenarios:** the canonical cross-framework set from U13 (same names, same order, minus the scenarios marked U13-only), plus:
   - a wrapped `onError` handler still runs and the exception event is recorded (design-js §8)
   - unmatched requests derive 404-ness from route-match state plus status, including a custom `notFound` response (design-js §8 — JS-only)
-  - `app.route()` sub-app routes carry mount prefixes in templates (design §8; v0 parity)
-  - response streams are teed without being consumed or delayed (design §7; v0 parity)
+  - `app.route()` sub-app routes carry mount prefixes in templates (design §8; v0 parity in `routes.test.ts`)
+  - a request body is captured through the body cache whether or not the handler read it; a body consumed directly off `c.req.raw` is not captured (design-js §7 — JS-only)
 - **Verification:** integration suite green on Node via `app.request()`; Bun execution proven in U15.
 
 ### U15. Root entry and Bun lane
@@ -462,7 +475,7 @@ tests/
   - an unrecognized app throws an error naming the subpath entry points (design-js §13)
   - the runtime surface works via root imports inside a request (design-js §13)
   - `ApitallySpanProcessor` imported from the root works in a user-constructed provider's `spanProcessors` array (D1 fallback)
-  - Bun smoke: the Hono app produces spans, logs, and metrics on Bun, and one spool/export cycle round-trips, exercising the `captureResponse` Bun workaround (design-js §1/§8 — JS-only)
+  - Bun smoke: the Hono app produces spans, logs, and metrics on Bun, and one spool/export cycle round-trips, exercising the `captureResponse` Bun workaround (design-js §1/§7/§8 — JS-only)
 - **Verification:** `npm test` and `bun test` green; `test-bun` CI job green; attw validates the root entry.
 
 ### U16. Review, hardening, docs
@@ -471,7 +484,7 @@ tests/
 - **Requirements:** R6, R7, R9, R10, R12.
 - **Dependencies:** U15.
 - **Files:** CI workflow (`test-matrix` job), `README.md`, fixes across `src/` and `tests/` from the review.
-- **Approach:** full review pass (correctness, consistency with design-js.md, dead code, AGENTS.md conformance, and a security-invariant re-check: payload isolation off live spans (R5), credential masking (design §12), spool file mode) followed by a fix iteration. Full-suite audit gate (KTD7): read the entire test suite as one artifact against the acceptance bar — no duplicated coverage outside the canonical cross-framework set, consolidated helpers, uniform naming and ordering, and no trace of this plan's unit structure in the tests. `test-matrix` job: Express 4/5 pins, Hono minor pins, Node 20/22/24, oldest/newest supported Sentry majors (per spike 7). README rewrite: v1 positioning, one-line setup for Express/Hono, and an OTel-cooperation section covering what the SDK reuses and how it coexists with user setups.
+- **Approach:** full review pass (correctness, consistency with design-js.md, dead code, AGENTS.md conformance, and a security-invariant re-check: payload isolation off live spans (R5), credential masking (design §12), spool file mode) followed by a fix iteration. Full-suite audit gate (KTD7): read the entire test suite as one artifact against the acceptance bar — no duplicated coverage outside the canonical cross-framework set, consolidated helpers, uniform naming and ordering, and no trace of this plan's unit structure in the tests. `test-matrix` job: Express 4/5 pins, Hono minor pins, Node 20/22/24, oldest/newest supported Sentry majors (per spike 7), and oldest-supported winston and pino majors (the floors declared in the peer ranges). README rewrite: v1 positioning, one-line setup for Express/Hono, and an OTel-cooperation section covering what the SDK reuses and how it coexists with user setups.
 - **Test scenarios:** none new — this unit proves the existing suite across the version matrix.
 - **Verification:** review findings addressed with rationale recorded in the fix commits; all CI jobs green including the full matrix; the repo carries no dead code from abandoned approaches.
 
@@ -495,7 +508,7 @@ Quality gates: coverage job green from U3; test scenarios in each unit are the p
 ## Definition of Done
 
 - All units U1-U16 complete; every per-unit verification satisfied.
-- Full CI green: `check`, `coverage`, `build`/attw, `test-bun`, `test-matrix`.
+- Full CI green: `check`, `test`, `coverage`, `build`/attw, `test-bun`, `test-matrix`.
 - `design-js.md` spike section replaced with recorded outcomes; any resulting design edits applied.
 - `AGENTS.md` in place and the U16 conformance review passed.
 - Exports map, CI jobs, and root entry contain only entries whose files exist (KTD1 held throughout).
