@@ -85,8 +85,8 @@ Design-level decisions live in `design-js.md` (D1-D8) and are not restated here.
 
 ```mermaid
 flowchart TB
-  U1[U1 reset + toolchain] --> U2[U2 spikes]
-  U2 --> U3[U3 foundation + test harness]
+  U1[U1 reset + toolchain] --> U3[U3 foundation + test harness]
+  U2["U2 spikes (complete)"] --> U3
   U3 --> U4[U4 redaction + consumer]
   U3 --> U5[U5 spool + export worker]
   U3 --> U6[U6 providers]
@@ -205,7 +205,7 @@ tests/
 |---|---|---|---|---|
 | U1 | Repo reset and toolchain | 0 | `package.json`, `biome.json`, CI workflows, `AGENTS.md` | — |
 | U2 | Verification spikes — COMPLETE | 1a | `design-js.md` (spike outcomes), `v1/spikes.md` | — (ran ahead of U1) |
-| U3 | Foundation and test harness | 1b | `src/logger.ts`, `src/config.ts`, `src/context.ts`, `tests/setup.ts`, `tests/utils.ts` | U2 |
+| U3 | Foundation and test harness | 1b | `src/logger.ts`, `src/config.ts`, `src/context.ts`, `tests/setup.ts`, `tests/utils.ts` | U1, U2 |
 | U4 | Redaction and consumer | 1b | `src/redaction.ts`, `src/consumer.ts` | U3 |
 | U5 | Spool and export worker | 1b | `src/spool.ts`, `src/exportWorker.ts`, `tests/stubOtlpServer.ts` | U3 |
 | U6 | Providers | 1b | `src/providers.ts` | U3 |
@@ -242,7 +242,7 @@ tests/
 
 - **Goal:** the three dependency-root modules plus the global test infrastructure; CI `test`, `build`, and `coverage` jobs join `check` here.
 - **Requirements:** R1, R2, R9, R10.
-- **Dependencies:** U2.
+- **Dependencies:** U1, U2.
 - **Files:** `src/logger.ts` (new, ~20 lines), `src/config.ts` (ported from py `shared/config.py`; v0 `common/paramValidation.ts`), `src/context.ts` (ported from py `shared/context.py` + `consumer.py` holder), `tests/shared/logger.test.ts`, `tests/shared/config.test.ts`, `tests/setup.ts`, `tests/utils.ts`, CI workflow edits (`context.ts` carries no test module — its holders are observable only through U7's public-surface tests).
 - **Approach:** `logger.ts` is the SDK-diagnostics logger, writing directly to `process.stderr` — never through `console`, which is a capture surface (design-js §12) — warnings and errors always emit, debug output only under `APITALLY_DEBUG`, with warn dedup (design §12; design-js §12). `config.ts` carries `ApitallyOptions`, env-var resolution, validation, and first-call-wins/re-call semantics (design §3), plus the content-type allowlist (spec §6.3) and default pattern tables (spec §6.7/§6.8); a missing or format-invalid write token logs an error with the token masked to a short prefix and force-disables the SDK (design §3, §12 credential invariant). `context.ts` holds the request-scoped holders (span handle, per-request record, consumer holder) and context keys. `tests/setup.ts` implements the isolation contract from design-js §16: global `afterEach` teardown resets for OTel API globals, the config singleton, env vars, and patches — tests never pre-clean (Python conftest model). `tests/utils.ts` starts with in-memory pipeline builders and force-flush read helpers (`exportedSpans`, `expectSingle`), growing as later units need drivers; it also carries a `configureAndActivate` helper that clears the test-runner markers (`VITEST`, `JEST_WORKER_ID`, `NODE_ENV`) before driving configure/activate and asserts activation succeeded (py conftest `configure_and_activate` parity; the global teardown restores env). Integration suites follow the py `exporters` fixture model, adapted to ESM: the spool-exporter factories are replaceable properties on a small factory object (ESM module namespaces are immutable and `bun test` has no vitest-style module mocking, so py-style module patching does not port); tests swap them so real activation constructs in-memory exporters and the worker performs no I/O; the global teardown restores them.
 - **Test scenarios:**
@@ -305,11 +305,9 @@ tests/
   - with no user provider, the SDK registers its provider as the OTel global with an always-on sampler (design §2)
   - a pre-registered user context manager or propagator is left untouched; the SDK's registration attempt is a refused no-op (design-js §2 — JS-only)
   - inert context propagation at activation (no context manager won registration) warns once (design-js §2 — JS-only)
-  - attribute length limits are pinned so an `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` env var never clips captured bodies (design-js §2 — JS-only)
+  - attribute length limits are pinned so an `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` env var never clips the long regular attributes the pipeline reads — `url.full` still feeds path/query derivation and redaction intact (design-js §2 — JS-only; capture payloads never sit on live spans, so limits cannot reach them regardless)
   - the resource carries `service.instance.id` (UUIDv4), `deployment.environment.name`, the distro name/version pair, and honors `OTEL_SERVICE_NAME`/`OTEL_RESOURCE_ATTRIBUTES` (spec §5; design §2; design-js §2 — the envDetector merge)
-  - a user-added `ApitallySpanProcessor` on a user-owned 2.x provider receives spans while the user's exporters keep receiving theirs (D1 — the documented adopted-setup path)
   - on the own-provider path the `env` option wins over `OTEL_RESOURCE_ATTRIBUTES`' `deployment.environment.name`; on the user-provider path the resource env var wins and a differing non-default configured env warns once (design §2/§3; design-js §2 — per-path precedence)
-  - a span arriving with a resource whose `deployment.environment.name` differs from the activation-resolved env warns once; the activation value stands (design-js §2 — JS-only)
   - detecting a user-owned provider warns once naming the degraded mode (metrics and startup event only until attached) and the actionable `spanProcessors` fix (D1)
   - meter and logger providers are never registered into OTel globals (design §2)
 - **Verification:** module suite green.
@@ -335,10 +333,11 @@ tests/
   - a late descendant follows its request's keep/drop decision (design §6; py parity)
   - contrib per-message send/receive spans are dropped while user socket spans are kept (spec §6.6; py parity)
   - a nested SERVER span under an in-flight request binds to the same entry, exports as INTERNAL on Apitally's copy, and warns once (design-js §8 — JS-only)
-  - processor shutdown releases transport-complete requests and discards in-flight buffers (design §6)
+  - processor shutdown releases transport-complete requests and discards in-flight buffers (D2 — the shutdown reading of its release condition; design-js §6)
   - processor callbacks before activation are safe no-ops, and transport completion without an in-flight entry records metrics and exports nothing (design-js §2 — the pre-activation adopted first request)
   - a user provider's `forceFlush`/`shutdown` on the processor flushes released requests without tearing down the SDK (design-js §2 — D1 lifecycle)
-  - an adopted span whose resource carries a different `deployment.environment.name` exports on Apitally's copy with the key rewritten to the activation-resolved env, the user's exporters seeing the original (D8 — JS-only)
+  - a user-added `ApitallySpanProcessor` on a user-owned 2.x provider receives spans while the user's exporters keep receiving theirs (D1 — the documented adopted-setup path)
+  - an adopted span whose resource carries a different `deployment.environment.name` warns once and exports on Apitally's copy with the key rewritten to the activation-resolved env, the user's exporters seeing the original (D8 — JS-only)
   - capture payloads never appear on the live span: a second exporter on the same provider sees none of them (design §7 MUST)
   - the exporter applies the request record onto the export copy last — a record value (final route, sizes) wins over an instrumentation-set value for the same key — and late-learned attributes reach the exported span (design §6; design-js §6)
   - `setRequestAttribute` writes reach the live span and the export copy through the write-through helper; `captureException` records the exception event, coercing non-Error values; both are safe no-ops outside a request (design-js §13; design §12)
@@ -375,7 +374,7 @@ tests/
 
 - **Goal:** request histograms, process gauges, the non-periodic reader, and the exponential-histogram downscale.
 - **Requirements:** R1.
-- **Dependencies:** U3, U5, U7 (spike 5 informs the downscale and selector behavior; U5's stub server carries the decoded-protobuf verification; U7's release machinery drives the recording scenarios).
+- **Dependencies:** U3, U5, U7 (U5's stub server carries the decoded-protobuf verification; U7's release machinery drives the recording scenarios).
 - **Files:** `src/metrics.ts` (ported from py `shared/metrics.py`; v0 `common/resources.ts` gauges), `tests/shared/metrics.test.ts`.
 - **Approach:** per design §11/spec §7: three request histograms under scope `apitally`, exponential buckets, delta temporality via reader selectors scoped to histogram instruments; recorded at transport completion from the per-request record, independent of span-end timing and sampling. Downscale exponential data points to scale <= 3 by power-of-two bucket-merge before serialization (ingest accepts [-2, 6]). Process gauges (`process.cpu.utilization`, `process.memory.usage`, `process.uptime`) as observable gauges on the private MeterProvider (D5), observed in the worker's collection cycle. The reader collects only when the worker calls it.
 - **Test scenarios:**
@@ -393,12 +392,12 @@ tests/
 
 - **Goal:** the startup event emission and the shared body/header capture helpers.
 - **Requirements:** R1, R5.
-- **Dependencies:** U3 (spike 4 informs `eventName`).
+- **Dependencies:** U3.
 - **Files:** `src/startup.ts` (ported from py `shared/startup.py`; v0 `common/packageVersions.ts`), `src/capture.ts` (ported from v0 `common/response.ts`, `common/headers.ts`; py `shared/asgi.py` rules), `tests/shared/startup.test.ts`, `tests/shared/capture.test.ts`.
 - **Approach:** startup event per spec §9: scope `apitally`, event name `apitally.app.startup` in the native `eventName` field (spike 4 — native support verified end-to-end, no attribute fallback); JSON body with `framework`, `versions`, lazily-enumerated `paths`; `openapi` omitted for phase-1 frameworks. Capture helpers per design §7: allowlist + 50,000-byte cap with sentinel, complete-bodies-only, running length counting, `captureResponse` stream teeing for web streams (including its Bun workaround), size attributes independent of capture toggles.
 - **Test scenarios:**
   - the startup event carries scope, event name, and the JSON body shape from spec §9, emitted once (spec §9)
-  - `eventName` lands in the native `LogRecord.event_name` field on the wire, protobuf-decoded (spec §9; spike 4)
+  - the startup event sets `eventName` natively on the emitted record, not as an attribute (spec §9; spike 4 verified the wire serialization is OTel's — asserting it here would pin third-party code)
   - bodies over the cap yield the `[BODY_TOO_LARGE]` sentinel; disallowed content types are not captured; a partial buffer from an aborted stream is suppressed, never exported (design §7)
   - `captureResponse` tees a web stream without consuming or delaying it (design-js §7; v0 parity)
   - size attributes use trusted Content-Length, else a running count finalized at completion; unknown size skips the size attribute (design §7)
@@ -408,7 +407,7 @@ tests/
 
 - **Goal:** the two independent auxiliary surfaces.
 - **Requirements:** R1, R4.
-- **Dependencies:** U7 (spike 7 informs Sentry access path).
+- **Dependencies:** U7.
 - **Files:** `src/sentry.ts` (new; v0 `common/sentry.ts` detection idea), `src/tracing.ts` (ported from py `otel.py` equivalents), `tests/shared/sentry.test.ts`, `tests/shared/tracing.test.ts`.
 - **Approach:** Sentry per design §14, public API first (synchronous `createRequire("@sentry/node")` + `getClient()`), carrier-walk fallback when peer resolution fails — strict layouts like pnpm and Yarn PnP (spike 7); on exception events write `event.event_id` onto the active SERVER span as `apitally.exception.sentry_event_id`; failures log at debug. `tracing.ts` provides `instrument()`/`span()` as INTERNAL children under scope `apitally.otel`, `code.function.name` from `fn.name`, file/line captured at wrap time.
 - **Test scenarios:**
@@ -499,7 +498,7 @@ tests/
   - root `useApitally` dispatches Express and Hono apps to their adapters, integration-smoked through the root entry (design-js §13)
   - an unrecognized app throws an error naming the subpath entry points (design-js §13)
   - the runtime surface works via root imports inside a request (design-js §13)
-  - `ApitallySpanProcessor` imported from the root works in a user-constructed provider's `spanProcessors` array (design-js §13 — pins the root export wiring; the attachment semantics are U6's)
+  - `ApitallySpanProcessor` imported from the root works in a user-constructed provider's `spanProcessors` array (design-js §13 — pins the root export wiring; the attachment semantics are U7's)
   - Bun smoke: the Hono app produces spans, logs, and metrics on Bun, and one spool/export cycle round-trips, exercising the `captureResponse` Bun workaround (design-js §1/§7/§8 — JS-only)
   - dist smoke: a child script loading the built CJS entry via `require` and the built ESM entry via `import` in one process activates once and double-wraps nothing (design-js §4 — the real mixed-loading failure mode, proven against dist artifacts, not a simulated module registry)
   - the dist child resolves and patches winston and pino through both the CJS and ESM entries (design-js §16 — the `createRequire` anchor survives tsup's CJS `import.meta` rewrite; runs against built artifacts)
@@ -545,7 +544,7 @@ Quality gates: the coverage job runs from U3 as a review input — the report fe
 - The `test-matrix` pins match the declared support ranges: every peer-range floor (`express`, `hono`, `winston`, `pino`, Sentry packages), the OTel minor range, and the `engines` floor appear as matrix pins.
 - Exports map, CI jobs, and root entry contain only entries whose files exist (KTD1 held throughout).
 - Nothing published to npm; no publish workflow exists in the repo.
-- Cleanup: spike scripts and abandoned-approach code removed; the diff contains only live code.
+- Cleanup: abandoned-approach code removed; the diff contains only live code (spike scripts never entered the repo — they lived in the session scratchpad).
 
 ---
 
