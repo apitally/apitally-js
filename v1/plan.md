@@ -167,6 +167,9 @@ tests/
   utils.ts              U3   pipeline builders, configureAndActivate, exporter patches
   stubOtlpServer.ts     U5   test infrastructure, not a test file
   index.test.ts         U15  root dispatch (src/index.ts is not a shared module)
+  dist.test.ts          U15  dist smoke + process liveness (spawns distApp.mjs)
+  distApp.mjs           U15  child fixture: plain JS, loads the package by
+                        self-reference against the built artifacts
   shared/               mirrors src/ — one test module per source module
                         (context.ts: covered via U7's public-surface tests)
     internalLogger.test.ts config.test.ts   redaction.test.ts
@@ -181,6 +184,7 @@ tests/
   hono/                 U14
     app.ts
     hono.test.ts
+    nodeServer.test.ts  real-socket smoke via @hono/node-server
     routes.test.ts
   bun/
     hono.test.ts        U15  Bun smoke
@@ -230,7 +234,7 @@ tests/
 - **Requirements:** R1, R3 (spikes de-risk D1, D2 timing, metrics, Sentry).
 - **Dependencies:** U1.
 - **Files:** scratch scripts (uncommitted); `v1/design-js.md` edits.
-- **Approach:** timebox each to hours; an overrun extends U2 rather than cutting a spike — every outcome gates later units, so the timebox is a tripwire for reassessing the approach, not a scope cut. Order: spike 4 (`sdk-logs` native `eventName` support) first — it can change design details. Then: 2 (batch processor config precedence over env vars), 3 (bytes-attribute serialization on export copies + spool append-stream round-trip; fallback recorded in design-js §10), 5 (exponential histogram downscale correctness; delta via reader selectors with gauges unaffected), 6 (`instrumentation-undici`: `ignoreRequestHook` filtering of the export endpoint — it ignores `suppressTracing` — plus the proxy dispatcher), 7 (Sentry client access per package and major: carrier walk vs peer-resolved `getClient()`; `beforeSendEvent` availability; record chosen path and supported set in design-js §14), 8 (winston/pino patch mechanism across supported majors — the pino write-owner prototype walk and the winston prototype patch cover pre-existing, future, and child loggers; the verified majors become the declared peer floors).
+- **Approach:** timebox each to hours; an overrun extends U2 rather than cutting a spike — every outcome gates later units, so the timebox is a tripwire for reassessing the approach, not a scope cut. Order: spike 4 (`sdk-logs` native `eventName` support) first — it can change design details. Then: 2 (batch processor config precedence over env vars), 3 (bytes-attribute serialization on export copies + spool append-stream round-trip; fallback recorded in design-js spike 3), 5 (exponential histogram downscale correctness; delta via reader selectors with gauges unaffected), 6 (`instrumentation-undici`: `ignoreRequestHook` filtering of the export endpoint — it ignores `suppressTracing` — plus the proxy dispatcher), 7 (Sentry client access per package and major: carrier walk vs peer-resolved `getClient()`; `beforeSendEvent` availability; record chosen path and supported set in design-js §14), 8 (winston/pino patch mechanism across supported majors — the pino write-owner prototype walk and the winston prototype patch cover pre-existing, future, and child loggers; the verified majors become the declared peer floors).
 - **Test scenarios:** none — spike outcomes become design facts that U3-U15 test scenarios then pin.
 - **Verification:** design-js spike section replaced with dated outcomes naming the exact package versions verified; any design-detail changes applied to the affected sections.
 
@@ -271,7 +275,7 @@ tests/
 - **Goal:** the offline transport — spool files with caps/retention plus the send-cycle worker — and the stub OTLP server test infrastructure.
 - **Requirements:** R1.
 - **Dependencies:** U3.
-- **Files:** `src/spool.ts` (ported from v0 `common/tempGzipFile.ts` mechanics; py `shared/spool.py` semantics), `src/exportWorker.ts` (ported from py `shared/export.py`; v0 `common/client.ts` fetch patterns), `tests/shared/spool.test.ts`, `tests/shared/exportWorker.test.ts`, `tests/stubOtlpServer.ts` (node:http, gzip protobuf capture, protobuf decoding via devDependency, scriptable responses including `Apitally-Export-Interval`).
+- **Files:** `src/spool.ts` (ported from v0 `common/tempGzipFile.ts` mechanics; py `shared/spool.py` semantics), `src/exportWorker.ts` (ported from py `shared/export.py`; v0 `common/client.ts` fetch patterns), `tests/shared/spool.test.ts`, `tests/shared/exportWorker.test.ts`, `tests/stubOtlpServer.ts` (node:http, gzip protobuf capture, protobuf decoding via devDependency, scriptable responses including `Apitally-Export-Interval`; also serves as the stub proxy for the proxy scenario — an HTTP proxy for an http target is a server receiving absolute-URI requests).
 - **Approach:** spool per design §10: per-signal `apitally-*.gz` files in `os.tmpdir()`, created with mode `0o600` and the exclusive-create flag (py `tempfile` parity), failing through the writability-probe/memory-fallback path; 4 MB uncompressed rotation checked before append, bounded sub-chunk appends, 50 MB disk / 10 MB memory caps with metrics-last eviction, 59-minute retention after first send attempt, 2-hour orphan cleanup, per-cycle mtime touch, synchronous writability probe with in-memory fallback. Worker per design §10: the send cycle is a directly callable method (KTD4 determinism seam) scheduled on one unref'd timer (15s ±10% jitter, first ~2s); cycles serialized — the next timer is armed only when the cycle completes, and a mid-cycle flush request awaits the running cycle (design-js §10); 10 files per cycle oldest-first, inter-send pauses (injectable like the POST timeout — zero in tests), 10s POST timeout via `AbortSignal.timeout` (injectable for tests), retry classification, `Apitally-Export-Interval` clamping, cycles under `suppressTracing`, uncapped unpaced final drain; proxy via undici `EnvHttpProxyAgent` as per-request dispatcher only when proxy env vars are present (Node), native `proxy` option on Bun.
 - **Test scenarios:** (spool tests run against both disk and memory backends, py parity)
   - rotation occurs at the 4 MB uncompressed threshold, checked before append (design §10)
@@ -456,7 +460,6 @@ tests/
   - closing the server triggers a flush cycle (design-js §4 — JS-only; U13-only — Hono's shutdown path is the public `shutdown()`, covered in U12)
   - after one of two servers bound to the same app closes, requests served by the other still export (design-js §4 — JS-only; U13-only)
   - a request dispatched through `app.handle` without a live socket server serves and exports normally (design-js §4 — JS-only; U13-only — serverless-style invocation)
-  - a spawned child script that boots the app with `useApitally`, serves one request, and closes its server exits on its own — the SDK never holds the process open (design-js §4 — JS-only; U13-only — process-level liveness is only observable from outside the process)
   - full-chain assembly smoke (U13-only, outside the shared set): real `useApitally` and activation with the export endpoint pointed at the stub OTLP server; provider force-flush drains the batch processors (their ~1s schedule delay never enters the test), then one directly-driven worker cycle delivers spans, logs, and metrics through spool and POST, protobuf-decoded (design §10 — first end-to-end proof of the production assembly on Node)
 - **Verification:** integration suite green through the subpath `useApitally` with exact-count pipeline assertions; attw validates the subpath (the attw CI gate starts here, with the first exports-map entry).
 
@@ -481,15 +484,16 @@ tests/
 - **Goal:** the complete root entry with duck-type dispatch, plus the Bun smoke suite and `test-bun` CI job; the `"."` exports-map entry lands here.
 - **Requirements:** R2, R4, R7, R8, R9.
 - **Dependencies:** U13, U14.
-- **Files:** `src/index.ts` (ported from py `__init__.py` dispatch shape), `tests/index.test.ts`, `tests/bun/hono.test.ts`, `package.json` exports edit, CI workflow edit.
-- **Approach:** root `useApitally` duck-types Express (function with `use`/`handle`) vs Hono (object with `routes`/`fetch`/`route`) and delegates; detection failure throws naming the framework subpath entry points; runtime surface re-exports (`setConsumer`, `setRequestAttribute`, `captureException`, `shutdown`, `instrument`, `span`, `ApitallySpanProcessor`); adapters carry zero runtime framework imports so the root stays side-effect-free. The Bun suite (`bun test`) runs the Hono uniform app end-to-end on Bun against the in-memory pipeline plus one spool/export cycle, using the `configureAndActivate` helper to clear `NODE_ENV=test` set by `bun test`. A dist smoke (run after `npm run build`) spawns a child script that loads the built artifacts through package self-reference — the exports map resolves `import` to the ESM build and `require` to the CJS build, the real mixed-loading condition.
+- **Files:** `src/index.ts` (ported from py `__init__.py` dispatch shape), `tests/index.test.ts`, `tests/dist.test.ts` (dist smoke + process-liveness child tests), `tests/distApp.mjs` (child fixture: plain JS, spawned with node, loads the package by self-reference), `tests/bun/hono.test.ts`, `package.json` exports edit, CI workflow edit.
+- **Approach:** root `useApitally` duck-types Express (function with `use`/`handle`) vs Hono (object with `routes`/`fetch`/`route`) and delegates; detection failure throws naming the framework subpath entry points; runtime surface re-exports (`setConsumer`, `setRequestAttribute`, `captureException`, `shutdown`, `instrument`, `span`, `ApitallySpanProcessor`); adapters carry zero runtime framework imports so the root stays side-effect-free. The Bun suite (`bun test`) runs the Hono uniform app end-to-end on Bun against the in-memory pipeline plus one spool/export cycle, using the `configureAndActivate` helper to clear `NODE_ENV=test` set by `bun test`. From this unit the `test` script builds first (`npm run build` precedes vitest, locally and in CI), so the dist child tests always run against fresh artifacts: `tests/dist.test.ts` spawns the plain-JS `distApp.mjs` fixture, which loads the built artifacts through package self-reference — the exports map resolves `import` to the ESM build and `require` to the CJS build, the real mixed-loading condition — and the same fixture carries the process-liveness contract (child must exit on its own).
 - **Test scenarios:**
   - root `useApitally` dispatches Express and Hono apps to their adapters, integration-smoked through the root entry (design-js §13)
   - an unrecognized app throws an error naming the subpath entry points (design-js §13)
   - the runtime surface works via root imports inside a request (design-js §13)
-  - `ApitallySpanProcessor` imported from the root works in a user-constructed provider's `spanProcessors` array (D1 — the documented adopted-setup attachment)
+  - `ApitallySpanProcessor` imported from the root works in a user-constructed provider's `spanProcessors` array (design-js §13 — pins the root export wiring; the attachment semantics are U6's)
   - Bun smoke: the Hono app produces spans, logs, and metrics on Bun, and one spool/export cycle round-trips, exercising the `captureResponse` Bun workaround (design-js §1/§7/§8 — JS-only)
   - dist smoke: a child script loading the built CJS entry via `require` and the built ESM entry via `import` in one process activates once and double-wraps nothing (design-js §4 — the real mixed-loading failure mode, proven against dist artifacts, not a simulated module registry)
+  - a spawned child script that boots the Express app with `useApitally`, serves one request, and closes its server exits on its own — the SDK never holds the process open (design-js §4 — JS-only; process-level liveness is only observable from outside the process; runs against the built artifacts)
 - **Verification:** `npm test` and `bun test` green; `test-bun` CI job green; attw validates the root entry.
 
 ### U16. Review, hardening, docs
