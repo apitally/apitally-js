@@ -136,7 +136,7 @@ src/
   activation.ts         U12  configure/activate/shutdown wiring hub
   config.ts             U3
   context.ts            U3
-  internalLogger.ts     U3
+  logger.ts             U3
   consumer.ts           U4
   redaction.ts          U4
   spool.ts              U5
@@ -172,7 +172,7 @@ tests/
                         self-reference against the built artifacts
   shared/               mirrors src/ — one test module per source module
                         (context.ts: covered via U7's public-surface tests)
-    internalLogger.test.ts config.test.ts   redaction.test.ts
+    logger.test.ts      config.test.ts   redaction.test.ts
     consumer.test.ts    spool.test.ts       exportWorker.test.ts providers.test.ts
     spanProcessor.test.ts exporter.test.ts  logPipeline.test.ts logCapture.test.ts
     metrics.test.ts     startup.test.ts     capture.test.ts     sentry.test.ts
@@ -204,7 +204,7 @@ tests/
 |---|---|---|---|---|
 | U1 | Repo reset and toolchain | 0 | `package.json`, `biome.json`, CI workflows, `AGENTS.md` | — |
 | U2 | Verification spikes | 1a | `design-js.md` (spike outcomes) | U1 |
-| U3 | Foundation and test harness | 1b | `src/internalLogger.ts`, `src/config.ts`, `src/context.ts`, `tests/setup.ts`, `tests/utils.ts` | U2 |
+| U3 | Foundation and test harness | 1b | `src/logger.ts`, `src/config.ts`, `src/context.ts`, `tests/setup.ts`, `tests/utils.ts` | U2 |
 | U4 | Redaction and consumer | 1b | `src/redaction.ts`, `src/consumer.ts` | U3 |
 | U5 | Spool and export worker | 1b | `src/spool.ts`, `src/exportWorker.ts`, `tests/stubOtlpServer.ts` | U3 |
 | U6 | Providers | 1b | `src/providers.ts` | U3 |
@@ -243,8 +243,8 @@ tests/
 - **Goal:** the three dependency-root modules plus the global test infrastructure; CI `test`, `build`, and `coverage` jobs join `check` here.
 - **Requirements:** R1, R2, R9, R10.
 - **Dependencies:** U2.
-- **Files:** `src/internalLogger.ts` (new, ~20 lines), `src/config.ts` (ported from py `shared/config.py`; v0 `common/paramValidation.ts`), `src/context.ts` (ported from py `shared/context.py` + `consumer.py` holder), `tests/shared/internalLogger.test.ts`, `tests/shared/config.test.ts`, `tests/setup.ts`, `tests/utils.ts`, CI workflow edits (`context.ts` carries no test module — its holders are observable only through U7's public-surface tests).
-- **Approach:** `internalLogger.ts` is the SDK-diagnostics logger, writing directly to `process.stderr` — never through `console`, which is a capture surface (design-js §12) — warnings and errors always emit, debug output only under `APITALLY_DEBUG`, with warn dedup (design §12; design-js §12). `config.ts` carries `ApitallyOptions`, env-var resolution, validation, and first-call-wins/re-call semantics (design §3), plus the content-type allowlist (spec §6.3) and default pattern tables (spec §6.7/§6.8); a missing or format-invalid write token logs an error with the token masked to a short prefix and force-disables the SDK (design §3, §12 credential invariant). `context.ts` holds the request-scoped holders (span handle, per-request record, consumer holder) and context keys. `tests/setup.ts` implements the isolation contract from design-js §16: global `afterEach` teardown resets for OTel API globals, the config singleton, env vars, and patches — tests never pre-clean (Python conftest model). `tests/utils.ts` starts with in-memory pipeline builders and force-flush read helpers (`exportedSpans`, `expectSingle`), growing as later units need drivers; it also carries a `configureAndActivate` helper that clears the test-runner markers (`VITEST`, `JEST_WORKER_ID`, `NODE_ENV`) before driving configure/activate and asserts activation succeeded (py conftest `configure_and_activate` parity; the global teardown restores env). Integration suites follow the py `exporters` fixture model, adapted to ESM: the spool-exporter factories are replaceable properties on a small factory object (ESM module namespaces are immutable and `bun test` has no vitest-style module mocking, so py-style module patching does not port); tests swap them so real activation constructs in-memory exporters and the worker performs no I/O; the global teardown restores them.
+- **Files:** `src/logger.ts` (new, ~20 lines), `src/config.ts` (ported from py `shared/config.py`; v0 `common/paramValidation.ts`), `src/context.ts` (ported from py `shared/context.py` + `consumer.py` holder), `tests/shared/logger.test.ts`, `tests/shared/config.test.ts`, `tests/setup.ts`, `tests/utils.ts`, CI workflow edits (`context.ts` carries no test module — its holders are observable only through U7's public-surface tests).
+- **Approach:** `logger.ts` is the SDK-diagnostics logger, writing directly to `process.stderr` — never through `console`, which is a capture surface (design-js §12) — warnings and errors always emit, debug output only under `APITALLY_DEBUG`, with warn dedup (design §12; design-js §12). `config.ts` carries `ApitallyOptions`, env-var resolution, validation, and first-call-wins/re-call semantics (design §3), plus the content-type allowlist (spec §6.3) and default pattern tables (spec §6.7/§6.8); a missing or format-invalid write token logs an error with the token masked to a short prefix and force-disables the SDK (design §3, §12 credential invariant). `context.ts` holds the request-scoped holders (span handle, per-request record, consumer holder) and context keys. `tests/setup.ts` implements the isolation contract from design-js §16: global `afterEach` teardown resets for OTel API globals, the config singleton, env vars, and patches — tests never pre-clean (Python conftest model). `tests/utils.ts` starts with in-memory pipeline builders and force-flush read helpers (`exportedSpans`, `expectSingle`), growing as later units need drivers; it also carries a `configureAndActivate` helper that clears the test-runner markers (`VITEST`, `JEST_WORKER_ID`, `NODE_ENV`) before driving configure/activate and asserts activation succeeded (py conftest `configure_and_activate` parity; the global teardown restores env). Integration suites follow the py `exporters` fixture model, adapted to ESM: the spool-exporter factories are replaceable properties on a small factory object (ESM module namespaces are immutable and `bun test` has no vitest-style module mocking, so py-style module patching does not port); tests swap them so real activation constructs in-memory exporters and the worker performs no I/O; the global teardown restores them.
 - **Test scenarios:**
   - config resolves option > env var > default precedence per option (design §3)
   - invalid option values resolve per option — an invalid `sampleRate` silently resolves to capture-everything, invalid patterns are dropped individually with an error log while remaining patterns stay in effect — table-driven via `it.each` (design §3; py parity)
@@ -299,7 +299,7 @@ tests/
 - **Requirements:** R1, R3.
 - **Dependencies:** U3.
 - **Files:** `src/providers.ts` (ported from py `shared/providers.py`), `tests/shared/providers.test.ts`.
-- **Approach:** per design-js §2: detection via the OTel proxy delegate (never `instanceof`); no-provider path constructs `NodeTracerProvider` with always-on sampler, registers it globally, registers `AsyncLocalStorageContextManager` and the W3C propagator each only when unset, and pins attribute value length limits to 65,536 on `generalLimits` and `spanLimits`; user-provider path never touches provider internals (D1): it warns once with the actionable fix (add the root-exported `ApitallySpanProcessor` to the provider's `spanProcessors`), resolves env from the standard resource env vars, and leaves adoption to the adapters. Resource built once per design §2/spec §5.
+- **Approach:** per design-js §2: detection via the OTel proxy delegate (never `instanceof`); no-provider path constructs `NodeTracerProvider` with always-on sampler, registers it globally, registers `AsyncLocalStorageContextManager` and the W3C propagator each only when unset, and pins attribute value length limits to 65,536 on `generalLimits` and `spanLimits`; user-provider path never touches provider internals (D1): it warns once naming the degraded mode (metrics and startup event only until the root-exported `ApitallySpanProcessor` is added to the provider's `spanProcessors`) and the fix, resolves env from the standard resource env vars, and leaves adoption to the adapters. Resource built once per design §2/spec §5.
 - **Test scenarios:**
   - with no user provider, the SDK registers its provider as the OTel global with an always-on sampler (design §2)
   - a pre-registered user context manager or propagator is left untouched; the SDK's registration attempt is a refused no-op (design-js §2 — JS-only)
@@ -309,7 +309,7 @@ tests/
   - a user-added `ApitallySpanProcessor` on a user-owned 2.x provider receives spans while the user's exporters keep receiving theirs (D1 — the documented adopted-setup path)
   - env resolves from `OTEL_RESOURCE_ATTRIBUTES`' `deployment.environment.name` when present; a conflicting configured env warns once and the resource value wins (design §2; design-js §2)
   - a span arriving with a resource whose `deployment.environment.name` differs from the activation-resolved env warns once; the activation value stands (design-js §2 — JS-only)
-  - detecting a user-owned provider warns once with the actionable `spanProcessors` fix (D1)
+  - detecting a user-owned provider warns once naming the degraded mode (metrics and startup event only until attached) and the actionable `spanProcessors` fix (D1)
   - meter and logger providers are never registered into OTel globals (design §2)
 - **Verification:** module suite green.
 
@@ -443,7 +443,7 @@ tests/
   - a request carrying `traceparent` continues the remote trace as a SERVER span, and an unsampled upstream flag does not suppress it (spec §6.5; design §2/§5)
   - route templates include mount prefixes and nested routers; unmatched requests export a cleared route and are skipped by histograms (design §8; `routes.test.ts` covers both Express 4 and 5 registration shapes against the real packages)
   - the Express 4 wiring smoke passes against the real aliased package: SERVER span, mounted route template, error path (U13-only — the full suite crosses the matrix in U16)
-  - a route registered before `useApitally` exports a cleared route and warns once naming the ordering fix (design-js §8 — JS-only; U13-only — the ordering contract is Express-specific)
+  - a route registered before `useApitally` exports a cleared route and warns once naming the metrics loss (empty-route requests skip the histograms — spec §7.1) and the ordering fix (design-js §8 — JS-only; U13-only — the ordering contract is Express-specific)
   - healthz is excluded from spans but counted in metrics; OPTIONS in neither (spec §6.8/§7.1; py parity)
   - an unhandled route error produces the exception event and a 5xx span (spec §6.4)
   - a pre-instrumented app (active SERVER span) is adopted without a duplicate span, and the SDK layers record/capture/metrics on top (design-js §8; py parity)
