@@ -18,6 +18,8 @@ That loses the matched `c.req.routePath` and any data assigned through the inner
 
 The public processor contract does not explain how a processor constructed inside the user's `NodeSDK` later receives Apitally configuration and downstream processors, what it does with this pre-activation first span, how attachment is detected, or who owns its `forceFlush` and `shutdown` lifecycle. Define an explicit two-phase process-global controller: processor construction must be side-effect-free, `useApitally` supplies immutable configuration, and processor callbacks must safely trigger or tolerate activation before the adapter wrapper runs. Test the exact documented existing-OTel setup in a child process with HTTP instrumentation loaded before `useApitally`.
 
+> **Resolution (2026-07-21):** Confirmed — the timing claim holds (`instrumentation-http` fires `onStart` before the request listener), and the py reference offers no precedent because there the SDK constructs and attaches the processor itself at activation (`activation.py:227`, `add_span_processor`), so pre-activation callbacks are impossible; JS's user-constructed processor is genuinely novel. Contract now specified in design-js §2: the constructor is argument-free and side-effect-free; instances are thin shells forwarding callbacks to the process-global pipeline, so construction order never matters and no attachment detection is needed (attachment = callbacks arriving); pre-activation callbacks fall to the §5 map-miss drop rule — the first adopted request loses its span while metrics survive via the per-request record (the transport-completion entry point tolerates the miss); provider-driven `forceFlush`/`shutdown` flush Apitally's downstream and never tear down the SDK (py parity: `span_processor.py:253-264`). design-js §4's activation sentence is scoped to SDK-produced spans. Plan: U7 approach + three scenarios; U15 child-process test of the documented `NodeSDK` setup against built artifacts. **Status: incorporated** (design-js §2/§4; plan U7, U15).
+
 ## 3. [P1] The Express setup contract still contradicts the claimed one-line, after-imports experience
 
 `plan.md` R2 promises `useApitally(app)` after imports with no init-before-imports requirement. `design-js.md` Express integration requires the call before every route and router registration, including module-scope routers, because route arguments must be captured at registration time. In a normal ESM app, statically imported router modules have already constructed and populated their routers before the entry module can call `useApitally`.
@@ -40,6 +42,8 @@ Three statements do not compose:
 
 Specify one precedence algorithm for config, `APITALLY_ENV`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SERVICE_NAME`, and a user provider's programmatic resource. Whichever value is authoritative must be applied consistently to the Apitally export copy, private resources, startup event, and HTTP header while leaving the user's original span untouched. Test conflicting sources. A warning is not enough when one export names two environments.
 
+> **Resolution (2026-07-21):** Confirmed on all three legs — `defaultResource()` reads no env vars (verified empirically at resources 2.9.0), so the old §4 parenthetical contradicted design.md §2's "OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES are honored". Fixes: (1) resource construction pinned to `defaultResource().merge(detectResources({detectors:[envDetector]})).merge(resourceFromAttributes({...}))` — `envDetector` verified fully synchronous at 2.9.0, so synchronous activation stands; (2) one per-path precedence algorithm in design-js §2 (own provider: option > `APITALLY_ENV` > `OTEL_RESOURCE_ATTRIBUTES` env key > `prod`; user provider: resource env var wins per design.md §2's resource-wins rule, with the once-warning); (3) new **D8**: the exporter rewrites `deployment.environment.name` on adopted-span export copies to the activation-resolved env when it differs — spec §5 makes header/resource agreement a MUST, and design.md's "resource unchanged" assumed a readable provider resource (true in py, private state in OTel JS 2.x); the user's span, resource, and exporters stay untouched, every other resource attribute passes through. The mismatch warning stays; it is no longer the only line of defense. **Status: incorporated** (design-js §2/§4 + deviation table; plan U6, U7).
+
 ## 6. [P1] The serialized export worker cannot guarantee the metrics liveness contract
 
 The worker collects all signals once per cycle, may send ten files with a 10-second timeout each, and schedules the next interval only after the cycle finishes. The design itself acknowledges that a cycle can take minutes. `spec.md` requires metrics exports unconditionally with no more than 60 seconds between them, and the server uses them as the online signal. Ten slow but successful trace or log uploads can therefore make a healthy environment appear offline.
@@ -52,11 +56,15 @@ The failure policy is also ambiguous: the generic design says one probe POST per
 
 An oversized append breaks the stated file bound and can make the server reject a file containing otherwise valid records, after which the permanent-4xx policy drops the whole file. Encode by byte size, recursively split oversized batches, and handle a single oversized record independently with an explicit drop/warning policy. Test one individually oversized span and a batch whose records are each valid but collectively exceed the limit.
 
+> **Resolution (2026-07-21):** Confirmed against the reference — py chunks by count (`ENCODE_CHUNK_SIZE = 32`, `export.py:29`) with no per-append byte guard: a single oversized append rotates into a fresh file and is written whole, unbounded (`spool.py:95-105`), and the owned provider's limits (128 attributes x 65,536 chars) make a multi-MB sub-chunk constructible. Stakes per spec §2: >4 MiB wire = permanent 413 dropping the whole file; >16 MiB decompressed = silent ingest drop. JS refinement recorded in design-js §10: appends are byte-measured against the file's remaining 4 MB budget with recursive splitting, and a single record exceeding the whole budget is dropped with a warning naming signal and size. Both suggested tests added to U5. **Status: incorporated** (design-js §10; plan U5).
+
 ## 8. [P1] Spool concurrency is hand-waved where asynchronous state transitions need a real protocol
 
 Serializing worker cycles does not serialize producer appends against gzip writes, rotation, close, upload, deletion, stream errors, and shutdown. Node is single-threaded, but gzip and filesystem stream completion spans multiple event-loop turns. A close or upload can race an accepted-but-not-yet-flushed append; a delayed stream error can invalidate a generation already treated as complete; shutdown can finish while writes remain queued.
 
 Define one serialized spool state machine or operation queue. A file must become uploadable only after both gzip and file streams close successfully, every append must resolve against a specific file generation, and final drain must await the queue. Tests should force delayed writes and errors across append/rotate/flush boundaries. "Port the v0 mechanics" is not sufficient specification for this load-bearing component.
+
+> **Resolution (2026-07-21):** Accepted — the races are real (gzip and file streams complete across event-loop turns; py avoids the class entirely with synchronous `gzip` writes, so no reference protocol exists to port). design-js §10 now specifies the per-signal serialized operation queue with exactly the reviewer's invariants: append/rotate/close/upload-eligibility/delete/drain serialized, appends resolved against a specific file generation, uploadable only after both streams close, a stream error invalidating only the current generation (discard + deduplicated warning, per design.md §10), final drain awaiting the queue. U5 gains the complete-append-on-flush scenario alongside the existing mid-append stream-error scenario. **Status: incorporated** (design-js §10; plan U5).
 
 ## 9. [P1] The undeclared Undici major is incompatible with the declared Node floor
 
@@ -64,11 +72,15 @@ The SDK claims Node `>=20.6.0` and makes `undici` a regular dependency without n
 
 Pin a compatible Undici 6 range, or raise the Node engine floor. Renovate must not cross the major automatically, and the oldest Node lane must install the real package and exercise the proxy dispatcher. This dependency decision belongs in U1, not in an implicit installer choice.
 
+> **Resolution (2026-07-21):** Confirmed via npm: undici 7.28.0 declares engines `>=20.18.1`, 8.7.0 declares `>=22.19.0`, and 6.x declares `>=18.17` with active releases through June 2026 (6.27.0). Decision: pin `undici` to `^6` (still maintained, carries `EnvHttpProxyAgent`), keeping the deliberate §1 floor of Node 20.6 intact; the Renovate config gets a rule that never crosses the major, revisited when the floor moves with OTel's. Raising the engine floor to 20.18.1 was the rejected alternative — it would re-litigate design-js §1's settled floor rationale for the sake of a proxy-only dependency. Declared in U1's dependency list; the existing Node 20 matrix lane installs the real package, and U5's proxy scenario exercises the dispatcher. **Status: incorporated** (design-js §10/§16; plan U1).
+
 ## 10. [P2] Optional-peer resolution needs an explicit dual-build-safe implementation
 
 The design requires synchronous `createRequire` lookup for Pino, Winston, and other optional peers while shipping unbundled ESM and CJS. The repository's current tsup 8.5.1 CJS output demonstrates the hazard: `import.meta` is rewritten to an empty object, leaving existing `createRequire(import_meta.url)` code with an undefined anchor. A module-load smoke test can pass while optional peer discovery silently behaves as if packages are absent.
 
 Define the resolver strategy for both formats rather than leaving it as a coding detail. Use format-specific entry shims or another build-tested anchor, then run built-artifact CJS tests that actually discover and patch Pino/Winston under npm and pnpm layouts. The existing mixed-load smoke does not exercise this path.
+
+> **Resolution (2026-07-21):** Accepted — tsup rewrites `import.meta` to an empty object in CJS output, stranding a `createRequire(import.meta.url)` anchor. Strategy now pinned: tsup `shims: true` (reconstructs `import.meta.url` from `__filename` in the CJS build) mandated in U1's tsup config, recorded as a design rule in design-js §16, and proven by a new U15 dist scenario — the child fixture resolves and patches winston and pino through both the CJS and ESM built entries. The pnpm-layout leg rides U16's existing pnpm matrix lane. **Status: incorporated** (design-js §16; plan U1, U15).
 
 ## 11. [P2] The Sentry spike is allowed to select an implementation the plan forbids
 
@@ -76,11 +88,15 @@ Define the resolver strategy for both formats rather than leaving it as a coding
 
 Resolve the constraint before implementation: either keep activation synchronous and restrict Sentry support to a synchronous path, or make Sentry attachment an explicitly asynchronous best-effort phase with defined first-event loss and lifecycle behavior. The spike should evaluate only admissible designs or be empowered to revise the relevant design decision, not quietly create an exception.
 
+> **Resolution (2026-07-21):** Accepted — and the conflict dissolves without an exception: Sentry's Node packages ship dual CJS+ESM, so the public-API option works through the same synchronous `createRequire` mechanism as every other optional peer (KTD8 untouched, activation stays synchronous). design-js §14 and spike 7 now state the option as `createRequire("@sentry/node")` + `getClient()`, with CJS resolvability verified per package and major in the spike; a Sentry package that turns ESM-only is inadmissible for that option and falls to the carrier walk. **Status: incorporated** (design-js §14, spike 7).
+
 ## 12. [P2] The public framework subpath API promises undefined helpers
 
 `design-js.md` Public API says `apitally/express` and `apitally/hono` export `useApitally` plus "framework-typed helpers". Neither document names those helpers, gives signatures, explains their purpose, or assigns them to a plan unit. R8 repeats the subpath requirement but only concretely requires the setup export.
 
 An implementation-ready plan should enumerate the public API exactly. Name and specify the helpers, or delete the promise and export only the typed `useApitally`. Leaving an open-ended public surface invites accidental APIs that become semver obligations.
+
+> **Resolution (2026-07-21):** Accepted — no concrete helper was ever identified (v0's per-framework `setConsumer(req, ...)` variants are explicitly removed in v1), so the promise was deleted: design-js §13 now states the subpaths export exactly the framework-typed `useApitally` plus its option types, with any future helper being a deliberate API addition. **Status: incorporated** (design-js §13).
 
 ## Validation pass
 
