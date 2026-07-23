@@ -220,7 +220,7 @@ export class ExportWorker {
     if (!this.warnedStatuses.has(response.status)) {
       this.warnedStatuses.add(response.status);
       logWarning(
-        `Apitally rejected buffered ${file.signal} with HTTP ${response.status}, dropping it`,
+        `Apitally rejected buffered ${file.signal} with HTTP ${response.status}; they were dropped`,
       );
     }
     await this.spool.deleteFile(file);

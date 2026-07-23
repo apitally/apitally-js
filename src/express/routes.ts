@@ -322,7 +322,7 @@ function warnIfRouterHasUncapturedRegistrations(handler: unknown): void {
     !captureTables.has(handler as object)
   ) {
     logWarning(
-      `A router whose routes were registered before Apitally could capture them was mounted, so its requests are exported without route templates. To resolve this, ${REGISTER_IMPORT_HINT}.`,
+      `The routes of a mounted router were registered before Apitally could capture them, so requests to that router are exported without route templates. To resolve this, ${REGISTER_IMPORT_HINT}.`,
     );
   }
 }

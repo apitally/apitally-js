@@ -216,6 +216,6 @@ function isServerSpan(span: Span): boolean {
 
 function warnAboutNonRecordingServerSpan(): void {
   logWarning(
-    "A request arrived under a SERVER span that the OpenTelemetry sampler did not sample, so only sampled requests reach Apitally as traces and request logs. Request metrics include all requests.",
+    "The OpenTelemetry sampler did not sample the SERVER span of a request. Only sampled requests are exported to Apitally as traces and request logs. Request metrics include all requests.",
   );
 }
