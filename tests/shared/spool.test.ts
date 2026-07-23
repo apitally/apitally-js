@@ -88,7 +88,10 @@ describe("spool", () => {
       expect(files[0].uncompressedSize).toBeLessThanOrEqual(
         MAX_UNCOMPRESSED_FILE_SIZE,
       );
-      expect(gunzipSync(await files[0].readStoredBytes())).toEqual(first);
+      // Buffer.equals: toEqual's element-wise comparison is unusably slow on megabyte buffers
+      expect(gunzipSync(await files[0].readStoredBytes()).equals(first)).toBe(
+        true,
+      );
       expect(spool.current.get("traces")?.uncompressedSize).toBe(2_000_000);
     },
   );
@@ -102,7 +105,9 @@ describe("spool", () => {
       await spool.closeCurrentFiles();
       const files = spool.pendingFiles();
       expect(files).toHaveLength(1);
-      expect(gunzipSync(await files[0].readStoredBytes())).toEqual(payload);
+      expect(gunzipSync(await files[0].readStoredBytes()).equals(payload)).toBe(
+        true,
+      );
     },
   );
 
