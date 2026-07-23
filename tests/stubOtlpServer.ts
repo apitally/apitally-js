@@ -77,6 +77,14 @@ export class StubOtlpServer {
     return this.requests.map((request) => request.path);
   }
 
+  bodyFor(path: string): Buffer {
+    const captured = this.requests.find((request) => request.path === path);
+    if (!captured) {
+      throw new Error(`No request captured for ${path}`);
+    }
+    return captured.body;
+  }
+
   waitForRequests(count: number): Promise<void> {
     if (this.requests.length >= count) {
       return Promise.resolve();
@@ -296,6 +304,15 @@ export function decodedMetrics(
     resourceMetrics.scopeMetrics.flatMap(
       (scopeMetrics) => scopeMetrics.metrics,
     ),
+  );
+}
+
+export function durationDataPoints(
+  metrics: DecodedMetric[],
+): DecodedExponentialHistogramDataPoint[] {
+  return (
+    metrics.find((metric) => metric.name === "http.server.request.duration")
+      ?.exponentialHistogram?.dataPoints ?? []
   );
 }
 

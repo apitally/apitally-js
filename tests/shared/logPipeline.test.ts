@@ -71,6 +71,25 @@ describe("logPipeline", () => {
     late.end();
   });
 
+  it("passes a log emitted under the SERVER span itself after a kept release through immediately", () => {
+    const { pipeline, tracer } = createTracePipeline();
+    const { loggerProvider, logExporter } = createLogPipeline(pipeline);
+    const { span, request } = startServerSpan(tracer);
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
+
+    loggerProvider.getLogger("myapp").emit({
+      body: "late log",
+      context: trace.setSpan(request.context, span),
+    });
+    const [record] = logExporter.getFinishedLogRecords();
+    expect(record.body).toBe("late log");
+    expect(record.attributes).toEqual({
+      "apitally.request.server_span_id": span.spanContext().spanId,
+    });
+  });
+
   it("discards a request's buffered logs when the response-stage decision drops the request", () => {
     setConfig({ writeToken: WRITE_TOKEN, sampleOnResponse: () => false });
     const { pipeline, tracer } = createTracePipeline();

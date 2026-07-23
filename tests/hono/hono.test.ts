@@ -1,5 +1,11 @@
 import { gunzipSync } from "node:zlib";
-import { type Attributes, context, SpanKind, trace } from "@opentelemetry/api";
+import {
+  type Attributes,
+  context,
+  SpanKind,
+  TraceFlags,
+  trace,
+} from "@opentelemetry/api";
 import { Hono } from "hono";
 import { compress } from "hono/compress";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -231,6 +237,48 @@ describe("hono adapter", () => {
     );
   });
 
+  it("warns once about partial trace coverage when a request arrives under an unsampled span context while metrics keep recording", async () => {
+    configureAndActivate();
+    const lines = captureStderr();
+    const unsampledApp = new Hono();
+    useApitally(unsampledApp, { writeToken: WRITE_TOKEN });
+    unsampledApp.get("/unsampled", (c) => c.json({ ok: true }));
+    const appWithFetch = unsampledApp as unknown as {
+      fetch: (request: Request, ...rest: unknown[]) => Promise<Response>;
+    };
+    const sdkFetch = appWithFetch.fetch;
+    const unsampledSpan = trace.wrapSpanContext({
+      traceId: "0af7651916cd43dd8448eb211c80319c",
+      spanId: "b7ad6b7169203331",
+      traceFlags: TraceFlags.NONE,
+    });
+    appWithFetch.fetch = function (
+      this: unknown,
+      request: Request,
+      ...rest: unknown[]
+    ): Promise<Response> {
+      return context.with(trace.setSpan(context.active(), unsampledSpan), () =>
+        sdkFetch.call(this, request, ...rest),
+      );
+    };
+    for (let i = 0; i < 2; i++) {
+      const response = await unsampledApp.request("/unsampled");
+      expect(response.status).toBe(200);
+      await readResponseAndSettleTransport(response);
+    }
+
+    expect(
+      lines.filter((line) => line.includes("did not sample")),
+    ).toHaveLength(1);
+    expect(await readActivationSpans()).toEqual([]);
+    const dataPoints = await readActivationDurationDataPoints();
+    expect(dataPoints).toHaveLength(1);
+    expect(dataPoints[0].count).toBe(2);
+    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
+      "/unsampled",
+    );
+  });
+
   it("captures, masks, and redacts request and response bodies per configuration and keeps captured payloads off the live span", async () => {
     let sampledAttributes: Attributes | undefined;
     prepareFirstRequestActivation({
@@ -282,6 +330,35 @@ describe("hono adapter", () => {
     expect(attributes["apitally.response.body"]).toBe(
       "chunk-1\nchunk-2\nchunk-3\n",
     );
+  });
+
+  it("captures the compressed wire bytes of the response body with matching size attributes when compression middleware is active", async () => {
+    prepareFirstRequestActivation({ captureResponseBody: true });
+    const compressedApp = new Hono();
+    useApitally(compressedApp, {
+      writeToken: WRITE_TOKEN,
+      captureResponseBody: true,
+    });
+    compressedApp.use(compress());
+    const payload = { data: "x".repeat(2048) };
+    compressedApp.get("/compressed", (c) => c.json(payload));
+    const response = await compressedApp.request("/compressed", {
+      headers: { "accept-encoding": "gzip" },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-encoding")).toBe("gzip");
+    const wireBytes = await readResponseAndSettleTransport(response);
+    expect(gunzipSync(wireBytes).toString()).toBe(JSON.stringify(payload));
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    const attributes = decodedAttributes(spans[0].attributes);
+    const capturedBody = attributes["apitally.response.body"];
+    expect(capturedBody).toBeInstanceOf(Uint8Array);
+    expect(Buffer.from(capturedBody as Uint8Array).equals(wireBytes)).toBe(
+      true,
+    );
+    expect(attributes["http.response.body.size"]).toBe(wireBytes.length);
   });
 
   it("propagates a consumer set in a handler to the metrics dimensions", async () => {
@@ -436,7 +513,7 @@ describe("hono adapter", () => {
     expect(formAttributes["apitally.request.body"]).toBeUndefined();
   });
 
-  it("derives unmatched requests from route-match state and clears the route for a custom notFound response", async () => {
+  it("clears the route for a custom notFound response and skips the request in the metrics", async () => {
     prepareFirstRequestActivation();
     const notFoundApp = new Hono();
     useApitally(notFoundApp, { writeToken: WRITE_TOKEN });
@@ -454,34 +531,5 @@ describe("hono adapter", () => {
     expect(attributes["http.route"]).toBe("");
     expect(attributes["http.response.status_code"]).toBe(404);
     expect(await readActivationDurationDataPoints()).toEqual([]);
-  });
-
-  it("captures the compressed wire bytes of the response body when compression middleware is active", async () => {
-    prepareFirstRequestActivation({ captureResponseBody: true });
-    const compressedApp = new Hono();
-    useApitally(compressedApp, {
-      writeToken: WRITE_TOKEN,
-      captureResponseBody: true,
-    });
-    compressedApp.use(compress());
-    const payload = { data: "x".repeat(2048) };
-    compressedApp.get("/compressed", (c) => c.json(payload));
-    const response = await compressedApp.request("/compressed", {
-      headers: { "accept-encoding": "gzip" },
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-encoding")).toBe("gzip");
-    const wireBytes = await readResponseAndSettleTransport(response);
-    expect(gunzipSync(wireBytes).toString()).toBe(JSON.stringify(payload));
-
-    const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
-    const capturedBody = attributes["apitally.response.body"];
-    expect(capturedBody).toBeInstanceOf(Uint8Array);
-    expect(Buffer.from(capturedBody as Uint8Array).equals(wireBytes)).toBe(
-      true,
-    );
-    expect(attributes["http.response.body.size"]).toBe(wireBytes.length);
   });
 });

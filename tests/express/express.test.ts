@@ -27,6 +27,7 @@ import {
   decodeLogsExport,
   decodeMetricsExport,
   decodeTraceExport,
+  durationDataPoints,
   PROTO_SPAN_KIND_SERVER,
   StubOtlpServer,
 } from "../stubOtlpServer.js";
@@ -84,8 +85,6 @@ describe("express adapter", () => {
     expect(spans[0].name).toBe("GET /items/:id");
     expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
     const attributes = decodedAttributes(spans[0].attributes);
-    expect(typeof attributes["client.address"]).toBe("string");
-    delete attributes["client.address"];
     expect(attributes["http.response.header.content-type"]).toEqual([
       "application/json; charset=utf-8",
     ]);
@@ -101,6 +100,7 @@ describe("express adapter", () => {
       "url.scheme": "http",
       "url.full": `http://127.0.0.1:${serverPort}/items/42?color=blue`,
       "server.address": "127.0.0.1",
+      "client.address": "127.0.0.1",
       "http.route": "/items/:id",
       "http.response.status_code": 200,
       "http.response.body.size": Buffer.byteLength(
@@ -629,24 +629,15 @@ describe("express adapter", () => {
         await requireActivationHandles().worker.runCycle();
         await stub.waitForRequests(3);
 
-        const requestBodyFor = (path: string) => {
-          const captured = stub.requests.find(
-            (stubRequest) => stubRequest.path === path,
-          );
-          if (!captured) {
-            throw new Error(`No request captured for ${path}`);
-          }
-          return captured.body;
-        };
         const spans = decodedSpans(
-          decodeTraceExport(requestBodyFor("/v1/traces")),
+          decodeTraceExport(stub.bodyFor("/v1/traces")),
         );
         expect(spans).toHaveLength(1);
         expect(spans[0].name).toBe("GET /items/:id");
         expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
 
         const logRecords = decodedLogRecords(
-          decodeLogsExport(requestBodyFor("/v1/logs")),
+          decodeLogsExport(stub.bodyFor("/v1/logs")),
         );
         expect(logRecords).toHaveLength(1);
         expect(logRecords[0].eventName).toBe("apitally.app.startup");
@@ -659,35 +650,36 @@ describe("express adapter", () => {
         };
         expect(startupPayload.framework).toBe("express");
         expect(startupPayload.versions.node).toBe(process.versions.node);
-        expect(startupPayload.paths).toContainEqual({
-          method: "GET",
-          path: "/items/:id",
-        });
-        expect(startupPayload.paths).toContainEqual({
-          method: "GET",
-          path: "/api/v2/deep",
-        });
+        expect(startupPayload.paths).toEqual([
+          { method: "GET", path: "/items/:id" },
+          { method: "POST", path: "/items" },
+          { method: "GET", path: "/healthz" },
+          { method: "GET", path: "/error" },
+          { method: "GET", path: "/consumer" },
+          { method: "GET", path: "/stream" },
+          { method: "GET", path: "/api/nested/:key" },
+          { method: "GET", path: "/api/v2/deep" },
+        ]);
 
         const metrics = decodedMetrics(
-          decodeMetricsExport(requestBodyFor("/v1/metrics")),
+          decodeMetricsExport(stub.bodyFor("/v1/metrics")),
         );
-        const durationMetric = metrics.find(
-          (metric) => metric.name === "http.server.request.duration",
-        );
-        expect(durationMetric?.exponentialHistogram?.dataPoints).toHaveLength(
-          1,
-        );
-        const dataPoint = durationMetric?.exponentialHistogram?.dataPoints[0];
-        expect(dataPoint?.count).toBe(1);
-        expect(decodedAttributes(dataPoint?.attributes ?? [])).toEqual({
+        const dataPoints = durationDataPoints(metrics);
+        expect(dataPoints).toHaveLength(1);
+        expect(dataPoints[0].count).toBe(1);
+        expect(decodedAttributes(dataPoints[0].attributes)).toEqual({
           "http.request.method": "GET",
           "http.route": "/items/:id",
           "http.response.status_code": 200,
           "url.scheme": "http",
         });
-        expect(metrics.map((metric) => metric.name).sort()).toEqual(
-          expect.arrayContaining(["process.cpu.utilization", "process.uptime"]),
-        );
+        expect(metrics.map((metric) => metric.name).sort()).toEqual([
+          "http.server.request.duration",
+          "http.server.response.body.size",
+          "process.cpu.utilization",
+          "process.memory.usage",
+          "process.uptime",
+        ]);
       });
     } finally {
       await stub.close();

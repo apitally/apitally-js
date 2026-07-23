@@ -16,6 +16,7 @@ import {
   decodeLogsExport,
   decodeMetricsExport,
   decodeTraceExport,
+  durationDataPoints,
   PROTO_SPAN_KIND_SERVER,
 } from "./stubOtlpServer.js";
 import { UNROUTABLE_ENDPOINT, WRITE_TOKEN } from "./utils.js";
@@ -107,13 +108,6 @@ async function readSinkExports(sinkDir: string): Promise<SinkExports> {
     }
   }
   return exports;
-}
-
-function durationDataPoints(metrics: DecodedMetric[]) {
-  return (
-    metrics.find((metric) => metric.name === "http.server.request.duration")
-      ?.exponentialHistogram?.dataPoints ?? []
-  );
 }
 
 async function createSinkDir(): Promise<string> {

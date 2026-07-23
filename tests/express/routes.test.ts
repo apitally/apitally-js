@@ -86,7 +86,13 @@ describe.each([
       child.get("/deep", respondOk);
       const parent = expressModule.Router();
       parent.use("/child", child);
+      const pathless = expressModule.Router();
+      pathless.get("/direct", respondOk);
+      parent.use(pathless);
       app.use("/parent", parent);
+      const subApp = expressModule();
+      subApp.get("/things/:id", respondOk);
+      app.use("/sub", subApp);
 
       expect(resolveStartupPaths(app)).toEqual([
         { method: "GET", path: "/items/:id" },
@@ -94,6 +100,8 @@ describe.each([
         { method: "GET", path: "/batch" },
         { method: "POST", path: "/batch" },
         { method: "GET", path: "/parent/child/deep" },
+        { method: "GET", path: "/parent/direct" },
+        { method: "GET", path: "/sub/things/:id" },
       ]);
     });
 

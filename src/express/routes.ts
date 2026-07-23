@@ -8,6 +8,7 @@ import type { RoutePath } from "../startup.js";
 
 const ROUTER_PATCH_MARKER = Symbol.for("apitally.expressRouterPatch");
 const ROUTE_PATCH_MARKER = Symbol.for("apitally.expressRoutePatch");
+const APP_USE_PATCH_MARKER = Symbol.for("apitally.expressAppUsePatch");
 // Request-scoped tracking state lives on the request object itself, so the
 // dispatch patches and the transport middleware share it across module copies.
 const ROUTE_STATE_KEY = Symbol.for("apitally.expressRouteState");
@@ -61,6 +62,9 @@ export function installRouteCaptureFromExpress(expressModule: unknown): void {
     return;
   }
   installRouteCapturePatches((routerFactory as () => object)());
+  // Apps copy the prototype's methods at creation, so the prototype patch
+  // reaches every app created after this import.
+  patchApplicationUse((expressModule as { application?: unknown }).application);
 }
 
 // Installs the capture patches through the app's own router, covering express
@@ -72,6 +76,7 @@ export function installRouteCaptureFromApp(app: unknown): void {
     return;
   }
   installRouteCapturePatches(router);
+  patchApplicationUse(app);
 }
 
 export function beginRouteTracking(req: object): void {
@@ -129,12 +134,15 @@ export function resolveStartupPaths(app: unknown): RoutePath[] {
 }
 
 function collectStartupPaths(
-  router: object,
+  routerOrSubApp: object,
   prefix: string,
   visited: Set<object>,
   paths: RoutePath[],
 ): void {
-  if (visited.has(router)) {
+  const router = captureTables.has(routerOrSubApp)
+    ? routerOrSubApp
+    : resolveSubAppRouter(routerOrSubApp);
+  if (!router || visited.has(router)) {
     return;
   }
   const table = captureTables.get(router);
@@ -216,13 +224,23 @@ function patchRouterPrototype(
     try {
       const table = tableFor(this);
       const pathTemplates = extractPathTemplates(args[0]);
-      const handlers = flattenHandlers(args.slice(1));
-      if (pathTemplates && handlers.length > 0) {
-        return originalUse.call(
+      if (pathTemplates) {
+        const handlers = flattenHandlers(args.slice(1));
+        if (handlers.length > 0) {
+          return originalUse.call(
+            this,
+            args[0],
+            ...handlers.map((handler) =>
+              wrapMountHandler(handler, pathTemplates, table),
+            ),
+          );
+        }
+      } else if (isHandlerFirstArgument(args[0])) {
+        // use() without a path mounts at "/"
+        return originalUse.apply(
           this,
-          args[0],
-          ...handlers.map((handler) =>
-            wrapMountHandler(handler, pathTemplates, table),
+          flattenHandlers(args).map((handler) =>
+            wrapMountHandler(handler, ["/"], table),
           ),
         );
       }
@@ -260,6 +278,49 @@ function patchRoutePrototype(
     return originalDispatch.apply(this, args);
   };
   routePrototype[ROUTE_PATCH_MARKER] = true;
+}
+
+// app.use replaces a mounted sub-app with an internal closure before it
+// reaches the router, so sub-app mounts are recorded at the application seam,
+// where the sub-app itself is still visible. Recording only; dispatch tracking
+// stays with the router-level mount wrapper.
+function patchApplicationUse(target: unknown): void {
+  const targetObject = target as Record<PropertyKey, unknown> | undefined;
+  const originalUse = targetObject?.use;
+  if (
+    typeof originalUse !== "function" ||
+    (originalUse as unknown as Record<PropertyKey, unknown>)[
+      APP_USE_PATCH_MARKER
+    ] === true
+  ) {
+    return;
+  }
+  const patchedUse = function (this: object, ...args: unknown[]): unknown {
+    const result = (originalUse as (...useArgs: unknown[]) => unknown).apply(
+      this,
+      args,
+    );
+    try {
+      const subApps = flattenHandlers(args).filter(isExpressApp);
+      if (subApps.length > 0) {
+        const router = resolveAppRouter(this);
+        if (router) {
+          const pathTemplates = extractPathTemplates(args[0]) ?? ["/"];
+          const table = tableFor(router);
+          for (const subApp of subApps) {
+            table.mounts.push({ pathTemplates, handler: subApp });
+          }
+        }
+      }
+    } catch (error) {
+      logDebug(`Error capturing an express sub-app mount: ${String(error)}`);
+    }
+    return result;
+  };
+  (patchedUse as unknown as Record<PropertyKey, unknown>)[
+    APP_USE_PATCH_MARKER
+  ] = true;
+  (targetObject as Record<PropertyKey, unknown>).use = patchedUse;
 }
 
 // The wrapper tracks descent into mounted routers and sub-apps: it pushes the
@@ -362,6 +423,21 @@ function createProbeRoute(
   }
 }
 
+// A mounted express sub-app carries its routes on its own internal router.
+// The duck check mirrors express's own sub-app detection in app.use.
+function resolveSubAppRouter(handler: object): object | undefined {
+  return isExpressApp(handler) ? resolveAppRouter(handler) : undefined;
+}
+
+function isExpressApp(value: unknown): boolean {
+  const candidate = value as { handle?: unknown; set?: unknown } | null;
+  return (
+    typeof value === "function" &&
+    typeof candidate?.handle === "function" &&
+    typeof candidate?.set === "function"
+  );
+}
+
 function resolveAppRouter(app: unknown): object | undefined {
   const appObject = app as {
     lazyrouter?: unknown;
@@ -411,6 +487,16 @@ function extractPathTemplates(pathArgument: unknown): string[] | undefined {
     return pathArgument.map(normalizeInlineRegexParams);
   }
   return undefined;
+}
+
+// Mirrors express's own use() disambiguation: a function in first position,
+// possibly nested in arrays, means the call carries no path.
+function isHandlerFirstArgument(argument: unknown): boolean {
+  let first = argument;
+  while (Array.isArray(first) && first.length > 0) {
+    first = first[0];
+  }
+  return typeof first === "function";
 }
 
 function flattenHandlers(args: unknown[]): unknown[] {

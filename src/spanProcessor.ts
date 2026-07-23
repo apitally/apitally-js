@@ -40,6 +40,7 @@ import { logDebug, logWarning } from "./logger.js";
 
 export const MAX_BUFFERED_SPANS = 1_000;
 export const MAX_STASHED_REQUESTS = 2_048;
+const MAX_KEPT_SERVER_SPAN_IDS = 10_000;
 
 const PER_MESSAGE_SPAN_NAME_SUFFIXES = [
   " http send",
@@ -201,6 +202,9 @@ export class SpanPipeline implements SpanProcessor {
   private readonly requests = new Map<string, RequestEntry>();
   private readonly stash = new Map<string, RequestStash>();
   private readonly demotedSpanIds = new Set<string>();
+  // SERVER span ids of requests released as kept, so log records emitted under
+  // the released span still pass through; oldest evicted at the cap.
+  private readonly keptServerSpanIds = new Set<string>();
 
   constructor(downstream: SpanProcessor) {
     this.downstream = downstream;
@@ -312,6 +316,11 @@ export class SpanPipeline implements SpanProcessor {
   // exported SERVER span copy. Fields already stashed are kept unless replaced.
   updateStash(serverSpanId: string, update: RequestStash): void {
     try {
+      // A request without an in-flight map entry can never release, so its
+      // stash entry would sit unconsumed until the cap evicts it.
+      if (!this.requests.has(serverSpanId)) {
+        return;
+      }
       let entry = this.stash.get(serverSpanId);
       if (!entry) {
         if (this.stash.size >= MAX_STASHED_REQUESTS) {
@@ -343,11 +352,21 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  // The SERVER span id for an in-flight span, or undefined when its request is
-  // dropped. The log pipeline resolves request linkage through this lookup.
+  // The SERVER span id for an in-flight span, or the id itself for the SERVER
+  // span of a request released as kept; undefined when the request is dropped
+  // or unknown. The log pipeline resolves request linkage through this lookup.
   resolveServerSpanId(spanId: string): string | undefined {
     const entry = this.requests.get(spanId);
-    return entry && !entry.dropReason ? entry.serverSpanId : undefined;
+    if (entry) {
+      return entry.dropReason ? undefined : entry.serverSpanId;
+    }
+    return this.keptServerSpanIds.has(spanId) ? spanId : undefined;
+  }
+
+  // Whether the SERVER span id still has its in-flight map entry, i.e. the
+  // request has neither been released nor dropped yet.
+  isRequestInFlight(serverSpanId: string): boolean {
+    return this.requests.has(serverSpanId);
   }
 
   forceFlush(): Promise<void> {
@@ -367,6 +386,7 @@ export class SpanPipeline implements SpanProcessor {
       this.requests.clear();
       this.stash.clear();
       this.demotedSpanIds.clear();
+      this.keptServerSpanIds.clear();
     } catch (error) {
       logWarning(`Error in the Apitally span processor: ${String(error)}`);
     }
@@ -525,6 +545,13 @@ export class SpanPipeline implements SpanProcessor {
   private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
     entry.released = true;
     this.requests.delete(entry.serverSpanId);
+    if (this.keptServerSpanIds.size >= MAX_KEPT_SERVER_SPAN_IDS) {
+      const oldestId = this.keptServerSpanIds.values().next().value;
+      if (oldestId !== undefined) {
+        this.keptServerSpanIds.delete(oldestId);
+      }
+    }
+    this.keptServerSpanIds.add(entry.serverSpanId);
     for (const bufferedSpan of entry.buffered) {
       this.downstream.onEnd(bufferedSpan);
     }

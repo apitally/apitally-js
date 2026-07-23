@@ -73,12 +73,19 @@ export class MetricsPipeline {
       return;
     }
     const source = record.attributes;
+    const method = source["http.request.method"] ?? source["http.method"];
+    const scheme = source["url.scheme"] ?? source["http.scheme"];
+    // Adopted SERVER spans start before the request record exists, so their
+    // records carry no drop reason; the attributes identify preflight and
+    // websocket requests directly, matching the drop decision at span start.
+    if (method === "OPTIONS" || scheme === "ws" || scheme === "wss") {
+      return;
+    }
     const route = source["http.route"];
     if (typeof route !== "string" || route === "") {
       return;
     }
     const attributes: Attributes = { "http.route": route };
-    const method = source["http.request.method"] ?? source["http.method"];
     if (method !== undefined) {
       attributes["http.request.method"] = method;
     }
@@ -91,7 +98,6 @@ export class MetricsPipeline {
     if (consumer !== undefined) {
       attributes["apitally.consumer.identifier"] = consumer;
     }
-    const scheme = source["url.scheme"] ?? source["http.scheme"];
     if (scheme !== undefined) {
       attributes["url.scheme"] = scheme;
     }

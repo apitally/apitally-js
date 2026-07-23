@@ -216,6 +216,32 @@ describe("metrics", () => {
     ]);
   });
 
+  it("skips preflight and websocket requests identified by their method and scheme attributes alone", async () => {
+    const metrics = createMetricsPipeline();
+    metrics.recordFromRequest({
+      attributes: {
+        "http.request.method": "OPTIONS",
+        "http.route": "/items",
+        "http.response.status_code": 204,
+      },
+      durationSeconds: 0.01,
+    });
+    metrics.recordFromRequest({
+      attributes: {
+        "http.request.method": "GET",
+        "http.route": "/socket",
+        "url.scheme": "wss",
+        "http.response.status_code": 101,
+      },
+      durationSeconds: 0.01,
+    });
+    const points = histogramPoints(
+      await collectMetrics(metrics),
+      "http.server.request.duration",
+    );
+    expect(points).toHaveLength(0);
+  });
+
   it("applies delta temporality and exponential aggregation to histograms only while gauges keep their last value", async () => {
     const metrics = createMetricsPipeline();
     metrics.recordFromRequest({

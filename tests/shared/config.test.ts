@@ -133,6 +133,15 @@ describe("config", () => {
     expect(lines[0]).not.toContain(invalidToken);
   });
 
+  it("logs an error and disables the SDK when the OTLP endpoint is not a valid HTTP or HTTPS URL", () => {
+    const lines = captureStderr();
+    process.env.APITALLY_OTLP_ENDPOINT = "otlp.apitally.io";
+    const config = setConfig({ writeToken: WRITE_TOKEN });
+    expect(config.disabled).toBe(true);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("OTLP endpoint");
+  });
+
   it("logs no write token error when the SDK is disabled", () => {
     const lines = captureStderr();
     const config = setConfig({ disabled: true });

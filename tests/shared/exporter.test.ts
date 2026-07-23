@@ -507,7 +507,8 @@ describe("exporter", () => {
       requestBody: Buffer.from('{"n": 1}'),
     });
     for (let index = 0; index < MAX_STASHED_REQUESTS - 1; index++) {
-      pipeline.updateStash(`filler-${index}`, {
+      const filler = startServerSpan(tracer);
+      pipeline.updateStash(filler.span.spanContext().spanId, {
         requestBody: Buffer.from("{}"),
       });
     }

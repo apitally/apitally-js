@@ -50,9 +50,8 @@ export class LogPipeline implements LogRecordProcessor {
         return;
       }
       logRecord.setAttribute(SERVER_SPAN_ID_ATTRIBUTE, serverSpanId);
-      // The SERVER span id resolving itself means the request is still in
-      // flight; after a kept release, late records pass through immediately.
-      if (this.spanPipeline.resolveServerSpanId(serverSpanId) === undefined) {
+      // After a kept release, late records pass through immediately.
+      if (!this.spanPipeline.isRequestInFlight(serverSpanId)) {
         this.downstream.onEmit(logRecord, context);
         return;
       }

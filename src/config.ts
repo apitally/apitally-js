@@ -239,7 +239,24 @@ function resolveConfig(options: ApitallyOptions): {
       error: `Apitally write token has an invalid format: ${config.writeToken.slice(0, 8)}...`,
     };
   }
+  if (!isHttpUrl(config.otlpEndpoint)) {
+    config.disabled = true;
+    return {
+      config,
+      error: `Apitally OTLP endpoint is not a valid HTTP or HTTPS URL: ${config.otlpEndpoint}`,
+    };
+  }
   return { config };
+}
+
+function isHttpUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return url.protocol === "http:" || url.protocol === "https:";
 }
 
 // A silently kept but broken redaction pattern would leave data unredacted, so

@@ -1,46 +1,10 @@
-import { context, diag, propagation, trace } from "@opentelemetry/api";
-import { logs } from "@opentelemetry/api-logs";
 import { afterEach, vi } from "vitest";
-import { resetActivation } from "../src/activation.js";
-import { resetConfig } from "../src/config.js";
-import { uninstallLogCapture } from "../src/logCapture.js";
-import { resetEmittedWarnings } from "../src/logger.js";
-import { setActiveSpanPipeline } from "../src/spanProcessor.js";
-import { resetStartupEventEmitted } from "../src/startup.js";
-
-// Ambient Apitally, OTel, and proxy env vars must not leak into tests.
-for (const key of Object.keys(process.env)) {
-  if (
-    key.startsWith("APITALLY_") ||
-    key.startsWith("OTEL_") ||
-    /^(http_proxy|https_proxy|no_proxy)$/i.test(key)
-  ) {
-    delete process.env[key];
-  }
-}
-
-const envSnapshot = { ...process.env };
+import { resetProcessGlobals } from "./harness.js";
 
 // Process-global state is isolated between tests here, by teardown; tests never pre-clean.
 afterEach(async () => {
   // Before restoreAllMocks: capture wraps around spied console methods must
   // unwind first, so the spies are on top when the mocks restore.
-  uninstallLogCapture();
-  await resetActivation();
+  await resetProcessGlobals();
   vi.restoreAllMocks();
-  for (const key of Object.keys(process.env)) {
-    if (!(key in envSnapshot)) {
-      delete process.env[key];
-    }
-  }
-  Object.assign(process.env, envSnapshot);
-  resetConfig();
-  resetEmittedWarnings();
-  resetStartupEventEmitted();
-  setActiveSpanPipeline(undefined);
-  trace.disable();
-  context.disable();
-  propagation.disable();
-  diag.disable();
-  logs.disable();
 });
