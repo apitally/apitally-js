@@ -1,31 +1,25 @@
 {
   "name": "apitally",
-  "version": "1.0.0",
-  "description": "Simple API monitoring & analytics for REST APIs built with Express, Fastify, NestJS, AdonisJS, Hono, H3, Elysia, Hapi, and Koa.",
+  "version": "1.0.0-alpha.0",
+  "description": "Simple API monitoring, analytics and request logging for REST APIs built with Express and Hono.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
-    "adonisjs",
     "analytics",
     "api",
     "apitally",
     "bun",
-    "elysia",
     "express",
-    "fastify",
-    "h3",
-    "hapi",
     "hono",
-    "koa",
     "logging",
     "metrics",
     "middleware",
     "monitor",
     "monitoring",
-    "nestjs",
     "node",
     "nodejs",
-    "plugin",
+    "observability",
+    "opentelemetry",
     "rest",
     "restful"
   ],
@@ -38,11 +32,17 @@
   },
   "homepage": "https://apitally.io",
   "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "format": "prettier --write .",
-    "check": "tsc --noEmit && eslint src tests && prettier --check .",
-    "test": "vitest"
+    "check": "biome check . && tsc --noEmit",
+    "check:package": "attw --pack .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "files": [
     "dist/",
@@ -50,299 +50,55 @@
     "README.md"
   ],
   "exports": {
-    "./adonisjs": {
-      "import": {
-        "types": "./dist/adonisjs/index.d.ts",
-        "default": "./dist/adonisjs/index.js"
-      },
-      "require": {
-        "types": "./dist/adonisjs/index.d.cts",
-        "default": "./dist/adonisjs/index.cjs"
-      }
-    },
-    "./adonisjs/middleware": {
-      "import": {
-        "types": "./dist/adonisjs/middleware.d.ts",
-        "default": "./dist/adonisjs/middleware.js"
-      },
-      "require": {
-        "types": "./dist/adonisjs/middleware.d.cts",
-        "default": "./dist/adonisjs/middleware.cjs"
-      }
-    },
-    "./adonisjs/provider": {
-      "import": {
-        "types": "./dist/adonisjs/provider.d.ts",
-        "default": "./dist/adonisjs/provider.js"
-      },
-      "require": {
-        "types": "./dist/adonisjs/provider.d.cts",
-        "default": "./dist/adonisjs/provider.cjs"
-      }
-    },
-    "./elysia": {
-      "import": {
-        "types": "./dist/elysia/index.d.ts",
-        "default": "./dist/elysia/index.js"
-      },
-      "require": {
-        "types": "./dist/elysia/index.d.cts",
-        "default": "./dist/elysia/index.cjs"
-      }
-    },
-    "./express": {
-      "import": {
-        "types": "./dist/express/index.d.ts",
-        "default": "./dist/express/index.js"
-      },
-      "require": {
-        "types": "./dist/express/index.d.cts",
-        "default": "./dist/express/index.cjs"
-      }
-    },
-    "./fastify": {
-      "import": {
-        "types": "./dist/fastify/index.d.ts",
-        "default": "./dist/fastify/index.js"
-      },
-      "require": {
-        "types": "./dist/fastify/index.d.cts",
-        "default": "./dist/fastify/index.cjs"
-      }
-    },
-    "./h3": {
-      "import": {
-        "types": "./dist/h3/index.d.ts",
-        "default": "./dist/h3/index.js"
-      },
-      "require": {
-        "types": "./dist/h3/index.d.cts",
-        "default": "./dist/h3/index.cjs"
-      }
-    },
-    "./hapi": {
-      "import": {
-        "types": "./dist/hapi/index.d.ts",
-        "default": "./dist/hapi/index.js"
-      },
-      "require": {
-        "types": "./dist/hapi/index.d.cts",
-        "default": "./dist/hapi/index.cjs"
-      }
-    },
-    "./hono": {
-      "import": {
-        "types": "./dist/hono/index.d.ts",
-        "default": "./dist/hono/index.js"
-      },
-      "require": {
-        "types": "./dist/hono/index.d.cts",
-        "default": "./dist/hono/index.cjs"
-      }
-    },
-    "./koa": {
-      "import": {
-        "types": "./dist/koa/index.d.ts",
-        "default": "./dist/koa/index.js"
-      },
-      "require": {
-        "types": "./dist/koa/index.d.cts",
-        "default": "./dist/koa/index.cjs"
-      }
-    },
-    "./nestjs": {
-      "import": {
-        "types": "./dist/nestjs/index.d.ts",
-        "default": "./dist/nestjs/index.js"
-      },
-      "require": {
-        "types": "./dist/nestjs/index.d.cts",
-        "default": "./dist/nestjs/index.cjs"
-      }
-    },
-    "./otel": {
-      "import": {
-        "types": "./dist/otel/index.d.ts",
-        "default": "./dist/otel/index.js"
-      },
-      "require": {
-        "types": "./dist/otel/index.d.cts",
-        "default": "./dist/otel/index.cjs"
-      }
-    },
     "./package.json": "./package.json"
   },
-  "typesVersions": {
-    "*": {
-      "adonisjs": [
-        "./dist/adonisjs/index.d.ts"
-      ],
-      "adonisjs/middleware": [
-        "./dist/adonisjs/middleware.d.ts"
-      ],
-      "adonisjs/provider": [
-        "./dist/adonisjs/provider.d.ts"
-      ],
-      "elysia": [
-        "./dist/elysia/index.d.ts"
-      ],
-      "express": [
-        "./dist/express/index.d.ts"
-      ],
-      "fastify": [
-        "./dist/fastify/index.d.ts"
-      ],
-      "h3": [
-        "./dist/h3/index.d.ts"
-      ],
-      "hapi": [
-        "./dist/hapi/index.d.ts"
-      ],
-      "hono": [
-        "./dist/hono/index.d.ts"
-      ],
-      "koa": [
-        "./dist/koa/index.d.ts"
-      ],
-      "nestjs": [
-        "./dist/nestjs/index.d.ts"
-      ],
-      "otel": [
-        "./dist/otel/index.d.ts"
-      ]
-    }
-  },
-  "prettier": {
-    "printWidth": 80
-  },
-  "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/context-async-hooks": "^2.0.0",
-    "@opentelemetry/sdk-trace-base": "^2.0.0",
-    "async-lock": "^1",
-    "fetch-retry": "^6",
-    "winston": "^3"
-  },
   "peerDependencies": {
-    "@adonisjs/core": "^6 || ^7",
-    "@hapi/hapi": "^21",
-    "@nestjs/common": "^9 || ^10 || ^11",
-    "@nestjs/core": "^9 || ^10 || ^11",
-    "@nestjs/platform-express": "^9 || ^10 || ^11",
-    "@nestjs/platform-fastify": "^9 || ^10 || ^11",
-    "@sentry/node": "^8.1.0 || ^9 || ^10",
-    "elysia": "^1",
+    "@opentelemetry/api": "^1.9.0",
+    "@sentry/node": ">=7",
     "express": "^4 || ^5",
-    "fastify": "^4 || ^5",
-    "fastify-plugin": "^4 || ^5",
-    "h3": "^2",
     "hono": "^4",
-    "koa": "^2 || ^3",
-    "pino": "^8 || ^9 || ^10"
+    "pino": ">=9.6.0 <11",
+    "winston": ">=3.2.0 <4"
   },
   "peerDependenciesMeta": {
-    "@adonisjs/core": {
-      "optional": true
-    },
-    "@hapi/hapi": {
-      "optional": true
-    },
-    "@nestjs/common": {
-      "optional": true
-    },
-    "@nestjs/core": {
-      "optional": true
-    },
-    "@nestjs/platform-express": {
-      "optional": true
-    },
-    "@nestjs/platform-fastify": {
-      "optional": true
-    },
     "@sentry/node": {
-      "optional": true
-    },
-    "elysia": {
       "optional": true
     },
     "express": {
       "optional": true
     },
-    "fastify": {
-      "optional": true
-    },
-    "fastify-plugin": {
-      "optional": true
-    },
-    "h3": {
-      "optional": true
-    },
     "hono": {
-      "optional": true
-    },
-    "koa": {
       "optional": true
     },
     "pino": {
       "optional": true
+    },
+    "winston": {
+      "optional": true
     }
   },
-  "overrides": {
-    "@arethetypeswrong/cli": {
-      "fflate": "0.8.2"
-    }
+  "dependencies": {
+    "@opentelemetry/api-logs": "^0.220.0",
+    "@opentelemetry/context-async-hooks": "^2.9.0",
+    "@opentelemetry/core": "^2.9.0",
+    "@opentelemetry/instrumentation-undici": "^0.30.0",
+    "@opentelemetry/otlp-transformer": "^0.220.0",
+    "@opentelemetry/resources": "^2.9.0",
+    "@opentelemetry/sdk-logs": "^0.220.0",
+    "@opentelemetry/sdk-metrics": "^2.9.0",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@opentelemetry/sdk-trace-node": "^2.9.0",
+    "undici": "^6.27.0"
   },
   "devDependencies": {
-    "@adonisjs/core": "^7.0.0",
-    "@arethetypeswrong/cli": "^0.18.2",
-    "@eslint/js": "^9.29.0",
-    "@hapi/hapi": "^21.4.3",
-    "@hono/zod-validator": "^0.8.0",
-    "@koa/router": "^13.1.0",
-    "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
-    "@nestjs/platform-express": "^11.0.0",
-    "@nestjs/platform-fastify": "^11.0.0",
-    "@nestjs/testing": "^11.0.0",
-    "@sentry/node": "^10.0.0",
-    "@sinclair/typebox": "^0.34.41",
-    "@swc/core": "^1.3.104",
-    "@types/async-lock": "^1.4.2",
-    "@types/express": "^5.0.3",
-    "@types/koa": "^3.0.0",
-    "@types/koa__router": "^12.0.4",
-    "@types/koa-bodyparser": "^4.3.12",
-    "@types/koa-route": "^3.2.8",
-    "@types/node": "^24.0.0",
-    "@types/supertest": "^6.0.0",
-    "@vinejs/vine": "^2.1.0 || ^3.0.1 || ^4.0.0",
-    "@vitest/coverage-v8": "^3.0.0",
-    "celebrate": "^15.0.3",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.15.0",
-    "copyfiles": "^2.4.1",
-    "elysia": "^1.3.7",
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.4",
+    "@opentelemetry/api": "^1.9.1",
+    "@types/node": "^20.19.43",
+    "@vitest/coverage-v8": "^4.1.10",
     "esbuild-fix-imports-plugin": "^1.0.23",
-    "eslint": "^9.0.0",
-    "express": "^5.1.0",
-    "express-validator": "^7.2.1",
-    "fastify": "^5.0.0",
-    "fastify-plugin": "^5.0.1",
-    "globals": "^17.0.0",
-    "h3": "2.0.1-rc.22",
-    "hono": "^4.6.5",
-    "koa": "^3.0.0",
-    "koa-bodyparser": "^4.4.1",
-    "koa-route": "^4.0.0",
-    "nock": "^14.0.0",
-    "pino-http": "^11.0.0",
-    "prettier": "^3.1.0",
-    "supertest": "^7.0.0",
-    "tsup": "^8.1.0",
-    "typescript": "^5.2.2",
-    "typescript-eslint": "^8.34.0",
-    "unplugin-swc": "^1.5.1",
-    "vitest": "^3.0.0",
-    "zod": "^3.23.8"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }

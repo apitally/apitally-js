@@ -2,14 +2,15 @@ import { fixImportsPlugin } from "esbuild-fix-imports-plugin";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/**/*.ts", "src/**/*.js"],
-  format: ["cjs", "esm"],
+  entry: ["src/**/*.ts"],
+  format: ["esm", "cjs"],
   platform: "node",
+  target: "es2022",
   dts: true,
   sourcemap: true,
   splitting: false,
   bundle: false,
   clean: true,
-  onSuccess: 'copyfiles "src/**/*.stub" --up="1" dist',
+  shims: true,
   esbuildPlugins: [fixImportsPlugin()],
 });

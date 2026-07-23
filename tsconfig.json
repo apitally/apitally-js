@@ -1,15 +1,12 @@
 {
-  "include": ["src", "tests"],
+  "include": ["src", "tests", "*.config.ts"],
   "compilerOptions": {
     "module": "NodeNext",
-    "esModuleInterop": true,
-    "outDir": "./dist/tsc",
-    "forceConsistentCasingInFileNames": true,
+    "target": "ES2022",
     "strict": true,
+    "noEmit": true,
     "skipLibCheck": true,
-    "allowJs": true,
     "isolatedModules": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true
+    "forceConsistentCasingInFileNames": true
   }
 }

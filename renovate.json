@@ -3,8 +3,10 @@
   "extends": ["github>apitally/renovate-config"],
   "packageRules": [
     {
-      "matchPackageNames": ["supertest", "@types/supertest"],
-      "groupName": "Supertest"
+      "description": "undici 7+ raises the required Node version above the engines floor",
+      "matchPackageNames": ["undici"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ]
 }

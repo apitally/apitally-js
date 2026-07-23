@@ -3,128 +3,39 @@ on:
   push:
     branches:
       - main
+      - v1
     paths-ignore:
       - .gitignore
       - LICENSE
       - README.md
   pull_request:
-    paths-ignore:
-      - .gitignore
-      - LICENSE
-      - README.md
+  workflow_dispatch:
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check-attw:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version: 24.15.x
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Build package
-        run: npm run build
-      - name: Check if types are wrong with attw
-        run: npx attw --pack .
-
-  test-coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: 24.15.x
+          node-version: "24"
           cache: npm
       - name: Install dependencies
         run: npm ci
       - name: Run checks
         run: npm run check
-      - name: Run tests with coverage
-        run: npm test
-      - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ./coverage/
 
-  test-matrix:
+  ci-gate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ["18", "20", "22"]
-        deps:
-          - "@adonisjs/core@6.17"
-          - "@adonisjs/core@6.12"
-          - elysia@1.3
-          - express@5.1
-          - express@4.21
-          - express@4.18
-          - fastify@5 fastify-plugin@5
-          - fastify@4 fastify-plugin@4
-          - h3@2.0.1-rc.5
-          - hono@4.6
-          - hono@4.5
-          - hono@4.4
-          - koa@3.0
-          - koa@2.16
-          - koa@2.13
-          - "@hapi/hapi@21.4"
-          - "@hapi/hapi@21.3"
-          - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11 @nestjs/testing@11"
-          - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-express@10 @nestjs/testing@10"
-          - "@nestjs/core@9 @nestjs/common@9 @nestjs/platform-express@9 @nestjs/testing@9"
-          - "@nestjs/core@11 @nestjs/common@11 @nestjs/platform-fastify@11 @nestjs/testing@11"
-          - "@nestjs/core@10 @nestjs/common@10 @nestjs/platform-fastify@10 @nestjs/testing@10"
-          - "@nestjs/core@9 @nestjs/common@9 @nestjs/platform-fastify@9 @nestjs/testing@9"
-        include:
-          - node: "24"
-            deps: "@adonisjs/core@7 @vinejs/vine@4"
-        exclude:
-          - node: "18"
-            deps: h3@2.0.0-beta.5
+    timeout-minutes: 5
+    needs:
+      - check
+    if: always()
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: "${{ matrix.node }}"
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Override dependencies from matrix
-        run: npm install --no-save --force ${{ matrix.deps }}
-      - name: Run tests for Elysia
-        run: npm test -- tests/elysia
-        if: contains(matrix.deps, 'elysia')
-      - name: Run tests for Express
-        run: npm test -- tests/express
-        if: contains(matrix.deps, 'express')
-      - name: Run tests for Fastify
-        run: npm test -- tests/fastify
-        if: contains(matrix.deps, 'fastify')
-      - name: Run tests for Koa
-        run: npm test -- tests/koa
-        if: contains(matrix.deps, 'koa')
-      - name: Run tests for NestJS with Express
-        run: npm test -- tests/nestjs-express
-        if: contains(matrix.deps, '@nestjs/platform-express')
-      - name: Run tests for NestJS with Fastify
-        run: npm test -- tests/nestjs-fastify
-        if: contains(matrix.deps, '@nestjs/platform-fastify')
-      - name: Run tests for H3
-        run: npm test -- tests/h3
-        if: contains(matrix.deps, 'h3')
-      - name: Run tests for Hono
-        run: npm test -- tests/hono
-        if: contains(matrix.deps, 'hono')
-      - name: Run tests for AdonisJS
-        run: npm test -- tests/adonisjs
-        if: contains(matrix.deps, 'adonisjs')
-      - name: Run tests for Hapi
-        run: npm test -- tests/hapi
-        if: contains(matrix.deps, '@hapi/hapi')
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
