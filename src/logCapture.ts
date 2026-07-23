@@ -315,8 +315,8 @@ export function uninstallLogCapture(): void {
   peerResolver.resolveEntryPath = defaultResolveEntryPath;
 }
 
-// Peer libraries resolve with createRequire so the user's own copy is patched;
-// tests replace this seam to simulate an absent library.
+// Peer libraries resolve with createRequire so the SDK reaches the user's own
+// copy; tests replace this seam to simulate an absent library.
 export const peerResolver = {
   resolveEntryPath(id: string): string {
     return createRequire(import.meta.url).resolve(id);
