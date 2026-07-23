@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -37,6 +38,14 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { vi } from "vitest";
 import {
+  type ActivationHandles,
+  activate,
+  activationFactories,
+  configure,
+  getActivationHandles,
+} from "../src/activation.js";
+import type { ApitallyOptions } from "../src/config.js";
+import {
   CONSUMER_HOLDER_KEY,
   type ConsumerHolder,
   REQUEST_RECORD_KEY,
@@ -44,6 +53,7 @@ import {
   SPAN_HANDLE_KEY,
   type SpanHandle,
 } from "../src/context.js";
+import { ExportWorker } from "../src/exportWorker.js";
 import { LogPipeline } from "../src/logPipeline.js";
 import { SpanPipeline } from "../src/spanProcessor.js";
 import { Spool } from "../src/spool.js";
@@ -57,6 +67,41 @@ import {
 } from "./stubOtlpServer.js";
 
 export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
+
+// Activation is guarded against test environments; the global teardown
+// restores the cleared markers.
+export function clearTestRunnerMarkers(): void {
+  delete process.env.VITEST;
+  delete process.env.JEST_WORKER_ID;
+  delete process.env.NODE_ENV;
+}
+
+// Drives configure + activate past the test-environment guards, isolates the
+// spool in a fresh temp directory, keeps the worker off its export timer, and
+// asserts activation succeeded. The global teardown resets everything it starts.
+export function configureAndActivate(
+  options: ApitallyOptions = {},
+): ActivationHandles {
+  clearTestRunnerMarkers();
+  // A stray worker cycle must never reach the real ingest endpoint
+  process.env.APITALLY_OTLP_ENDPOINT ??= "http://127.0.0.1:1";
+  activationFactories.createSpool = () =>
+    new Spool(mkdtempSync(join(tmpdir(), "apitally-test-")));
+  activationFactories.createExportWorker = (workerOptions) =>
+    new ExportWorker({
+      ...workerOptions,
+      initialExportDelayMillis: 3_600_000,
+      requestTimeoutMillis: 2_000,
+      interSendPauseMillis: () => 0,
+    });
+  configure({ writeToken: WRITE_TOKEN, ...options });
+  activate();
+  const handles = getActivationHandles();
+  if (!handles) {
+    throw new Error("Apitally activation did not succeed");
+  }
+  return handles;
+}
 
 export interface TracePipeline {
   pipeline: SpanPipeline;
@@ -208,8 +253,10 @@ export function createInMemorySpool(): Spool {
 }
 
 // Drains the pipeline into the spool and decodes everything exported so far.
+// Accepts anything flushable in front of the spool: a tracer provider or the
+// span pipeline itself.
 export async function readTraceExportFromSpool(
-  provider: NodeTracerProvider,
+  provider: { forceFlush(): Promise<void> },
   spool: Spool,
 ): Promise<DecodedTraceRequest> {
   await provider.forceFlush();

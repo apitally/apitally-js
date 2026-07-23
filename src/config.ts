@@ -140,6 +140,12 @@ export function resetConfig(): void {
   currentConfig = undefined;
 }
 
+// The emergency kill switch, re-checked at the activation boundary so it wins
+// even over an explicit disabled: false option.
+export function isApitallyDisabledViaEnv(): boolean {
+  return isTruthyEnvValue(process.env.APITALLY_DISABLED);
+}
+
 export function isAllowedContentType(
   contentType: string | null | undefined,
 ): boolean {

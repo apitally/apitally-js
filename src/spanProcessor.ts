@@ -101,16 +101,23 @@ export class ApitallySpanProcessor implements SpanProcessor {
   }
 }
 
-let activeSpanPipeline: SpanPipeline | undefined;
+// The active pipeline is published on globalThis under a Symbol.for key: the
+// ESM and CJS build copies of this module resolve one shared pipeline, so the
+// shell above forwards to the copy that activated.
+const ACTIVE_SPAN_PIPELINE_KEY = Symbol.for("apitally.activeSpanPipeline");
 
 export function setActiveSpanPipeline(
   pipeline: SpanPipeline | undefined,
 ): void {
-  activeSpanPipeline = pipeline;
+  (globalThis as Record<symbol, SpanPipeline | undefined>)[
+    ACTIVE_SPAN_PIPELINE_KEY
+  ] = pipeline;
 }
 
 export function getActiveSpanPipeline(): SpanPipeline | undefined {
-  return activeSpanPipeline;
+  return (globalThis as Record<symbol, SpanPipeline | undefined>)[
+    ACTIVE_SPAN_PIPELINE_KEY
+  ];
 }
 
 export function setConsumer(consumer: ApitallyConsumer | string): void {
