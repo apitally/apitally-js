@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync } from "node:fs";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -58,9 +65,13 @@ import { LogPipeline } from "../src/logPipeline.js";
 import { SpanPipeline } from "../src/spanProcessor.js";
 import { Spool } from "../src/spool.js";
 import {
+  type DecodedExponentialHistogramDataPoint,
   type DecodedLogsRequest,
   type DecodedMetricsRequest,
+  type DecodedSpan,
   type DecodedTraceRequest,
+  decodedMetrics,
+  decodedSpans,
   decodeLogsExport,
   decodeMetricsExport,
   decodeTraceExport,
@@ -100,12 +111,13 @@ export function clearTestRunnerMarkers(): void {
   delete process.env.NODE_ENV;
 }
 
-// Drives configure + activate past the test-environment guards, isolates the
-// spool in a fresh temp directory, keeps the worker off its export timer, and
-// asserts activation succeeded. The global teardown resets everything it starts.
-export function configureAndActivate(
+// Configures past the test-environment guards without activating: clears the
+// test-runner markers, isolates the spool in a fresh temp directory, and keeps
+// the worker off its export timer, so a later activate() call (or a first
+// request through an adapter) starts the pipelines under test conditions.
+export function prepareFirstRequestActivation(
   options: ApitallyOptions = {},
-): ActivationHandles {
+): void {
   clearTestRunnerMarkers();
   // A stray worker cycle must never reach the real ingest endpoint
   process.env.APITALLY_OTLP_ENDPOINT ??= UNROUTABLE_ENDPOINT;
@@ -119,12 +131,64 @@ export function configureAndActivate(
       interSendPauseMillis: () => 0,
     });
   configure({ writeToken: WRITE_TOKEN, ...options });
+}
+
+// Drives configure + activate and asserts activation succeeded. The global
+// teardown resets everything it starts.
+export function configureAndActivate(
+  options: ApitallyOptions = {},
+): ActivationHandles {
+  prepareFirstRequestActivation(options);
   activate();
   const handles = getActivationHandles();
   if (!handles) {
     throw new Error("Apitally activation did not succeed");
   }
   return handles;
+}
+
+// Requires activation to have happened, e.g. triggered by an adapter's first
+// request after prepareFirstRequestActivation.
+export function requireActivationHandles(): ActivationHandles {
+  const handles = getActivationHandles();
+  if (!handles) {
+    throw new Error("Apitally is not activated");
+  }
+  return handles;
+}
+
+// Binds a request listener to a listening server for the duration of fn.
+export async function withServer(
+  listener: (req: IncomingMessage, res: ServerResponse) => void,
+  fn: (server: Server, baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const server = createServer(listener);
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    await fn(server, `http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  }
+}
+
+// Resolves when the span pipeline finishes its next request, composing with
+// the log pipeline's release hook. Used where response completion is not
+// observable from the client side, e.g. an aborted request.
+export function waitForNextRequestFinish(
+  pipeline: SpanPipeline,
+): Promise<void> {
+  return new Promise((resolve) => {
+    const previous = pipeline.onRequestFinished;
+    pipeline.onRequestFinished = (serverSpanId, kept) => {
+      previous?.(serverSpanId, kept);
+      resolve();
+    };
+  });
 }
 
 export interface TracePipeline {
@@ -287,6 +351,9 @@ export async function readTraceExportFromSpool(
   await spool.closeCurrentFiles();
   const resourceSpans: DecodedTraceRequest["resourceSpans"] = [];
   for (const file of spool.pendingFiles()) {
+    if (file.signal !== "traces") {
+      continue;
+    }
     resourceSpans.push(
       ...decodeTraceExport(await file.readStoredBytes()).resourceSpans,
     );
@@ -303,6 +370,9 @@ export async function readLogsExportFromSpool(
   await spool.closeCurrentFiles();
   const resourceLogs: DecodedLogsRequest["resourceLogs"] = [];
   for (const file of spool.pendingFiles()) {
+    if (file.signal !== "logs") {
+      continue;
+    }
     resourceLogs.push(
       ...decodeLogsExport(await file.readStoredBytes()).resourceLogs,
     );
@@ -318,11 +388,37 @@ export async function readMetricsExportFromSpool(
   await spool.closeCurrentFiles();
   const resourceMetrics: DecodedMetricsRequest["resourceMetrics"] = [];
   for (const file of spool.pendingFiles()) {
+    if (file.signal !== "metrics") {
+      continue;
+    }
     resourceMetrics.push(
       ...decodeMetricsExport(await file.readStoredBytes()).resourceMetrics,
     );
   }
   return { resourceMetrics };
+}
+
+// Reads all spans the activated pipeline exported so far, decoded.
+export async function readActivationSpans(): Promise<DecodedSpan[]> {
+  const handles = requireActivationHandles();
+  return decodedSpans(
+    await readTraceExportFromSpool(handles.spanPipeline, handles.spool),
+  );
+}
+
+// Collects and reads the request duration histogram data points recorded so far.
+export async function readActivationDurationDataPoints(): Promise<
+  DecodedExponentialHistogramDataPoint[]
+> {
+  const handles = requireActivationHandles();
+  await handles.metricsPipeline.collectAndExport();
+  const metrics = decodedMetrics(
+    await readMetricsExportFromSpool(handles.spool),
+  );
+  return (
+    metrics.find((metric) => metric.name === "http.server.request.duration")
+      ?.exponentialHistogram?.dataPoints ?? []
+  );
 }
 
 // Collects metrics on demand without exporting them anywhere.

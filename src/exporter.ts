@@ -287,13 +287,14 @@ export function serializeInChunksToSpool<Item>(
   );
 }
 
+// Captured headers are exported list-valued, one name/value pair per element
 function writeCapturedHeaderAttributes(
   attributes: Record<string, unknown>,
   prefix: string,
   headers: Record<string, string | string[]>,
 ): void {
   for (const [name, values] of Object.entries(headers)) {
-    attributes[prefix + name] = values;
+    attributes[prefix + name] = Array.isArray(values) ? values : [values];
   }
 }
 

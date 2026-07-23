@@ -178,6 +178,9 @@ export interface DecodedKeyValue {
 export interface DecodedSpan {
   name: string;
   kind?: number;
+  traceId?: Uint8Array;
+  spanId?: Uint8Array;
+  parentSpanId?: Uint8Array;
   attributes: DecodedKeyValue[];
   events: { name: string; attributes: DecodedKeyValue[] }[];
   endTimeUnixNano?: number;

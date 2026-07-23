@@ -177,7 +177,7 @@ export function writeRequestAttribute(
 interface RequestEntry {
   readonly serverSpanId: string;
   readonly serverSpan: Span;
-  readonly record?: RequestRecord;
+  record?: RequestRecord;
   buffered: ReadableSpan[];
   endedServerSpan?: ReadableSpan;
   dropReason?: RequestDropReason;
@@ -291,6 +291,10 @@ export class SpanPipeline implements SpanProcessor {
           ? this.requests.get(record.serverSpanId)
           : undefined;
       if (entry && !entry.transportCompleted && !entry.released) {
+        // An adopted span started outside the request context, so its entry
+        // carries no record yet; attaching it here lets the exporter apply the
+        // transport-observed attributes onto the export copy.
+        entry.record ??= record;
         entry.transportCompleted = true;
         if (!entry.dropReason && !this.isResponseSampledIn(entry)) {
           this.dropRequestOnResponse(entry, record);

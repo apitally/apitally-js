@@ -35,11 +35,14 @@
   "engines": {
     "node": ">=20.6.0"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/express/register.js",
+    "./dist/express/register.cjs"
+  ],
   "scripts": {
     "build": "tsup",
     "check": "biome check . && tsc --noEmit",
-    "check:package": "attw --pack .",
+    "check:package": "attw --pack . --profile node16",
     "format": "biome check --write .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -50,6 +53,26 @@
     "README.md"
   ],
   "exports": {
+    "./express": {
+      "import": {
+        "types": "./dist/express/index.d.ts",
+        "default": "./dist/express/index.js"
+      },
+      "require": {
+        "types": "./dist/express/index.d.cts",
+        "default": "./dist/express/index.cjs"
+      }
+    },
+    "./express/register": {
+      "import": {
+        "types": "./dist/express/register.d.ts",
+        "default": "./dist/express/register.js"
+      },
+      "require": {
+        "types": "./dist/express/register.d.cts",
+        "default": "./dist/express/register.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "peerDependencies": {
@@ -95,11 +118,18 @@
     "@biomejs/biome": "^2.5.4",
     "@opentelemetry/api": "^1.9.1",
     "@sentry/node": "^10.67.0",
+    "@types/compression": "^1.8.1",
+    "@types/express": "^5.0.6",
     "@types/node": "^20.19.43",
+    "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "^4.1.10",
+    "compression": "^1.8.1",
     "esbuild-fix-imports-plugin": "^1.0.23",
+    "express": "^5.2.1",
+    "express4": "npm:express@^4.22.2",
     "pino": "^10.3.1",
     "protobufjs": "^8.7.1",
+    "supertest": "^7.2.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
