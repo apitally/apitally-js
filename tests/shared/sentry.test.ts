@@ -11,19 +11,28 @@ import {
 } from "../utils.js";
 
 function initSentryClient(): Sentry.NodeClient {
-  const client = Sentry.init({
-    dsn: "https://a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6@example.com/1",
-    transport: () => ({
-      send: () => Promise.resolve({}),
-      flush: () => Promise.resolve(true),
-    }),
-    defaultIntegrations: false,
-    skipOpenTelemetrySetup: true,
-  });
+  const client =
+    Sentry.init({
+      dsn: "https://a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6@example.com/1",
+      transport: () => ({
+        send: () => Promise.resolve({}),
+        flush: () => Promise.resolve(true),
+      }),
+      defaultIntegrations: false,
+      skipOpenTelemetrySetup: true,
+    }) ?? getClientFromHub();
   if (!client) {
     throw new Error("Sentry did not initialize a client");
   }
   return client;
+}
+
+// Sentry 7's init() returns void; its client is reachable through the hub.
+function getClientFromHub(): Sentry.NodeClient | undefined {
+  const sentry = Sentry as unknown as {
+    getCurrentHub?: () => { getClient(): Sentry.NodeClient | undefined };
+  };
+  return sentry.getCurrentHub?.().getClient();
 }
 
 function createSentryFixture(): {
