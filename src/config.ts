@@ -114,10 +114,15 @@ export const EXCLUDE_USER_AGENTS = [
 const WRITE_TOKEN_FORMAT = /^apt_[a-zA-Z0-9]{24}$/;
 const TRUE_VALUES = new Set(["1", "true", "yes"]);
 
-let currentConfig: ApitallyConfig | undefined;
+// The ESM and CJS builds can both load in one process, so the config singleton
+// lives on globalThis under a Symbol.for key: both module copies resolve one
+// configuration.
+const CONFIG_SLOT_KEY = Symbol.for("apitally.config");
+const configHolder = globalThis as Record<symbol, ApitallyConfig | undefined>;
 
 export function setConfig(options: ApitallyOptions = {}): ApitallyConfig {
   const { config, error } = resolveConfig(options);
+  const currentConfig = configHolder[CONFIG_SLOT_KEY];
   if (currentConfig) {
     if (!isSameConfig(config, currentConfig)) {
       logWarning(
@@ -129,16 +134,16 @@ export function setConfig(options: ApitallyOptions = {}): ApitallyConfig {
   if (error) {
     logError(error);
   }
-  currentConfig = config;
+  configHolder[CONFIG_SLOT_KEY] = config;
   return config;
 }
 
 export function getConfig(): ApitallyConfig {
-  return currentConfig ?? resolveConfig({}).config;
+  return configHolder[CONFIG_SLOT_KEY] ?? resolveConfig({}).config;
 }
 
 export function resetConfig(): void {
-  currentConfig = undefined;
+  configHolder[CONFIG_SLOT_KEY] = undefined;
 }
 
 // The emergency kill switch, re-checked at the activation boundary so it wins
@@ -161,6 +166,15 @@ export function isAllowedContentType(
 
 export function matchesAny(patterns: RegExp[], value: string): boolean {
   return patterns.some((pattern) => pattern.test(value));
+}
+
+export function compilePatterns(
+  defaults: string[],
+  userPatterns: string[] = [],
+): RegExp[] {
+  return [...defaults, ...userPatterns].map(
+    (pattern) => new RegExp(pattern, "i"),
+  );
 }
 
 function resolveConfig(options: ApitallyOptions): {

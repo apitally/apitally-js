@@ -217,7 +217,11 @@ describe("express adapter", () => {
   });
 
   it("excludes health check requests from spans while counting them in the request metrics, and records OPTIONS requests in neither", async () => {
-    prepareFirstRequestActivation();
+    // Capture stays enabled so excluded requests provably export no payloads
+    prepareFirstRequestActivation({
+      captureRequestBody: true,
+      captureResponseBody: true,
+    });
     await request(server).get("/healthz").expect(200);
     await request(server).options("/items/42").expect(200);
 

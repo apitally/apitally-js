@@ -5,43 +5,30 @@ import {
   propagation,
   ROOT_CONTEXT,
   type Span,
-  SpanKind,
   SpanStatusCode,
   type TextMapGetter,
-  trace,
 } from "@opentelemetry/api";
-import {
-  getRPCMetadata,
-  type RPCMetadata,
-  RPCType,
-  setRPCMetadata,
-} from "@opentelemetry/core";
+import type { RPCMetadata } from "@opentelemetry/core";
 import type { Hono, Context as HonoContext, MiddlewareHandler } from "hono";
 import { activate, isActivated } from "../activation.js";
-import {
-  BodyCapture,
-  type CapturedBody,
-  captureResponse,
-  normalizeHeaders,
-} from "../capture.js";
+import { BodyCapture, type CapturedBody, captureResponse } from "../capture.js";
 import { type ApitallyConfig, getConfig } from "../config.js";
 import {
-  CONSUMER_HOLDER_KEY,
   type ConsumerHolder,
   getConsumerHolder,
   getRequestRecord,
-  REQUEST_RECORD_KEY,
   type RequestRecord,
-  SPAN_HANDLE_KEY,
   type SpanHandle,
 } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
 import {
+  adoptOrStartServerSpan,
+  finalizeRecordAndReleaseRequest,
+} from "../requestObservation.js";
+import {
   captureException,
   coerceToException,
   getActiveSpanPipeline,
-  type RequestStash,
-  writeRequestAttribute,
 } from "../spanProcessor.js";
 import { type MatchedRouteResult, resolveMatchedRoute } from "./routes.js";
 
@@ -108,7 +95,7 @@ export function wrapAppFetch(app: Hono): void {
   ) {
     let observed: ObservedRequestStart | undefined;
     try {
-      observed = observeRequest(request, wrapErrorHandlerOnce);
+      observed = observeRequest(request, rest[0], wrapErrorHandlerOnce);
     } catch (error) {
       logWarning(`Error in the Apitally middleware: ${String(error)}`);
     }
@@ -167,6 +154,7 @@ interface ObservedRequestStart {
 // is served without telemetry.
 function observeRequest(
   request: Request,
+  env: unknown,
   wrapErrorHandlerOnce: () => void,
 ): ObservedRequestStart | undefined {
   activate();
@@ -189,6 +177,7 @@ function observeRequest(
   });
   const startAttributes = resolveStartAttributes(
     request,
+    env,
     method,
     requestBodyCapture,
   );
@@ -196,63 +185,20 @@ function observeRequest(
   // attributes are mirrored into it on every path, span or no span.
   Object.assign(record.attributes, startAttributes);
 
-  const activeSpan = trace.getSpan(activeContext);
-  let requestContext: Context;
-  let ownSpan: Span | undefined;
-  if (activeSpan?.isRecording() && isServerSpan(activeSpan)) {
-    // A SERVER span produced by the user's own instrumentation is adopted:
-    // no second span, and the request runs under the user's context.
-    spanHandle.span = activeSpan;
-    record.serverSpanId = activeSpan.spanContext().spanId;
-    requestContext = withRequestHolders(
-      activeContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
-  } else if (activeSpan && !activeSpan.isRecording()) {
-    warnAboutNonRecordingServerSpan();
-    requestContext = withRequestHolders(
-      activeContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
-  } else {
-    const extractedContext = propagation.extract(
+  const { requestContext, ownSpan, rpcMetadata } = adoptOrStartServerSpan({
+    activeContext,
+    extractedContext: propagation.extract(
       ROOT_CONTEXT,
       request.headers,
       WEB_HEADERS_GETTER,
-    );
-    requestContext = withRequestHolders(
-      extractedContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
-    ownSpan = trace
-      .getTracer(TRACER_NAME)
-      .startSpan(
-        method,
-        { kind: SpanKind.SERVER, attributes: startAttributes },
-        requestContext,
-      );
-    if (!ownSpan.isRecording()) {
-      warnAboutNonRecordingServerSpan();
-      ownSpan = undefined;
-    } else {
-      spanHandle.span = ownSpan;
-      requestContext = trace.setSpan(requestContext, ownSpan);
-    }
-  }
-
-  // The RPC metadata is the transport-span beacon middleware-based span
-  // producers demote on; the route is written onto it at completion.
-  let rpcMetadata = getRPCMetadata(requestContext);
-  if (!rpcMetadata && spanHandle.span) {
-    rpcMetadata = { type: RPCType.HTTP, span: spanHandle.span };
-    requestContext = setRPCMetadata(requestContext, rpcMetadata);
-  }
+    ),
+    tracerName: TRACER_NAME,
+    method,
+    startAttributes,
+    spanHandle,
+    record,
+    consumerHolder,
+  });
 
   const observation: RequestObservation = {
     config,
@@ -284,7 +230,7 @@ function observeResponse(
     );
     capturedBodyPromise
       .then((capturedBody) =>
-        finalizeRecordAndReleaseRequest(observation, response, capturedBody),
+        finalizeRequestFromResponse(observation, response, capturedBody),
       )
       .catch((error: unknown) => {
         logWarning(`Error in the Apitally middleware: ${String(error)}`);
@@ -296,7 +242,9 @@ function observeResponse(
   }
 }
 
-async function finalizeRecordAndReleaseRequest(
+// Resolves the framework-native values of the completed response and hands
+// them to the shared finalize with the request's common state.
+async function finalizeRequestFromResponse(
   observation: RequestObservation,
   response: Response,
   capturedBody: CapturedBody,
@@ -311,72 +259,25 @@ async function finalizeRecordAndReleaseRequest(
     startTimeMillis,
     method,
   } = observation;
-  record.durationSeconds = (performance.now() - startTimeMillis) / 1000;
+  const durationSeconds = (performance.now() - startTimeMillis) / 1000;
   await captureRequestBodyFromCache(observation);
-  const span = spanHandle.span;
-  writeRequestAttribute(
-    span,
+  finalizeRecordAndReleaseRequest({
     record,
-    "http.response.status_code",
-    response.status,
-  );
-  const requestBodySize = requestBodyCapture.size;
-  if (requestBodySize !== undefined) {
-    writeRequestAttribute(
-      span,
-      record,
-      "http.request.body.size",
-      requestBodySize,
-    );
-  }
-  const responseBodySize = capturedBody.size;
-  if (responseBodySize !== undefined) {
-    writeRequestAttribute(
-      span,
-      record,
-      "http.response.body.size",
-      responseBodySize,
-    );
-  }
-  const matchedRoute = observation.matchedRoute;
-  if (matchedRoute?.route !== undefined) {
-    writeRequestAttribute(span, record, "http.route", matchedRoute.route);
-    if (rpcMetadata) {
-      rpcMetadata.route = matchedRoute.route;
-    }
-    if (ownSpan?.isRecording()) {
-      ownSpan.updateName(`${method} ${matchedRoute.route}`);
-    }
-  } else {
-    // An empty route on the record clears a wrong route a producing
-    // instrumentation may have set; the histograms skip empty routes.
-    record.attributes["http.route"] = "";
-  }
-  if (ownSpan && response.status >= 500) {
-    ownSpan.setStatus({ code: SpanStatusCode.ERROR });
-  }
-  if (record.serverSpanId !== undefined) {
-    const stash: RequestStash = {};
-    if (config.captureRequestHeaders) {
-      stash.requestHeaders = normalizeHeaders(observation.requestHeaders);
-    }
-    if (config.captureResponseHeaders) {
-      stash.responseHeaders = normalizeHeaders(response.headers);
-    }
-    const requestBody = requestBodyCapture.body;
-    if (requestBody) {
-      stash.requestBody = requestBody;
-    }
-    const responseBody = capturedBody.body;
-    if (responseBody) {
-      stash.responseBody = responseBody;
-    }
-    if (Object.keys(stash).length > 0) {
-      getActiveSpanPipeline()?.updateStash(record.serverSpanId, stash);
-    }
-  }
-  ownSpan?.end();
-  getActiveSpanPipeline()?.handleTransportCompletion(record);
+    spanHandle,
+    ownSpan,
+    rpcMetadata,
+    config,
+    method,
+    durationSeconds,
+    statusCode: response.status,
+    route: observation.matchedRoute?.route,
+    requestHeaders: observation.requestHeaders,
+    responseHeaders: response.headers,
+    requestBodySize: requestBodyCapture.size,
+    responseBodySize: capturedBody.size,
+    requestBody: requestBodyCapture.body,
+    responseBody: capturedBody.body,
+  });
 }
 
 // A rejected dispatch means Hono rethrew a non-Error value or the error
@@ -500,6 +401,7 @@ function warnIfRoutesWereRegisteredBeforeSetup(app: Hono): void {
 
 function resolveStartAttributes(
   request: Request,
+  env: unknown,
   method: string,
   requestBodyCapture: BodyCapture,
 ): Attributes {
@@ -517,6 +419,10 @@ function resolveStartAttributes(
   } catch {
     // An unparseable request URL leaves only the method attribute
   }
+  const clientAddress = resolveNodeServerClientAddress(env);
+  if (clientAddress !== undefined) {
+    attributes["client.address"] = clientAddress;
+  }
   const userAgent = request.headers.get("user-agent");
   if (userAgent !== null) {
     attributes["user_agent.original"] = userAgent;
@@ -530,26 +436,13 @@ function resolveStartAttributes(
   return attributes;
 }
 
-function withRequestHolders(
-  baseContext: Context,
-  spanHandle: SpanHandle,
-  record: RequestRecord,
-  consumerHolder: ConsumerHolder,
-): Context {
-  return baseContext
-    .setValue(SPAN_HANDLE_KEY, spanHandle)
-    .setValue(REQUEST_RECORD_KEY, record)
-    .setValue(CONSUMER_HOLDER_KEY, consumerHolder);
-}
-
-// The active span's kind is not part of the OpenTelemetry API surface, so the
-// SDK-level property is read from whichever package copy produced the span.
-function isServerSpan(span: Span): boolean {
-  return (span as { kind?: unknown }).kind === SpanKind.SERVER;
-}
-
-function warnAboutNonRecordingServerSpan(): void {
-  logWarning(
-    "A request arrived under a SERVER span that the OpenTelemetry sampler did not sample, so only sampled requests reach Apitally as traces and request logs. Request metrics include all requests.",
-  );
+// @hono/node-server passes the Node request as env.incoming; runtimes without
+// that shape expose no client address and the attribute is omitted.
+function resolveNodeServerClientAddress(env: unknown): string | undefined {
+  const incoming = (env as { incoming?: unknown } | undefined | null)?.incoming;
+  const socket = (incoming as { socket?: unknown } | undefined | null)?.socket;
+  const remoteAddress = (
+    socket as { remoteAddress?: unknown } | undefined | null
+  )?.remoteAddress;
+  return typeof remoteAddress === "string" ? remoteAddress : undefined;
 }

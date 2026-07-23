@@ -88,6 +88,7 @@ describe("exporter", () => {
         "http.request.header.authorization": ["Bearer secret123"],
         "http.response.header.set-cookie": ["session=abc"],
         "http.response.header.content-type": ["application/json"],
+        "http.response.header.location": ["/next?token=secret123&page=2"],
       },
     });
     tracer
@@ -127,6 +128,9 @@ describe("exporter", () => {
     ]);
     expect(serverAttributes["http.response.header.content-type"]).toEqual([
       "application/json",
+    ]);
+    expect(serverAttributes["http.response.header.location"]).toEqual([
+      "/next?token=%5BREDACTED%5D&page=2",
     ]);
     expect(span.attributes["url.query"]).toBe("token=secret123&page=2");
     expect(span.attributes["http.request.header.authorization"]).toEqual([
@@ -269,6 +273,35 @@ describe("exporter", () => {
     expect(userSpan.resource.attributes["deployment.environment.name"]).toBe(
       "staging",
     );
+  });
+
+  it("fills in the deployment environment resource attribute on Apitally's copies when the tracer provider's resource omits it", async () => {
+    const resource = resourceFromAttributes({
+      "service.name": "user-service",
+    });
+    const userExporter = new InMemorySpanExporter();
+    const { pipeline, provider, tracer, spool } = createExportPipeline({
+      resource,
+      userExporter,
+      env: "staging",
+    });
+    const lines = captureStderr();
+    const { span, request } = startServerSpan(tracer);
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+
+    const exported = await readTraceExportFromSpool(provider, spool);
+    expect(exported.resourceSpans).toHaveLength(1);
+    const resourceAttributes = decodedAttributes(
+      exported.resourceSpans[0].resource?.attributes ?? [],
+    );
+    expect(resourceAttributes["deployment.environment.name"]).toBe("staging");
+    expect(resourceAttributes["service.name"]).toBe("user-service");
+    expect(lines).toEqual([]);
+    const [userSpan] = userExporter.getFinishedSpans();
+    expect(
+      userSpan.resource.attributes["deployment.environment.name"],
+    ).toBeUndefined();
   });
 
   it("replaces the body with [REDACTED] without a warning when the mask callback returns null or undefined", async () => {

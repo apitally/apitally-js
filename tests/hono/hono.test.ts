@@ -128,7 +128,11 @@ describe("hono adapter", () => {
   });
 
   it("excludes health check requests from spans while counting them in the request metrics, and records OPTIONS requests in neither", async () => {
-    prepareFirstRequestActivation();
+    // Capture stays enabled so excluded requests provably export no payloads
+    prepareFirstRequestActivation({
+      captureRequestBody: true,
+      captureResponseBody: true,
+    });
     const healthzResponse = await app.request("/healthz");
     expect(healthzResponse.status).toBe(200);
     await readResponseAndSettleTransport(healthzResponse);

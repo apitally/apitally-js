@@ -8,7 +8,6 @@ import type { RoutePath } from "../startup.js";
 
 export interface MatchedRouteResult {
   route?: string;
-  matched: boolean;
 }
 
 interface MatchedRouteEntry {
@@ -21,13 +20,13 @@ interface MatchedRouteEntry {
 // property (Hono's own convention).
 const COMPOSED_HANDLER_PROPERTY = "__COMPOSED_HANDLER";
 
-// Resolves the request's route template and match state after the middleware
-// chain unwound. Real route handlers are discriminated from middleware entries
-// by handler arity, Hono's own convention: route handlers take one argument.
+// Resolves the request's route template after the middleware chain unwound.
+// Real route handlers are discriminated from middleware entries by handler
+// arity, Hono's own convention: route handlers take one argument.
 export function resolveMatchedRoute(c: Context): MatchedRouteResult {
   const entries = readMatchedRouteEntries(c);
   if (!entries) {
-    return { matched: false };
+    return {};
   }
   // routeIndex points at the handler the response came from; a middleware that
   // responded without calling next() leaves the route handler it preempted at
@@ -37,11 +36,10 @@ export function resolveMatchedRoute(c: Context): MatchedRouteResult {
     if (entry && isRouteHandler(entry.handler)) {
       return {
         route: typeof entry.path === "string" ? entry.path : undefined,
-        matched: true,
       };
     }
   }
-  return { matched: false };
+  return {};
 }
 
 // Enumerates the app's registered routes for the startup event, filtering

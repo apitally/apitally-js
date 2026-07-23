@@ -141,11 +141,13 @@ export function createLoggerProvider(
   return new LoggerProvider({ resource, processors });
 }
 
+let distroVersion: string | undefined;
+
 export function getDistroVersion(): string {
-  const packageJson = createRequire(import.meta.url)("../package.json") as {
-    version: string;
-  };
-  return packageJson.version;
+  distroVersion ??= (
+    createRequire(import.meta.url)("../package.json") as { version: string }
+  ).version;
+  return distroVersion;
 }
 
 function readDeploymentEnvironmentNameFromEnv(): string | undefined {

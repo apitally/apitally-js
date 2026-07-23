@@ -1,0 +1,221 @@
+import {
+  type Attributes,
+  type Context,
+  type Span,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from "@opentelemetry/api";
+import {
+  getRPCMetadata,
+  type RPCMetadata,
+  RPCType,
+  setRPCMetadata,
+} from "@opentelemetry/core";
+import { normalizeHeaders } from "./capture.js";
+import type { ApitallyConfig } from "./config.js";
+import {
+  type ConsumerHolder,
+  type RequestRecord,
+  type SpanHandle,
+  withRequestHolders,
+} from "./context.js";
+import { logWarning } from "./logger.js";
+import {
+  getActiveSpanPipeline,
+  type RequestStash,
+  writeRequestAttribute,
+} from "./spanProcessor.js";
+
+// Shared by the adapters' transport middleware: the SERVER-span adopt-or-create
+// step at request entry, and the record finalization and request release at
+// response completion, both operating on framework-independent values.
+
+export interface StartServerSpanOptions {
+  activeContext: Context;
+  extractedContext: Context;
+  tracerName: string;
+  method: string;
+  startAttributes: Attributes;
+  spanHandle: SpanHandle;
+  record: RequestRecord;
+  consumerHolder: ConsumerHolder;
+}
+
+export interface ServerSpanObservation {
+  requestContext: Context;
+  ownSpan?: Span;
+  rpcMetadata?: RPCMetadata;
+}
+
+export function adoptOrStartServerSpan(
+  options: StartServerSpanOptions,
+): ServerSpanObservation {
+  const {
+    activeContext,
+    extractedContext,
+    tracerName,
+    method,
+    startAttributes,
+    spanHandle,
+    record,
+    consumerHolder,
+  } = options;
+  const activeSpan = trace.getSpan(activeContext);
+  let requestContext: Context;
+  let ownSpan: Span | undefined;
+  if (activeSpan?.isRecording() && isServerSpan(activeSpan)) {
+    // A SERVER span produced by the user's own instrumentation is adopted:
+    // no second span, and the request runs under the user's context.
+    spanHandle.span = activeSpan;
+    record.serverSpanId = activeSpan.spanContext().spanId;
+    requestContext = withRequestHolders(
+      activeContext,
+      spanHandle,
+      record,
+      consumerHolder,
+    );
+  } else if (activeSpan && !activeSpan.isRecording()) {
+    warnAboutNonRecordingServerSpan();
+    requestContext = withRequestHolders(
+      activeContext,
+      spanHandle,
+      record,
+      consumerHolder,
+    );
+  } else {
+    requestContext = withRequestHolders(
+      extractedContext,
+      spanHandle,
+      record,
+      consumerHolder,
+    );
+    ownSpan = trace
+      .getTracer(tracerName)
+      .startSpan(
+        method,
+        { kind: SpanKind.SERVER, attributes: startAttributes },
+        requestContext,
+      );
+    if (!ownSpan.isRecording()) {
+      warnAboutNonRecordingServerSpan();
+      ownSpan = undefined;
+    } else {
+      spanHandle.span = ownSpan;
+      requestContext = trace.setSpan(requestContext, ownSpan);
+    }
+  }
+
+  // The RPC metadata is the transport-span beacon middleware-based span
+  // producers demote on; the route is written onto it at completion.
+  let rpcMetadata = getRPCMetadata(requestContext);
+  if (!rpcMetadata && spanHandle.span) {
+    rpcMetadata = { type: RPCType.HTTP, span: spanHandle.span };
+    requestContext = setRPCMetadata(requestContext, rpcMetadata);
+  }
+  return { requestContext, ownSpan, rpcMetadata };
+}
+
+export interface FinalizeRequestOptions {
+  record: RequestRecord;
+  spanHandle: SpanHandle;
+  ownSpan?: Span;
+  rpcMetadata?: RPCMetadata;
+  config: ApitallyConfig;
+  method: string;
+  durationSeconds: number;
+  statusCode: number;
+  route?: string;
+  requestHeaders: Headers | Record<string, string | string[] | undefined>;
+  responseHeaders:
+    | Headers
+    | Record<string, string | number | string[] | undefined>;
+  requestBodySize?: number;
+  responseBodySize?: number;
+  requestBody?: Buffer;
+  responseBody?: Buffer;
+}
+
+export function finalizeRecordAndReleaseRequest(
+  options: FinalizeRequestOptions,
+): void {
+  const {
+    record,
+    spanHandle,
+    ownSpan,
+    rpcMetadata,
+    config,
+    method,
+    statusCode,
+    route,
+  } = options;
+  record.durationSeconds = options.durationSeconds;
+  const span = spanHandle.span;
+  writeRequestAttribute(span, record, "http.response.status_code", statusCode);
+  if (options.requestBodySize !== undefined) {
+    writeRequestAttribute(
+      span,
+      record,
+      "http.request.body.size",
+      options.requestBodySize,
+    );
+  }
+  if (options.responseBodySize !== undefined) {
+    writeRequestAttribute(
+      span,
+      record,
+      "http.response.body.size",
+      options.responseBodySize,
+    );
+  }
+  if (route !== undefined) {
+    writeRequestAttribute(span, record, "http.route", route);
+    if (rpcMetadata) {
+      rpcMetadata.route = route;
+    }
+    if (ownSpan?.isRecording()) {
+      ownSpan.updateName(`${method} ${route}`);
+    }
+  } else {
+    // An empty route on the record clears a wrong route a producing
+    // instrumentation may have set; the histograms skip empty routes.
+    record.attributes["http.route"] = "";
+  }
+  if (ownSpan && statusCode >= 500) {
+    ownSpan.setStatus({ code: SpanStatusCode.ERROR });
+  }
+  // A dropped request's spans are never released, so a stash entry for it
+  // would sit unconsumed until the cap evicts it.
+  if (record.serverSpanId !== undefined && record.dropReason === undefined) {
+    const stash: RequestStash = {};
+    if (config.captureRequestHeaders) {
+      stash.requestHeaders = normalizeHeaders(options.requestHeaders);
+    }
+    if (config.captureResponseHeaders) {
+      stash.responseHeaders = normalizeHeaders(options.responseHeaders);
+    }
+    if (options.requestBody) {
+      stash.requestBody = options.requestBody;
+    }
+    if (options.responseBody) {
+      stash.responseBody = options.responseBody;
+    }
+    if (Object.keys(stash).length > 0) {
+      getActiveSpanPipeline()?.updateStash(record.serverSpanId, stash);
+    }
+  }
+  ownSpan?.end();
+  getActiveSpanPipeline()?.handleTransportCompletion(record);
+}
+
+// The active span's kind is not part of the OpenTelemetry API surface, so the
+// SDK-level property is read from whichever package copy produced the span.
+function isServerSpan(span: Span): boolean {
+  return (span as { kind?: unknown }).kind === SpanKind.SERVER;
+}
+
+function warnAboutNonRecordingServerSpan(): void {
+  logWarning(
+    "A request arrived under a SERVER span that the OpenTelemetry sampler did not sample, so only sampled requests reach Apitally as traces and request logs. Request metrics include all requests.",
+  );
+}

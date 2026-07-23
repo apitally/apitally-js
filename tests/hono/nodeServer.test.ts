@@ -58,6 +58,21 @@ describe("hono adapter over @hono/node-server", () => {
     );
   });
 
+  it("populates client.address from the Node server socket", async () => {
+    const handles = configureAndActivate({ captureResponseBody: true });
+    const released = waitForNextRequestFinish(handles.spanPipeline);
+    const response = await fetch(`http://127.0.0.1:${serverPort}/items/42`);
+    expect(response.status).toBe(200);
+    await response.arrayBuffer();
+    await released;
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(decodedAttributes(spans[0].attributes)["client.address"]).toBe(
+      "127.0.0.1",
+    );
+  });
+
   it("releases an aborted request through the close path with the partial response body suppressed", async () => {
     const handles = configureAndActivate({ captureResponseBody: true });
     const released = waitForNextRequestFinish(handles.spanPipeline);

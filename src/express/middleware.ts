@@ -6,36 +6,24 @@ import {
   propagation,
   ROOT_CONTEXT,
   type Span,
-  SpanKind,
-  SpanStatusCode,
-  trace,
 } from "@opentelemetry/api";
-import {
-  getRPCMetadata,
-  type RPCMetadata,
-  RPCType,
-  setRPCMetadata,
-} from "@opentelemetry/core";
+import type { RPCMetadata } from "@opentelemetry/core";
 import type { Express, NextFunction, Request, Response } from "express";
 import { activate, getActivationHandles, isActivated } from "../activation.js";
-import { BodyCapture, normalizeHeaders } from "../capture.js";
+import { BodyCapture } from "../capture.js";
 import { type ApitallyConfig, getConfig } from "../config.js";
 import {
-  CONSUMER_HOLDER_KEY,
   type ConsumerHolder,
   getConsumerHolder,
-  REQUEST_RECORD_KEY,
   type RequestRecord,
-  SPAN_HANDLE_KEY,
   type SpanHandle,
 } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
 import {
-  captureException,
-  getActiveSpanPipeline,
-  type RequestStash,
-  writeRequestAttribute,
-} from "../spanProcessor.js";
+  adoptOrStartServerSpan,
+  finalizeRecordAndReleaseRequest,
+} from "../requestObservation.js";
+import { captureException } from "../spanProcessor.js";
 import {
   beginRouteTracking,
   finishRouteTracking,
@@ -150,59 +138,16 @@ function observeRequest(
   // attributes are mirrored into it on every path, span or no span.
   Object.assign(record.attributes, startAttributes);
 
-  const activeSpan = trace.getSpan(activeContext);
-  let requestContext: Context;
-  let ownSpan: Span | undefined;
-  if (activeSpan?.isRecording() && isServerSpan(activeSpan)) {
-    // A SERVER span produced by the user's own instrumentation is adopted:
-    // no second span, and the request runs under the user's context.
-    spanHandle.span = activeSpan;
-    record.serverSpanId = activeSpan.spanContext().spanId;
-    requestContext = withRequestHolders(
-      activeContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
-  } else if (activeSpan && !activeSpan.isRecording()) {
-    warnAboutNonRecordingServerSpan();
-    requestContext = withRequestHolders(
-      activeContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
-  } else {
-    const extractedContext = propagation.extract(ROOT_CONTEXT, req.headers);
-    requestContext = withRequestHolders(
-      extractedContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
-    ownSpan = trace
-      .getTracer(TRACER_NAME)
-      .startSpan(
-        method,
-        { kind: SpanKind.SERVER, attributes: startAttributes },
-        requestContext,
-      );
-    if (!ownSpan.isRecording()) {
-      warnAboutNonRecordingServerSpan();
-      ownSpan = undefined;
-    } else {
-      spanHandle.span = ownSpan;
-      requestContext = trace.setSpan(requestContext, ownSpan);
-    }
-  }
-
-  // The RPC metadata is the transport-span beacon middleware-based span
-  // producers demote on; the route is written onto it at completion.
-  let rpcMetadata = getRPCMetadata(requestContext);
-  if (!rpcMetadata && spanHandle.span) {
-    rpcMetadata = { type: RPCType.HTTP, span: spanHandle.span };
-    requestContext = setRPCMetadata(requestContext, rpcMetadata);
-  }
+  const { requestContext, ownSpan, rpcMetadata } = adoptOrStartServerSpan({
+    activeContext,
+    extractedContext: propagation.extract(ROOT_CONTEXT, req.headers),
+    tracerName: TRACER_NAME,
+    method,
+    startAttributes,
+    spanHandle,
+    record,
+    consumerHolder,
+  });
 
   installResponseObservation({
     req,
@@ -295,7 +240,7 @@ function installResponseObservation(options: ResponseObservationOptions): void {
     }
     finalized = true;
     try {
-      finalizeRecordAndReleaseRequest(
+      finalizeRequestFromResponse(
         options,
         ensureResponseBodyCapture(),
         responseFinished,
@@ -310,7 +255,9 @@ function installResponseObservation(options: ResponseObservationOptions): void {
   res.on("close", () => finalizeRequest(false));
 }
 
-function finalizeRecordAndReleaseRequest(
+// Resolves the framework-native values of the completed response and hands
+// them to the shared finalize with the request's common state.
+function finalizeRequestFromResponse(
   options: ResponseObservationOptions,
   responseBodyCapture: BodyCapture,
   responseFinished: boolean,
@@ -328,77 +275,31 @@ function finalizeRecordAndReleaseRequest(
     method,
     requestUrl,
   } = options;
-  record.durationSeconds = (performance.now() - startTimeMillis) / 1000;
+  const durationSeconds = (performance.now() - startTimeMillis) / 1000;
   if (responseFinished) {
     responseBodyCapture.markComplete();
   }
-  const span = spanHandle.span;
-  writeRequestAttribute(
-    span,
-    record,
-    "http.response.status_code",
-    res.statusCode,
-  );
-  const requestBodySize = requestBodyCapture.size;
-  if (requestBodySize !== undefined) {
-    writeRequestAttribute(
-      span,
-      record,
-      "http.request.body.size",
-      requestBodySize,
-    );
-  }
-  const responseBodySize = responseBodyCapture.size;
-  if (responseBodySize !== undefined) {
-    writeRequestAttribute(
-      span,
-      record,
-      "http.response.body.size",
-      responseBodySize,
-    );
-  }
   const routeResult = finishRouteTracking(req, requestUrl.split("?")[0]);
-  if (routeResult.route !== undefined) {
-    writeRequestAttribute(span, record, "http.route", routeResult.route);
-    if (rpcMetadata) {
-      rpcMetadata.route = routeResult.route;
-    }
-    if (ownSpan?.isRecording()) {
-      ownSpan.updateName(`${method} ${routeResult.route}`);
-    }
-  } else {
-    // An empty route on the record clears a wrong route a producing
-    // instrumentation may have set; the histograms skip empty routes.
-    record.attributes["http.route"] = "";
-    if (routeResult.matchedUncapturedRegistration) {
-      warnAboutUncapturedRouteRegistrations();
-    }
+  if (routeResult.matchedUncapturedRegistration) {
+    warnAboutUncapturedRouteRegistrations();
   }
-  if (ownSpan && res.statusCode >= 500) {
-    ownSpan.setStatus({ code: SpanStatusCode.ERROR });
-  }
-  if (record.serverSpanId !== undefined) {
-    const stash: RequestStash = {};
-    if (config.captureRequestHeaders) {
-      stash.requestHeaders = normalizeHeaders(req.headers);
-    }
-    if (config.captureResponseHeaders) {
-      stash.responseHeaders = normalizeHeaders(res.getHeaders());
-    }
-    const requestBody = requestBodyCapture.body;
-    if (requestBody) {
-      stash.requestBody = requestBody;
-    }
-    const responseBody = responseBodyCapture.body;
-    if (responseBody) {
-      stash.responseBody = responseBody;
-    }
-    if (Object.keys(stash).length > 0) {
-      getActiveSpanPipeline()?.updateStash(record.serverSpanId, stash);
-    }
-  }
-  ownSpan?.end();
-  getActiveSpanPipeline()?.handleTransportCompletion(record);
+  finalizeRecordAndReleaseRequest({
+    record,
+    spanHandle,
+    ownSpan,
+    rpcMetadata,
+    config,
+    method,
+    durationSeconds,
+    statusCode: res.statusCode,
+    route: routeResult.route,
+    requestHeaders: req.headers,
+    responseHeaders: res.getHeaders(),
+    requestBodySize: requestBodyCapture.size,
+    responseBodySize: responseBodyCapture.size,
+    requestBody: requestBodyCapture.body,
+    responseBody: responseBodyCapture.body,
+  });
 }
 
 // The emit wrap observes the request body as it passes through to the app's
@@ -462,18 +363,6 @@ function attachServerCloseFlush(req: IncomingMessage): void {
   );
 }
 
-function withRequestHolders(
-  baseContext: Context,
-  spanHandle: SpanHandle,
-  record: RequestRecord,
-  consumerHolder: ConsumerHolder,
-): Context {
-  return baseContext
-    .setValue(SPAN_HANDLE_KEY, spanHandle)
-    .setValue(REQUEST_RECORD_KEY, record)
-    .setValue(CONSUMER_HOLDER_KEY, consumerHolder);
-}
-
 function resolveStartAttributes(
   req: IncomingMessage,
   method: string,
@@ -513,18 +402,6 @@ function resolveStartAttributes(
     attributes["http.request.body.size"] = requestBodySize;
   }
   return attributes;
-}
-
-// The active span's kind is not part of the OpenTelemetry API surface, so the
-// SDK-level property is read from whichever package copy produced the span.
-function isServerSpan(span: Span): boolean {
-  return (span as { kind?: unknown }).kind === SpanKind.SERVER;
-}
-
-function warnAboutNonRecordingServerSpan(): void {
-  logWarning(
-    "A request arrived under a SERVER span that the OpenTelemetry sampler did not sample, so only sampled requests reach Apitally as traces and request logs. Request metrics include all requests.",
-  );
 }
 
 function splitPathAndQuery(url: string): [string, string | undefined] {

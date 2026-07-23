@@ -39,8 +39,8 @@ describe("hono routes", () => {
     await app.request("/api/items/42");
     await app.request("/api/nested/9/deep/1");
     expect(results).toEqual([
-      { route: "/api/items/:id", matched: true },
-      { route: "/api/nested/:nid/deep/:x", matched: true },
+      { route: "/api/items/:id" },
+      { route: "/api/nested/:nid/deep/:x" },
     ]);
   });
 
@@ -57,8 +57,8 @@ describe("hono routes", () => {
     const blockedResponse = await app.request("/blocked/7");
     expect(blockedResponse.status).toBe(401);
     expect(results).toEqual([
-      { route: "/things/:id", matched: true },
-      { route: "/blocked/:id", matched: true },
+      { route: "/things/:id" },
+      { route: "/blocked/:id" },
     ]);
   });
 
@@ -71,7 +71,7 @@ describe("hono routes", () => {
 
     await app.request("/unknown");
     await app.request("/guarded/anything");
-    expect(results).toEqual([{ matched: false }, { matched: false }]);
+    expect(results).toEqual([{}, {}]);
   });
 
   it("enumerates registered routes for the startup paths, filtering middleware entries and duplicates", () => {

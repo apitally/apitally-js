@@ -1,4 +1,5 @@
 import {
+  compilePatterns,
   DEFAULT_MASK_BODY_FIELDS,
   DEFAULT_MASK_HEADERS,
   DEFAULT_MASK_QUERY_PARAMS,
@@ -8,7 +9,8 @@ import {
 
 export const REDACTED = "[REDACTED]";
 
-const URL_HEADER_NAMES = new Set(["location", "content-location"]);
+// Headers whose values are URLs and get query redaction instead of masking
+export const URL_HEADER_NAMES = new Set(["location", "content-location"]);
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -131,10 +133,4 @@ export class Redaction {
     }
     return data;
   }
-}
-
-function compilePatterns(defaults: string[], userPatterns: string[]): RegExp[] {
-  return [...defaults, ...userPatterns].map(
-    (pattern) => new RegExp(pattern, "i"),
-  );
 }

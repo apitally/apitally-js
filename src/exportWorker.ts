@@ -74,7 +74,11 @@ export class ExportWorker {
       env.HTTP_PROXY || env.http_proxy || env.HTTPS_PROXY || env.https_proxy,
     );
     this.runtimeIsBun = "Bun" in globalThis;
-    if (this.useProxy && this.runtimeIsBun) {
+    if (
+      this.useProxy &&
+      this.runtimeIsBun &&
+      !shouldBypassProxy(this.otlpEndpoint)
+    ) {
       this.bunProxyUrl = this.otlpEndpoint.startsWith("https:")
         ? env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy
         : env.HTTP_PROXY || env.http_proxy;
@@ -290,6 +294,43 @@ export class ExportWorker {
     }, delayMillis);
     this.timer.unref();
   }
+}
+
+// Bun's per-request proxy option ignores NO_PROXY, so the endpoint is tested
+// here, mirroring how undici's EnvHttpProxyAgent on the Node path interprets
+// the variable: entries split on commas and whitespace, optional :port suffix,
+// exact host match, and suffix match for entries starting with "." or "*".
+function shouldBypassProxy(endpoint: string): boolean {
+  const noProxy = process.env.no_proxy ?? process.env.NO_PROXY;
+  if (!noProxy) {
+    return false;
+  }
+  if (noProxy === "*") {
+    return true;
+  }
+  const url = new URL(endpoint);
+  const hostname = url.host.replace(/:\d*$/, "").toLowerCase();
+  const port =
+    Number.parseInt(url.port, 10) || (url.protocol === "https:" ? 443 : 80);
+  for (const rawEntry of noProxy.split(/[,\s]/)) {
+    if (!rawEntry) {
+      continue;
+    }
+    const parsed = rawEntry.match(/^(.+):(\d+)$/);
+    const entryHostname = (parsed ? parsed[1] : rawEntry).toLowerCase();
+    const entryPort = parsed ? Number.parseInt(parsed[2], 10) : 0;
+    if (entryPort && entryPort !== port) {
+      continue;
+    }
+    if (/^[.*]/.test(entryHostname)) {
+      if (hostname.endsWith(entryHostname.replace(/^\*/, ""))) {
+        return true;
+      }
+    } else if (hostname === entryHostname) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isTimeoutError(error: unknown): boolean {

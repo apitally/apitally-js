@@ -45,6 +45,18 @@ export const SPAN_HANDLE_KEY = createContextKey("apitally-span-handle");
 export const REQUEST_RECORD_KEY = createContextKey("apitally-request-record");
 export const CONSUMER_HOLDER_KEY = createContextKey("apitally-consumer-holder");
 
+export function withRequestHolders(
+  baseContext: Context,
+  spanHandle: SpanHandle,
+  record: RequestRecord,
+  consumerHolder: ConsumerHolder,
+): Context {
+  return baseContext
+    .setValue(SPAN_HANDLE_KEY, spanHandle)
+    .setValue(REQUEST_RECORD_KEY, record)
+    .setValue(CONSUMER_HOLDER_KEY, consumerHolder);
+}
+
 export function getServerSpan(
   activeContext: Context = context.active(),
 ): Span | undefined {

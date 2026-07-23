@@ -128,12 +128,14 @@ export function captureResponse(
     })
     .catch(() => capturedBodyResult(bodyCapture, false));
   // A response nobody ever reads would leave the pipe promise pending forever.
+  let readTimeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<CapturedBody>((resolve) => {
-    setTimeout(() => {
+    readTimeout = setTimeout(() => {
       if (!readStarted) {
         resolve({ completed: false });
       }
-    }, readTimeoutMillis).unref();
+    }, readTimeoutMillis);
+    readTimeout.unref();
   });
   const teedResponse = new Response(readable, {
     status: response.status,
@@ -143,7 +145,11 @@ export function captureResponse(
   // Force Bun to initialize the headers (workaround for lazy evaluation in
   // Bun's Response implementation).
   void teedResponse.headers;
-  return [teedResponse, Promise.race([pipePromise, timeoutPromise])];
+  const capturedBodyPromise = Promise.race([
+    pipePromise,
+    timeoutPromise,
+  ]).finally(() => clearTimeout(readTimeout));
+  return [teedResponse, capturedBodyPromise];
 }
 
 // Normalizes headers into the stash shape: lowercase names, multi-value headers

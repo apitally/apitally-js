@@ -501,6 +501,10 @@ function joinTemplateParts(prefix: string, part: string): string {
   return joined === "" ? "/" : joined;
 }
 
+// Templates come from a fixed set of registrations but are matched per
+// request, so compiled patterns are cached; the bounded key space needs no eviction.
+const compiledTemplatePatterns = new Map<string, RegExp | undefined>();
+
 // Structural template matching in express syntax: named parameters match one
 // path segment, wildcards match any remainder, braced groups are optional.
 // Matching stays permissive on unrecognized syntax so a legitimate route is
@@ -513,17 +517,23 @@ function matchesTemplate(
   if (template === "/") {
     return path === "/" || path === "";
   }
-  let source: string;
-  try {
-    source = templateToRegExpSource(template);
-  } catch {
-    return true;
+  const key = `${mode} ${template}`;
+  if (!compiledTemplatePatterns.has(key)) {
+    compiledTemplatePatterns.set(key, compileTemplatePattern(template, mode));
   }
+  const pattern = compiledTemplatePatterns.get(key);
+  return pattern ? pattern.test(path) : true;
+}
+
+function compileTemplatePattern(
+  template: string,
+  mode: "full" | "prefix",
+): RegExp | undefined {
   const suffix = mode === "full" ? "/?$" : "(?:/|$)";
   try {
-    return new RegExp(`^${source}${suffix}`, "i").test(path);
+    return new RegExp(`^${templateToRegExpSource(template)}${suffix}`, "i");
   } catch {
-    return true;
+    return undefined;
   }
 }
 

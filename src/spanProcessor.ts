@@ -13,6 +13,7 @@ import type {
 } from "@opentelemetry/sdk-trace-base";
 import {
   type ApitallyConfig,
+  compilePatterns,
   DEFAULT_EXCLUDE_PATHS,
   EXCLUDE_USER_AGENTS,
   getConfig,
@@ -46,9 +47,7 @@ const PER_MESSAGE_SPAN_NAME_SUFFIXES = [
   " websocket send",
   " websocket receive",
 ];
-const EXCLUDE_USER_AGENT_PATTERNS = EXCLUDE_USER_AGENTS.map(
-  (pattern) => new RegExp(pattern, "i"),
-);
+const EXCLUDE_USER_AGENT_PATTERNS = compilePatterns(EXCLUDE_USER_AGENTS);
 
 // Headers and bodies captured by a transport for one request. They never touch the
 // live span and reach only Apitally's export copy, in the exporter.
@@ -207,10 +206,10 @@ export class SpanPipeline implements SpanProcessor {
     this.downstream = downstream;
     this.config = getConfig();
     this.sampleRateBound = boundForSampleRate(this.config.sampleRate);
-    this.excludePathPatterns = [
-      ...DEFAULT_EXCLUDE_PATHS,
-      ...this.config.excludePaths,
-    ].map((pattern) => new RegExp(pattern, "i"));
+    this.excludePathPatterns = compilePatterns(
+      DEFAULT_EXCLUDE_PATHS,
+      this.config.excludePaths,
+    );
   }
 
   onStart(span: Span, parentContext: Context): void {

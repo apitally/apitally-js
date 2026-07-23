@@ -146,7 +146,9 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
     }
   }
 
-  const attachedTransports = new Map<WinstonLoggerInstance, object>();
+  // Weak tracking, so the registry never pins logger instances against collection
+  const attachedLoggers = new Set<WeakRef<WinstonLoggerInstance>>();
+  const attachedTransports = new WeakMap<WinstonLoggerInstance, object>();
   const originalWrite = loggerPrototype.write as (
     ...args: unknown[]
   ) => boolean;
@@ -166,6 +168,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
       ) {
         const transport = new ApitallyTransport();
         this.add(transport);
+        attachedLoggers.add(new WeakRef(this));
         attachedTransports.set(this, transport);
       }
     } catch {
@@ -177,7 +180,12 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   restoreWinstonCapture = () => {
     loggerPrototype.write = originalWrite;
     clearPatchMarker(loggerPrototype, WINSTON_PATCH_MARKER);
-    for (const [winstonLogger, transport] of attachedTransports) {
+    for (const loggerRef of attachedLoggers) {
+      const winstonLogger = loggerRef.deref();
+      const transport = winstonLogger && attachedTransports.get(winstonLogger);
+      if (!winstonLogger || !transport) {
+        continue;
+      }
       try {
         winstonLogger.remove(transport);
       } catch {
@@ -217,9 +225,11 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
     return;
   }
   const logger = loggerProvider.getLogger("pino");
-  const retrofittedHooks = new Map<
+  // Weak tracking, so the registry never pins hooks objects against collection
+  const retrofittedHooks = new Set<WeakRef<PinoStreamWriteHooks>>();
+  const userStreamWrites = new WeakMap<
     PinoStreamWriteHooks,
-    ((line: string) => string) | undefined
+    (line: string) => string
   >();
   // The level and messageKey of the write in progress; the streamWrite hook
   // call is strictly synchronous within the write.
@@ -265,7 +275,10 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
       return processed;
     };
     setPatchMarker(hooks, PINO_HOOK_MARKER);
-    retrofittedHooks.set(hooks, userStreamWrite);
+    retrofittedHooks.add(new WeakRef(hooks));
+    if (userStreamWrite) {
+      userStreamWrites.set(hooks, userStreamWrite);
+    }
   };
 
   const originalWrite = writePrototype[writeSym] as (
@@ -295,8 +308,12 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
   restorePinoCapture = () => {
     writePrototype[writeSym] = originalWrite;
     clearPatchMarker(writePrototype, PINO_PATCH_MARKER);
-    for (const [hooks, userStreamWrite] of retrofittedHooks) {
-      hooks.streamWrite = userStreamWrite;
+    for (const hooksRef of retrofittedHooks) {
+      const hooks = hooksRef.deref();
+      if (!hooks) {
+        continue;
+      }
+      hooks.streamWrite = userStreamWrites.get(hooks);
       clearPatchMarker(hooks, PINO_HOOK_MARKER);
     }
   };

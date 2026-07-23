@@ -11,10 +11,11 @@ import {
   BODY_TOO_LARGE,
   BODY_TOO_LARGE_BUFFER,
   type BodyMaskCallback,
+  DEFAULT_ENV,
   MAX_BODY_SIZE,
 } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
-import { REDACTED, type Redaction } from "./redaction.js";
+import { REDACTED, type Redaction, URL_HEADER_NAMES } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";
 import type { Signal, Spool } from "./spool.js";
 
@@ -177,6 +178,17 @@ export class ApitallySpanExporter implements SpanExporter {
         );
         if (this.redaction.shouldRedactHeader(headerName)) {
           attributes[key] = typeof value === "string" ? REDACTED : [REDACTED];
+        } else if (URL_HEADER_NAMES.has(headerName.toLowerCase())) {
+          // Redirect targets can carry secrets in their query strings
+          if (typeof value === "string") {
+            attributes[key] = this.redaction.redactQueryParams(value, false);
+          } else if (Array.isArray(value)) {
+            attributes[key] = value.map((item) =>
+              typeof item === "string"
+                ? this.redaction.redactQueryParams(item, false)
+                : item,
+            );
+          }
         }
       }
     }
@@ -223,22 +235,29 @@ export class ApitallySpanExporter implements SpanExporter {
   }
 
   // Every export copy's resource has to match the Apitally-Env transport header;
-  // a user provider's differing env is rewritten on Apitally's copy only.
+  // a user provider's differing env is rewritten on Apitally's copy only, and an
+  // absent attribute is filled in whenever the resolved env is not the default,
+  // since absence reads as the default env downstream.
   private resolveExportResource(
     resource: Resource,
     rewrittenResources: Map<Resource, Resource>,
   ): Resource {
     const resourceEnv = resource.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
-    if (typeof resourceEnv !== "string" || resourceEnv === this.env) {
+    const conflicts =
+      typeof resourceEnv === "string" && resourceEnv !== this.env;
+    const missing = resourceEnv === undefined && this.env !== DEFAULT_ENV;
+    if (!conflicts && !missing) {
       return resource;
     }
     const existing = rewrittenResources.get(resource);
     if (existing) {
       return existing;
     }
-    logWarning(
-      `The tracer provider's resource sets deployment.environment.name to "${resourceEnv}", which differs from the Apitally env "${this.env}". Spans are exported to Apitally with the env "${this.env}".`,
-    );
+    if (conflicts) {
+      logWarning(
+        `The tracer provider's resource sets deployment.environment.name to "${resourceEnv}", which differs from the Apitally env "${this.env}". Spans are exported to Apitally with the env "${this.env}".`,
+      );
+    }
     const rewritten = resourceFromAttributes({
       ...resource.attributes,
       [DEPLOYMENT_ENVIRONMENT_NAME]: this.env,
