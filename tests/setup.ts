@@ -5,6 +5,7 @@ import { resetConfig } from "../src/config.js";
 import { uninstallLogCapture } from "../src/logCapture.js";
 import { resetEmittedWarnings } from "../src/logger.js";
 import { setActiveSpanPipeline } from "../src/spanProcessor.js";
+import { resetStartupEventEmitted } from "../src/startup.js";
 
 // Ambient Apitally, OTel, and proxy env vars must not leak into tests.
 for (const key of Object.keys(process.env)) {
@@ -33,6 +34,7 @@ afterEach(() => {
   Object.assign(process.env, envSnapshot);
   resetConfig();
   resetEmittedWarnings();
+  resetStartupEventEmitted();
   setActiveSpanPipeline(undefined);
   trace.disable();
   context.disable();
