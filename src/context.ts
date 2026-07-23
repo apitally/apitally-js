@@ -35,6 +35,9 @@ export type RequestDropReason =
 export interface RequestRecord {
   attributes: Attributes;
   serverSpanId?: string;
+  // Transport-measured request duration, set at completion; the duration
+  // histogram records it independent of span timing.
+  durationSeconds?: number;
   dropReason?: RequestDropReason;
 }
 

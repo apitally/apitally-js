@@ -49,8 +49,10 @@ import { SpanPipeline } from "../src/spanProcessor.js";
 import { Spool } from "../src/spool.js";
 import {
   type DecodedLogsRequest,
+  type DecodedMetricsRequest,
   type DecodedTraceRequest,
   decodeLogsExport,
+  decodeMetricsExport,
   decodeTraceExport,
 } from "./stubOtlpServer.js";
 
@@ -223,6 +225,21 @@ export async function readLogsExportFromSpool(
     );
   }
   return { resourceLogs };
+}
+
+// Decodes the metrics exported to the spool so far; collection happens before,
+// through the metrics pipeline's own collect-and-export entry point.
+export async function readMetricsExportFromSpool(
+  spool: Spool,
+): Promise<DecodedMetricsRequest> {
+  await spool.closeCurrentFiles();
+  const resourceMetrics: DecodedMetricsRequest["resourceMetrics"] = [];
+  for (const file of spool.pendingFiles()) {
+    resourceMetrics.push(
+      ...decodeMetricsExport(await file.readStoredBytes()).resourceMetrics,
+    );
+  }
+  return { resourceMetrics };
 }
 
 // Collects metrics on demand without exporting them anywhere.

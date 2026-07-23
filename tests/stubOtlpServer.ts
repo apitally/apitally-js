@@ -203,9 +203,40 @@ export interface DecodedLogsRequest {
   }[];
 }
 
+export interface DecodedNumberDataPoint {
+  attributes: DecodedKeyValue[];
+  timeUnixNano?: number;
+  asDouble?: number;
+  asInt?: number;
+}
+
+export interface DecodedExponentialHistogramDataPoint {
+  attributes: DecodedKeyValue[];
+  timeUnixNano?: number;
+  count?: number;
+  sum?: number;
+  scale?: number;
+  zeroCount?: number;
+  positive?: { offset?: number; bucketCounts: number[] };
+  negative?: { offset?: number; bucketCounts: number[] };
+  min?: number;
+  max?: number;
+}
+
+export interface DecodedMetric {
+  name: string;
+  unit?: string;
+  gauge?: { dataPoints: DecodedNumberDataPoint[] };
+  sum?: { dataPoints: DecodedNumberDataPoint[] };
+  exponentialHistogram?: {
+    dataPoints: DecodedExponentialHistogramDataPoint[];
+    aggregationTemporality?: number;
+  };
+}
+
 export interface DecodedMetricsRequest {
   resourceMetrics: {
-    scopeMetrics: { metrics: { name: string }[] }[];
+    scopeMetrics: { scope?: { name?: string }; metrics: DecodedMetric[] }[];
   }[];
 }
 
@@ -247,6 +278,16 @@ export function decodedLogRecords(
 ): DecodedLogRecord[] {
   return request.resourceLogs.flatMap((resourceLogs) =>
     resourceLogs.scopeLogs.flatMap((scopeLogs) => scopeLogs.logRecords),
+  );
+}
+
+export function decodedMetrics(
+  request: DecodedMetricsRequest,
+): DecodedMetric[] {
+  return request.resourceMetrics.flatMap((resourceMetrics) =>
+    resourceMetrics.scopeMetrics.flatMap(
+      (scopeMetrics) => scopeMetrics.metrics,
+    ),
   );
 }
 
