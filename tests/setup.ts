@@ -3,6 +3,7 @@ import { logs } from "@opentelemetry/api-logs";
 import { afterEach, vi } from "vitest";
 import { resetConfig } from "../src/config.js";
 import { resetEmittedWarnings } from "../src/logger.js";
+import { setActiveSpanPipeline } from "../src/spanProcessor.js";
 
 // Ambient Apitally, OTel, and proxy env vars must not leak into tests.
 for (const key of Object.keys(process.env)) {
@@ -28,6 +29,7 @@ afterEach(() => {
   Object.assign(process.env, envSnapshot);
   resetConfig();
   resetEmittedWarnings();
+  setActiveSpanPipeline(undefined);
   trace.disable();
   context.disable();
   propagation.disable();

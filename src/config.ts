@@ -45,6 +45,11 @@ export type ApitallyConfig = Required<
 export const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
 export const DEFAULT_ENV = "prod";
 
+// Captured bodies above the cap are never exported; the attribute carries the
+// sentinel instead, and a body must never be exported truncated.
+export const MAX_BODY_SIZE = 50_000;
+export const BODY_TOO_LARGE = "[BODY_TOO_LARGE]";
+
 export const ALLOWED_CONTENT_TYPES = [
   "application/json",
   "application/problem+json",

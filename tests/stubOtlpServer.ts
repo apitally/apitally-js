@@ -156,9 +156,32 @@ export class StubOtlpServer {
   }
 }
 
+export interface DecodedAnyValue {
+  stringValue?: string;
+  boolValue?: boolean;
+  intValue?: number;
+  doubleValue?: number;
+  bytesValue?: Uint8Array;
+  arrayValue?: { values: DecodedAnyValue[] };
+}
+
+export interface DecodedKeyValue {
+  key: string;
+  value: DecodedAnyValue;
+}
+
+export interface DecodedSpan {
+  name: string;
+  kind?: number;
+  attributes: DecodedKeyValue[];
+  events: { name: string; attributes: DecodedKeyValue[] }[];
+  endTimeUnixNano?: number;
+}
+
 export interface DecodedTraceRequest {
   resourceSpans: {
-    scopeSpans: { spans: { name: string }[] }[];
+    resource?: { attributes: DecodedKeyValue[] };
+    scopeSpans: { scope?: { name?: string }; spans: DecodedSpan[] }[];
   }[];
 }
 
@@ -198,10 +221,33 @@ export function decodeMetricsExport(
 }
 
 export function spanNames(request: DecodedTraceRequest): string[] {
+  return decodedSpans(request).map((span) => span.name);
+}
+
+export function decodedSpans(request: DecodedTraceRequest): DecodedSpan[] {
   return request.resourceSpans.flatMap((resourceSpans) =>
-    resourceSpans.scopeSpans.flatMap((scopeSpans) =>
-      scopeSpans.spans.map((span) => span.name),
-    ),
+    resourceSpans.scopeSpans.flatMap((scopeSpans) => scopeSpans.spans),
+  );
+}
+
+export function decodedAttributes(
+  attributes: DecodedKeyValue[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    attributes.map(({ key, value }) => [key, decodeAnyValue(value)]),
+  );
+}
+
+function decodeAnyValue(value: DecodedAnyValue): unknown {
+  if (value.arrayValue) {
+    return value.arrayValue.values.map(decodeAnyValue);
+  }
+  return (
+    value.stringValue ??
+    value.boolValue ??
+    value.intValue ??
+    value.doubleValue ??
+    value.bytesValue
   );
 }
 

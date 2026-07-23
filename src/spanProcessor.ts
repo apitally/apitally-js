@@ -1,0 +1,693 @@
+import {
+  type Span as ApiSpan,
+  type AttributeValue,
+  type Context,
+  type Exception,
+  SpanKind,
+} from "@opentelemetry/api";
+import { hrTime, hrTimeDuration } from "@opentelemetry/core";
+import type {
+  ReadableSpan,
+  Span,
+  SpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import {
+  type ApitallyConfig,
+  DEFAULT_EXCLUDE_PATHS,
+  EXCLUDE_USER_AGENTS,
+  getConfig,
+  type SamplingCallback,
+} from "./config.js";
+import {
+  type ApitallyConsumer,
+  consumerFromStringOrObject,
+} from "./consumer.js";
+import {
+  CONSUMER_HOLDER_KEY,
+  type ConsumerHolder,
+  getConsumerHolder,
+  getRequestRecord,
+  getServerSpan,
+  REQUEST_RECORD_KEY,
+  type RequestDropReason,
+  type RequestRecord,
+  SPAN_HANDLE_KEY,
+  type SpanHandle,
+} from "./context.js";
+import { logDebug, logWarning } from "./logger.js";
+
+export const MAX_BUFFERED_SPANS = 1_000;
+export const MAX_STASHED_REQUESTS = 2_048;
+
+const PER_MESSAGE_SPAN_NAME_SUFFIXES = [
+  " http send",
+  " http receive",
+  " websocket send",
+  " websocket receive",
+];
+const EXCLUDE_USER_AGENT_PATTERNS = EXCLUDE_USER_AGENTS.map(
+  (pattern) => new RegExp(pattern, "i"),
+);
+
+// Headers and bodies captured by a transport for one request. They never touch the
+// live span and reach only Apitally's export copy, in the exporter.
+export interface RequestStash {
+  requestHeaders?: Record<string, string | string[]>;
+  requestBody?: Buffer;
+  responseHeaders?: Record<string, string | string[]>;
+  responseBody?: Buffer;
+}
+
+export interface ApitallySpanData {
+  record?: RequestRecord;
+  stash?: RequestStash;
+  demoteToInternal?: boolean;
+}
+
+// Mutable ReadableSpan-shaped copy on Apitally's private export path; the span
+// handed to user-attached processors is never mutated.
+export type SpanCopy = {
+  -readonly [Key in keyof ReadableSpan]: ReadableSpan[Key];
+} & { apitallyData?: ApitallySpanData };
+
+// The public span processor attached to a user-owned tracer provider. Construction
+// is side-effect-free so it is safe anywhere in the user's setup; every callback
+// forwards to the SDK's process-global pipeline, and callbacks arriving before a
+// pipeline exists are safe no-ops.
+export class ApitallySpanProcessor implements SpanProcessor {
+  onStart(span: Span, parentContext: Context): void {
+    getActiveSpanPipeline()?.onStart(span, parentContext);
+  }
+
+  onEnd(span: ReadableSpan): void {
+    getActiveSpanPipeline()?.onEnd(span);
+  }
+
+  // Flush failures resolve instead of rejecting into the user's provider.
+  forceFlush(): Promise<void> {
+    const pipeline = getActiveSpanPipeline();
+    if (!pipeline) {
+      return Promise.resolve();
+    }
+    return pipeline.forceFlush().catch((error: unknown) => {
+      logDebug(`Error flushing spans: ${String(error)}`);
+    });
+  }
+
+  // A user provider's shutdown only flushes released requests downstream and never
+  // tears down the SDK; teardown belongs to the SDK's own shutdown path.
+  shutdown(): Promise<void> {
+    return this.forceFlush();
+  }
+}
+
+let activeSpanPipeline: SpanPipeline | undefined;
+
+export function setActiveSpanPipeline(
+  pipeline: SpanPipeline | undefined,
+): void {
+  activeSpanPipeline = pipeline;
+}
+
+export function getActiveSpanPipeline(): SpanPipeline | undefined {
+  return activeSpanPipeline;
+}
+
+export function setConsumer(consumer: ApitallyConsumer | string): void {
+  try {
+    const holder = getConsumerHolder();
+    const normalized = consumerFromStringOrObject(consumer);
+    if (!holder || !normalized) {
+      return;
+    }
+    holder.identifier = normalized.identifier;
+    holder.name = normalized.name;
+    holder.group = normalized.group;
+    writeConsumerAttributes(getServerSpan(), getRequestRecord(), normalized);
+  } catch (error) {
+    logDebug(`Error setting consumer: ${String(error)}`);
+  }
+}
+
+export function setRequestAttribute(key: string, value: AttributeValue): void {
+  try {
+    writeRequestAttribute(getServerSpan(), getRequestRecord(), key, value);
+  } catch (error) {
+    logDebug(`Error setting request attribute: ${String(error)}`);
+  }
+}
+
+export function captureException(error: unknown): void {
+  try {
+    const span = getServerSpan();
+    if (!span?.isRecording()) {
+      return;
+    }
+    span.recordException(coerceToException(error));
+  } catch (captureError) {
+    logDebug(`Error capturing exception: ${String(captureError)}`);
+  }
+}
+
+// Attribute writes during a request go to the live span if it is still recording
+// and always mirror into the request record, which the exporter applies onto the
+// export copy last, so late-learned values still reach the exported span.
+export function writeRequestAttribute(
+  span: ApiSpan | undefined,
+  record: RequestRecord | undefined,
+  key: string,
+  value: AttributeValue,
+): void {
+  if (span?.isRecording()) {
+    span.setAttribute(key, value);
+  }
+  if (record) {
+    record.attributes[key] = value;
+  }
+}
+
+interface RequestEntry {
+  readonly serverSpanId: string;
+  readonly serverSpan: Span;
+  readonly record?: RequestRecord;
+  buffered: ReadableSpan[];
+  endedServerSpan?: ReadableSpan;
+  dropReason?: RequestDropReason;
+  transportCompleted: boolean;
+  released: boolean;
+}
+
+// The single keep/drop decision point in front of Apitally's export path. Requests
+// are buffered per request and released to the downstream processor when both the
+// SERVER span has ended and the transport has completed, exactly once per request.
+export class SpanPipeline implements SpanProcessor {
+  // Seams for the metrics and log pipelines, registered at activation.
+  metricsRecorder?: (record: RequestRecord) => void;
+  onRequestFinished?: (serverSpanId: string, kept: boolean) => void;
+  private readonly downstream: SpanProcessor;
+  private readonly config: ApitallyConfig;
+  private readonly sampleRateBound: bigint;
+  private readonly excludePathPatterns: RegExp[];
+  // In-flight request map keyed by span id; all spans of a request share one entry,
+  // and a lookup miss means dropped. Only kept requests are entered, so dropped
+  // requests and non-request roots fall to the miss rule with all their descendants.
+  private readonly requests = new Map<string, RequestEntry>();
+  private readonly stash = new Map<string, RequestStash>();
+  private readonly demotedSpanIds = new Set<string>();
+
+  constructor(downstream: SpanProcessor) {
+    this.downstream = downstream;
+    this.config = getConfig();
+    this.sampleRateBound = boundForSampleRate(this.config.sampleRate);
+    this.excludePathPatterns = [
+      ...DEFAULT_EXCLUDE_PATHS,
+      ...this.config.excludePaths,
+    ].map((pattern) => new RegExp(pattern, "i"));
+  }
+
+  onStart(span: Span, parentContext: Context): void {
+    try {
+      if (isContribPerMessageSpan(span)) {
+        return;
+      }
+      const parent = span.parentSpanContext;
+      if (!parent || parent.isRemote) {
+        if (span.kind === SpanKind.SERVER) {
+          this.startRequest(span, parentContext);
+        }
+        return;
+      }
+      const entry = this.requests.get(parent.spanId);
+      if (!entry || entry.dropReason) {
+        return;
+      }
+      const spanId = span.spanContext().spanId;
+      if (span.kind === SpanKind.SERVER) {
+        // A second span-producing middleware is active for the same request; Apitally
+        // deduplicates on its own copy, but the user's exporters keep the duplicate.
+        this.demotedSpanIds.add(spanId);
+        logWarning(
+          `Detected a duplicate SERVER span produced by the instrumentation scope "${span.instrumentationScope?.name ?? "unknown"}" inside an active request. Apitally exports it as an INTERNAL span, but your own OpenTelemetry exporters still receive the duplicate. To resolve this, remove the middleware that produces it.`,
+        );
+      }
+      this.requests.set(spanId, entry);
+    } catch (error) {
+      logWarning(`Error in the Apitally span processor: ${String(error)}`);
+    }
+  }
+
+  onEnd(span: ReadableSpan): void {
+    try {
+      const spanId = span.spanContext().spanId;
+      const isDemoted = this.demotedSpanIds.delete(spanId);
+      const entry = this.requests.get(spanId);
+      if (!entry) {
+        return;
+      }
+      if (entry.dropReason) {
+        this.requests.delete(spanId);
+        return;
+      }
+      if (spanId === entry.serverSpanId) {
+        entry.endedServerSpan = span;
+        this.releaseIfComplete(entry);
+        return;
+      }
+      this.requests.delete(spanId);
+      let exportSpan = span;
+      if (isDemoted) {
+        const copy = copySpan(span);
+        copy.apitallyData = { demoteToInternal: true };
+        exportSpan = copy;
+      }
+      if (entry.released) {
+        this.downstream.onEnd(exportSpan);
+      } else if (entry.buffered.length < MAX_BUFFERED_SPANS) {
+        entry.buffered.push(exportSpan);
+      } else {
+        logDebug("Apitally span buffer cap reached, dropping the span");
+      }
+    } catch (error) {
+      logWarning(`Error in the Apitally span processor: ${String(error)}`);
+    }
+  }
+
+  // The transport-completion entry point called by the adapters when the response
+  // is fully sent: finalizes the record, runs the response-stage sampling decision,
+  // and records metrics at that moment, independent of span-end timing. Tolerates
+  // a request map miss: metrics are still recorded, everything else is discarded.
+  handleTransportCompletion(record: RequestRecord): void {
+    try {
+      const entry =
+        record.serverSpanId !== undefined
+          ? this.requests.get(record.serverSpanId)
+          : undefined;
+      if (entry && !entry.transportCompleted && !entry.released) {
+        entry.transportCompleted = true;
+        if (!entry.dropReason && !this.isResponseSampledIn(entry)) {
+          this.dropRequestOnResponse(entry, record);
+        }
+      }
+      this.metricsRecorder?.(record);
+      if (entry && !entry.dropReason) {
+        this.releaseIfComplete(entry);
+      }
+    } catch (error) {
+      logWarning(`Error in the Apitally span processor: ${String(error)}`);
+    }
+  }
+
+  // Holds captured headers and bodies until the exporter attaches them to the
+  // exported SERVER span copy. Fields already stashed are kept unless replaced.
+  updateStash(serverSpanId: string, update: RequestStash): void {
+    try {
+      let entry = this.stash.get(serverSpanId);
+      if (!entry) {
+        if (this.stash.size >= MAX_STASHED_REQUESTS) {
+          const oldestKey = this.stash.keys().next().value;
+          if (oldestKey !== undefined) {
+            this.stash.delete(oldestKey);
+            logDebug(
+              "Apitally payload stash cap reached, dropping the oldest entry",
+            );
+          }
+        }
+        entry = {};
+        this.stash.set(serverSpanId, entry);
+      }
+      if (update.requestHeaders !== undefined) {
+        entry.requestHeaders = update.requestHeaders;
+      }
+      if (update.requestBody !== undefined) {
+        entry.requestBody = update.requestBody;
+      }
+      if (update.responseHeaders !== undefined) {
+        entry.responseHeaders = update.responseHeaders;
+      }
+      if (update.responseBody !== undefined) {
+        entry.responseBody = update.responseBody;
+      }
+    } catch (error) {
+      logDebug(`Error updating the request stash: ${String(error)}`);
+    }
+  }
+
+  // The SERVER span id for an in-flight span, or undefined when its request is
+  // dropped. The log pipeline resolves request linkage through this lookup.
+  resolveServerSpanId(spanId: string): string | undefined {
+    const entry = this.requests.get(spanId);
+    return entry && !entry.dropReason ? entry.serverSpanId : undefined;
+  }
+
+  forceFlush(): Promise<void> {
+    return this.downstream.forceFlush();
+  }
+
+  // Requests whose transport already completed are released through the same
+  // one-shot; everything else is discarded, including spans that ended without
+  // transport completion, whose requests can never be released after shutdown.
+  async shutdown(): Promise<void> {
+    try {
+      for (const entry of new Set(this.requests.values())) {
+        if (!entry.released && entry.transportCompleted && !entry.dropReason) {
+          this.releaseRequest(entry, entry.endedServerSpan ?? entry.serverSpan);
+        }
+      }
+      this.requests.clear();
+      this.stash.clear();
+      this.demotedSpanIds.clear();
+    } catch (error) {
+      logWarning(`Error in the Apitally span processor: ${String(error)}`);
+    }
+    await this.downstream.shutdown();
+  }
+
+  private startRequest(span: Span, parentContext: Context): void {
+    const spanId = span.spanContext().spanId;
+    // The handle is filled for every local-root SERVER span, independent of the
+    // keep decision, so runtime writes always reach the current request's span.
+    const handle = parentContext.getValue(SPAN_HANDLE_KEY) as
+      | SpanHandle
+      | undefined;
+    if (handle) {
+      handle.span = span;
+    }
+    const record = parentContext.getValue(REQUEST_RECORD_KEY) as
+      | RequestRecord
+      | undefined;
+    if (record) {
+      record.serverSpanId = spanId;
+    }
+    const holder = parentContext.getValue(CONSUMER_HOLDER_KEY) as
+      | ConsumerHolder
+      | undefined;
+    if (holder?.identifier) {
+      const consumer = consumerFromStringOrObject({
+        identifier: holder.identifier,
+        name: holder.name,
+        group: holder.group,
+      });
+      if (consumer) {
+        writeConsumerAttributes(span, record, consumer);
+      }
+    }
+    writeUrlAttributesFromFullUrl(span);
+    const dropReason = this.resolveDropReasonAtStart(span);
+    if (dropReason) {
+      if (record) {
+        record.dropReason = dropReason;
+      }
+      return;
+    }
+    this.requests.set(spanId, {
+      serverSpanId: spanId,
+      serverSpan: span,
+      record,
+      buffered: [],
+      transportCompleted: false,
+      released: false,
+    });
+  }
+
+  // Exclusion answers "never wanted" and runs strictly before sampling; an
+  // excluded request never invokes a user sampling callback.
+  private resolveDropReasonAtStart(span: Span): RequestDropReason | undefined {
+    const attributes = span.attributes;
+    const method =
+      attributes["http.request.method"] ?? attributes["http.method"];
+    if (method === "OPTIONS") {
+      return "options";
+    }
+    const scheme = attributes["url.scheme"] ?? attributes["http.scheme"];
+    if (scheme === "ws" || scheme === "wss") {
+      return "websocket";
+    }
+    const path = attributes["url.path"] ?? attributes["http.target"];
+    if (
+      typeof path === "string" &&
+      matchesAny(this.excludePathPatterns, path.split("?")[0])
+    ) {
+      return "excluded";
+    }
+    const userAgent =
+      attributes["user_agent.original"] ?? attributes["http.user_agent"];
+    if (
+      typeof userAgent === "string" &&
+      matchesAny(EXCLUDE_USER_AGENT_PATTERNS, userAgent)
+    ) {
+      return "excluded";
+    }
+    return this.isRequestSampledIn(span) ? undefined : "sampled-out";
+  }
+
+  private isRequestSampledIn(span: Span): boolean {
+    const callback = this.config.sampleOnRequest;
+    const rate = callback
+      ? resolveCallbackSampleRate(callback, span, "sampleOnRequest")
+      : undefined;
+    const bound =
+      rate === undefined ? this.sampleRateBound : boundForSampleRate(rate);
+    return isTraceSampledIn(span.spanContext().traceId, bound);
+  }
+
+  // Abstention leaves the request-stage decision standing; it never re-tests the
+  // static sample rate.
+  private isResponseSampledIn(entry: RequestEntry): boolean {
+    const callback = this.config.sampleOnResponse;
+    if (!callback) {
+      return true;
+    }
+    const serverSpan = entry.endedServerSpan ?? entry.serverSpan;
+    let snapshot: ReadableSpan = serverSpan;
+    if (entry.record && Object.keys(entry.record.attributes).length > 0) {
+      // The callback sees transport-observed values even when they were learned
+      // after the span ended (final route, response size).
+      const copy = copySpan(serverSpan);
+      copy.attributes = {
+        ...serverSpan.attributes,
+        ...entry.record.attributes,
+      };
+      snapshot = copy;
+    }
+    const rate = resolveCallbackSampleRate(
+      callback,
+      snapshot,
+      "sampleOnResponse",
+    );
+    if (rate === undefined) {
+      return true;
+    }
+    return isTraceSampledIn(
+      serverSpan.spanContext().traceId,
+      boundForSampleRate(rate),
+    );
+  }
+
+  private dropRequestOnResponse(
+    entry: RequestEntry,
+    record: RequestRecord,
+  ): void {
+    // Setting the reason on the shared entry flips the request's still-in-flight
+    // spans to dropped, so late telemetry is discarded locally.
+    entry.dropReason = "sampled-out";
+    entry.released = true;
+    entry.buffered = [];
+    record.dropReason = "sampled-out";
+    if (entry.record) {
+      entry.record.dropReason = "sampled-out";
+    }
+    this.requests.delete(entry.serverSpanId);
+    this.stash.delete(entry.serverSpanId);
+    this.onRequestFinished?.(entry.serverSpanId, false);
+  }
+
+  private releaseIfComplete(entry: RequestEntry): void {
+    if (entry.released || !entry.transportCompleted || !entry.endedServerSpan) {
+      return;
+    }
+    this.releaseRequest(entry, entry.endedServerSpan);
+  }
+
+  // Release is an enqueue: buffered descendants, then the SERVER span with the
+  // record and payload stash attached to a private copy, then the request's logs.
+  // Export-copy processing runs in the exporter at batch-drain time.
+  private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
+    entry.released = true;
+    this.requests.delete(entry.serverSpanId);
+    for (const bufferedSpan of entry.buffered) {
+      this.downstream.onEnd(bufferedSpan);
+    }
+    entry.buffered = [];
+    const stash = this.stash.get(entry.serverSpanId);
+    this.stash.delete(entry.serverSpanId);
+    let exportSpan = serverSpan;
+    if (entry.record || stash || !serverSpan.ended) {
+      const copy = copySpan(serverSpan);
+      if (!serverSpan.ended) {
+        // Released at shutdown before the span ended; its observation ends now
+        copy.endTime = hrTime();
+        copy.duration = hrTimeDuration(copy.startTime, copy.endTime);
+        copy.ended = true;
+      }
+      copy.apitallyData = { record: entry.record, stash };
+      exportSpan = copy;
+    }
+    this.downstream.onEnd(exportSpan);
+    this.onRequestFinished?.(entry.serverSpanId, true);
+  }
+}
+
+export function copySpan(span: ReadableSpan): SpanCopy {
+  const spanContext = span.spanContext();
+  return {
+    name: span.name,
+    kind: span.kind,
+    spanContext: () => spanContext,
+    parentSpanContext: span.parentSpanContext,
+    startTime: span.startTime,
+    endTime: span.endTime,
+    status: span.status,
+    attributes: span.attributes,
+    links: span.links,
+    events: span.events,
+    duration: span.duration,
+    ended: span.ended,
+    resource: span.resource,
+    instrumentationScope: span.instrumentationScope,
+    droppedAttributesCount: span.droppedAttributesCount,
+    droppedEventsCount: span.droppedEventsCount,
+    droppedLinksCount: span.droppedLinksCount,
+  };
+}
+
+function writeConsumerAttributes(
+  span: ApiSpan | undefined,
+  record: RequestRecord | undefined,
+  consumer: ApitallyConsumer,
+): void {
+  writeRequestAttribute(
+    span,
+    record,
+    "apitally.consumer.identifier",
+    consumer.identifier,
+  );
+  if (consumer.name) {
+    writeRequestAttribute(
+      span,
+      record,
+      "apitally.consumer.name",
+      consumer.name,
+    );
+  }
+  if (consumer.group) {
+    writeRequestAttribute(
+      span,
+      record,
+      "apitally.consumer.group",
+      consumer.group,
+    );
+  }
+}
+
+// Derives url.path, url.query and http.target from the full-URL attribute when the
+// producing instrumentation omitted them: exclusion matching, the display URL, and
+// the query redaction pass all depend on them.
+function writeUrlAttributesFromFullUrl(span: Span): void {
+  const attributes = span.attributes;
+  if (
+    attributes["url.path"] !== undefined ||
+    attributes["http.target"] !== undefined
+  ) {
+    return;
+  }
+  const url = attributes["url.full"] ?? attributes["http.url"];
+  if (typeof url !== "string") {
+    return;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return;
+  }
+  const query = parsed.search.replace(/^\?/, "");
+  span.setAttribute("url.path", parsed.pathname);
+  if (query) {
+    span.setAttribute("url.query", query);
+  }
+  span.setAttribute(
+    "http.target",
+    query ? `${parsed.pathname}?${query}` : parsed.pathname,
+  );
+}
+
+const TRACE_ID_LOW_64_BITS_MASK = (1n << 64n) - 1n;
+
+function boundForSampleRate(rate: number): bigint {
+  return BigInt(Math.round(rate * 2 ** 64));
+}
+
+// Standard ratio-sampler convention: deterministic per trace, so services sampling
+// at the same rate capture the same traces, and the request and response stages
+// testing the same value make the overall capture probability their minimum.
+function isTraceSampledIn(traceId: string, bound: bigint): boolean {
+  return (BigInt(`0x${traceId}`) & TRACE_ID_LOW_64_BITS_MASK) < bound;
+}
+
+// A throwing or invalid-returning callback resolves to keep: data must never be
+// lost silently to a user bug. Undefined means the callback abstained.
+function resolveCallbackSampleRate(
+  callback: SamplingCallback,
+  span: ReadableSpan,
+  optionName: string,
+): number | undefined {
+  let result: unknown;
+  try {
+    result = callback(span);
+  } catch {
+    logWarning(
+      `The Apitally ${optionName} callback threw an error, so the request was captured`,
+    );
+    return 1;
+  }
+  if (result === undefined || result === null) {
+    return undefined;
+  }
+  if (typeof result === "boolean") {
+    return result ? 1 : 0;
+  }
+  if (typeof result === "number" && result >= 0 && result <= 1) {
+    return result;
+  }
+  logWarning(
+    `The Apitally ${optionName} callback returned an invalid value, so the request was captured. Sampling callbacks must synchronously return a number between 0 and 1, a boolean, or undefined.`,
+  );
+  return 1;
+}
+
+function coerceToException(error: unknown): Exception {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (typeof error === "object" && error !== null) {
+    return error as Exception;
+  }
+  return String(error);
+}
+
+// The scope check keeps user-owned socket spans whose names happen to match.
+function isContribPerMessageSpan(span: Span): boolean {
+  const scopeName = span.instrumentationScope?.name ?? "";
+  return (
+    span.kind === SpanKind.INTERNAL &&
+    PER_MESSAGE_SPAN_NAME_SUFFIXES.some((suffix) =>
+      span.name.endsWith(suffix),
+    ) &&
+    (scopeName.startsWith("@opentelemetry/instrumentation") ||
+      scopeName.startsWith("opentelemetry.instrumentation."))
+  );
+}
+
+function matchesAny(patterns: RegExp[], value: string): boolean {
+  return patterns.some((pattern) => pattern.test(value));
+}

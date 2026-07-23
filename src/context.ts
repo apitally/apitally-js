@@ -21,9 +21,21 @@ export interface ConsumerHolder {
   group?: string;
 }
 
-// Transport-observed request state, applied to the exported span.
+// Requests dropped for these reasons are still counted in request metrics,
+// except preflight and websocket requests, which are never recorded.
+export type RequestDropReason =
+  | "excluded"
+  | "options"
+  | "websocket"
+  | "sampled-out";
+
+// Transport-observed request state. The exporter applies the attributes onto the
+// exported span copy last, so transport-observed values win; the metrics recorder
+// reads the finalized record at transport completion.
 export interface RequestRecord {
   attributes: Attributes;
+  serverSpanId?: string;
+  dropReason?: RequestDropReason;
 }
 
 export const SPAN_HANDLE_KEY = createContextKey("apitally-span-handle");
