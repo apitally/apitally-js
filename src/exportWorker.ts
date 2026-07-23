@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { context } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import { logDebug, logWarning } from "./logger.js";
+import { getDistroVersion } from "./providers.js";
 import type { Spool, SpoolFile } from "./spool.js";
 
 export const MAX_SENDS_PER_CYCLE = 10;
@@ -289,13 +290,6 @@ export class ExportWorker {
     }, delayMillis);
     this.timer.unref();
   }
-}
-
-function getDistroVersion(): string {
-  const packageJson = createRequire(import.meta.url)("../package.json") as {
-    version: string;
-  };
-  return packageJson.version;
 }
 
 function isTimeoutError(error: unknown): boolean {

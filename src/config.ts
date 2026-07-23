@@ -43,6 +43,7 @@ export type ApitallyConfig = Required<
   Pick<ApitallyOptions, OptionalConfigKeys> & { otlpEndpoint: string };
 
 export const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
+export const DEFAULT_ENV = "prod";
 
 export const ALLOWED_CONTENT_TYPES = [
   "application/json",
@@ -153,7 +154,7 @@ function resolveConfig(options: ApitallyOptions): {
   const config: ApitallyConfig = {
     writeToken:
       options.writeToken ?? nonEmptyEnvVar("APITALLY_WRITE_TOKEN") ?? "",
-    env: options.env ?? nonEmptyEnvVar("APITALLY_ENV") ?? "prod",
+    env: options.env ?? nonEmptyEnvVar("APITALLY_ENV") ?? DEFAULT_ENV,
     appVersion: options.appVersion,
     disabled:
       options.disabled ??

@@ -18,6 +18,12 @@ import { vi } from "vitest";
 
 export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
 
+// Collects metrics on demand without exporting them anywhere.
+export class CollectOnlyMetricReader extends MetricReader {
+  protected async onForceFlush(): Promise<void> {}
+  protected async onShutdown(): Promise<void> {}
+}
+
 // Captures SDK diagnostics written to process.stderr; the global teardown restores the spy.
 export function captureStderr(): string[] {
   const written: string[] = [];
@@ -56,10 +62,6 @@ export function buildLogsPayload(body: string): Uint8Array {
 export async function buildMetricsPayload(
   metricName: string,
 ): Promise<Uint8Array> {
-  class CollectOnlyMetricReader extends MetricReader {
-    protected async onForceFlush(): Promise<void> {}
-    protected async onShutdown(): Promise<void> {}
-  }
   const reader = new CollectOnlyMetricReader();
   const provider = new MeterProvider({ readers: [reader] });
   provider.getMeter("test").createCounter(metricName).add(1);
