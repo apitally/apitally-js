@@ -15,7 +15,7 @@ import {
 import { logDebug, logWarning } from "./logger.js";
 import { REDACTED, type Redaction } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";
-import type { Spool } from "./spool.js";
+import type { Signal, Spool } from "./spool.js";
 
 const QUERY_ATTRIBUTES = new Set([
   "url.query",
@@ -59,46 +59,26 @@ export class ApitallySpanExporter implements SpanExporter {
     spans: ReadableSpan[],
     resultCallback: (result: ExportResult) => void,
   ): void {
-    const appends: Promise<void>[] = [];
-    try {
-      // Rewritten resources are shared across the batch: the serializer groups
-      // resourceSpans by object identity, never by attribute equality.
-      const rewrittenResources = new Map<Resource, Resource>();
-      const exportCopies: ReadableSpan[] = [];
-      for (const span of spans) {
-        try {
-          exportCopies.push(this.buildExportCopy(span, rewrittenResources));
-        } catch {
-          // A span that failed redaction must never leave the process
-          logWarning(
-            "Failed to prepare a span for export to Apitally, so the span was dropped",
-          );
-        }
-      }
-      for (
-        let start = 0;
-        start < exportCopies.length;
-        start += SERIALIZATION_CHUNK_SIZE
-      ) {
-        const payload = ProtobufTraceSerializer.serializeRequest(
-          exportCopies.slice(start, start + SERIALIZATION_CHUNK_SIZE),
+    // Rewritten resources are shared across the batch: the serializer groups
+    // resourceSpans by object identity, never by attribute equality.
+    const rewrittenResources = new Map<Resource, Resource>();
+    const exportCopies: ReadableSpan[] = [];
+    for (const span of spans) {
+      try {
+        exportCopies.push(this.buildExportCopy(span, rewrittenResources));
+      } catch {
+        // A span that failed redaction must never leave the process
+        logWarning(
+          "Failed to prepare a span for export to Apitally, so the span was dropped",
         );
-        if (payload) {
-          appends.push(this.spool.append("traces", payload));
-        }
       }
-    } catch (error) {
-      logDebug(`Error exporting spans: ${String(error)}`);
-      resultCallback({ code: ExportResultCode.FAILED, error: toError(error) });
-      return;
     }
-    Promise.all(appends).then(
-      () => resultCallback({ code: ExportResultCode.SUCCESS }),
-      (error: unknown) =>
-        resultCallback({
-          code: ExportResultCode.FAILED,
-          error: toError(error),
-        }),
+    serializeInChunksToSpool(
+      exportCopies,
+      (chunk) => ProtobufTraceSerializer.serializeRequest(chunk),
+      this.spool,
+      "traces",
+      resultCallback,
     );
   }
 
@@ -266,6 +246,45 @@ export class ApitallySpanExporter implements SpanExporter {
     rewrittenResources.set(resource, rewritten);
     return rewritten;
   }
+}
+
+// Shared by the span and log exporters: serializes export items to OTLP
+// protobuf in bounded chunks, appends them to the spool, and reports one
+// combined result through the exporter callback contract.
+export function serializeInChunksToSpool<Item>(
+  items: Item[],
+  serializeChunk: (chunk: Item[]) => Uint8Array | undefined,
+  spool: Spool,
+  signal: Signal,
+  resultCallback: (result: ExportResult) => void,
+): void {
+  const appends: Promise<void>[] = [];
+  try {
+    for (
+      let start = 0;
+      start < items.length;
+      start += SERIALIZATION_CHUNK_SIZE
+    ) {
+      const payload = serializeChunk(
+        items.slice(start, start + SERIALIZATION_CHUNK_SIZE),
+      );
+      if (payload) {
+        appends.push(spool.append(signal, payload));
+      }
+    }
+  } catch (error) {
+    logDebug(`Error exporting ${signal}: ${String(error)}`);
+    resultCallback({ code: ExportResultCode.FAILED, error: toError(error) });
+    return;
+  }
+  Promise.all(appends).then(
+    () => resultCallback({ code: ExportResultCode.SUCCESS }),
+    (error: unknown) =>
+      resultCallback({
+        code: ExportResultCode.FAILED,
+        error: toError(error),
+      }),
+  );
 }
 
 function writeCapturedHeaderAttributes(

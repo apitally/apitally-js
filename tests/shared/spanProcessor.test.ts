@@ -1,5 +1,4 @@
 import { context, ROOT_CONTEXT, TraceFlags, trace } from "@opentelemetry/api";
-import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
   AlwaysOnSampler,
   BatchSpanProcessor,
@@ -23,6 +22,7 @@ import {
   CollectingSpanProcessor,
   captureStderr,
   createTracePipeline,
+  enableAsyncContextManager,
   startServerSpan,
   WRITE_TOKEN,
 } from "../utils.js";
@@ -366,9 +366,7 @@ describe("spanProcessor", () => {
   });
 
   it("writes setConsumer and setRequestAttribute through to the server span and records captureException events", () => {
-    const contextManager = new AsyncLocalStorageContextManager();
-    contextManager.enable();
-    context.setGlobalContextManager(contextManager);
+    enableAsyncContextManager();
     const { pipeline, tracer, exporter } = createTracePipeline();
     const { span, request } = startServerSpan(tracer);
     context.with(trace.setSpan(request.context, span), () => {

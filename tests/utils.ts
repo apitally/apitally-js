@@ -4,12 +4,14 @@ import { join } from "node:path";
 import {
   type Attributes,
   type Context,
+  context,
   ROOT_CONTEXT,
   SpanKind,
   TraceFlags,
   type Tracer,
   trace,
 } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
   ProtobufLogsSerializer,
   ProtobufMetricsSerializer,
@@ -19,6 +21,7 @@ import type { Resource } from "@opentelemetry/resources";
 import {
   InMemoryLogRecordExporter,
   LoggerProvider,
+  type LogRecordProcessor,
   SimpleLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
 import { MeterProvider, MetricReader } from "@opentelemetry/sdk-metrics";
@@ -41,10 +44,13 @@ import {
   SPAN_HANDLE_KEY,
   type SpanHandle,
 } from "../src/context.js";
+import { LogPipeline } from "../src/logPipeline.js";
 import { SpanPipeline } from "../src/spanProcessor.js";
 import { Spool } from "../src/spool.js";
 import {
+  type DecodedLogsRequest,
   type DecodedTraceRequest,
+  decodeLogsExport,
   decodeTraceExport,
 } from "./stubOtlpServer.js";
 
@@ -93,6 +99,35 @@ export function createTracePipeline(
     spanProcessors: [pipeline, ...(options.extraSpanProcessors ?? [])],
   });
   return { pipeline, provider, tracer: provider.getTracer("test"), exporter };
+}
+
+export interface LogTestPipeline {
+  logPipeline: LogPipeline;
+  loggerProvider: LoggerProvider;
+  logExporter: InMemoryLogRecordExporter;
+}
+
+// The private logger provider driving the Apitally log pipeline, wired to the
+// span pipeline for request linkage, with an in-memory exporter as the default
+// downstream.
+export function createLogPipeline(
+  spanPipeline: SpanPipeline,
+  downstream?: LogRecordProcessor,
+): LogTestPipeline {
+  const logExporter = new InMemoryLogRecordExporter();
+  const logPipeline = new LogPipeline(
+    downstream ?? new SimpleLogRecordProcessor({ exporter: logExporter }),
+    spanPipeline,
+  );
+  const loggerProvider = new LoggerProvider({ processors: [logPipeline] });
+  return { logPipeline, loggerProvider, logExporter };
+}
+
+// Registers a working context manager so code under test sees the active context.
+export function enableAsyncContextManager(): void {
+  const contextManager = new AsyncLocalStorageContextManager();
+  contextManager.enable();
+  context.setGlobalContextManager(contextManager);
 }
 
 export interface RequestContext {
@@ -172,6 +207,22 @@ export async function readTraceExportFromSpool(
     );
   }
   return { resourceSpans };
+}
+
+// Drains the log pipeline into the spool and decodes everything exported so far.
+export async function readLogsExportFromSpool(
+  provider: LoggerProvider,
+  spool: Spool,
+): Promise<DecodedLogsRequest> {
+  await provider.forceFlush();
+  await spool.closeCurrentFiles();
+  const resourceLogs: DecodedLogsRequest["resourceLogs"] = [];
+  for (const file of spool.pendingFiles()) {
+    resourceLogs.push(
+      ...decodeLogsExport(await file.readStoredBytes()).resourceLogs,
+    );
+  }
+  return { resourceLogs };
 }
 
 // Collects metrics on demand without exporting them anywhere.

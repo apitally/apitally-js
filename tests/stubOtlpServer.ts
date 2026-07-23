@@ -185,9 +185,21 @@ export interface DecodedTraceRequest {
   }[];
 }
 
+export interface DecodedLogRecord {
+  timeUnixNano?: number;
+  severityNumber?: number;
+  severityText?: string;
+  body?: DecodedAnyValue;
+  attributes: DecodedKeyValue[];
+  traceId?: Uint8Array;
+  spanId?: Uint8Array;
+  eventName?: string;
+}
+
 export interface DecodedLogsRequest {
   resourceLogs: {
-    scopeLogs: { logRecords: { body?: { stringValue?: string } }[] }[];
+    resource?: { attributes: DecodedKeyValue[] };
+    scopeLogs: { scope?: { name?: string }; logRecords: DecodedLogRecord[] }[];
   }[];
 }
 
@@ -227,6 +239,14 @@ export function spanNames(request: DecodedTraceRequest): string[] {
 export function decodedSpans(request: DecodedTraceRequest): DecodedSpan[] {
   return request.resourceSpans.flatMap((resourceSpans) =>
     resourceSpans.scopeSpans.flatMap((scopeSpans) => scopeSpans.spans),
+  );
+}
+
+export function decodedLogRecords(
+  request: DecodedLogsRequest,
+): DecodedLogRecord[] {
+  return request.resourceLogs.flatMap((resourceLogs) =>
+    resourceLogs.scopeLogs.flatMap((scopeLogs) => scopeLogs.logRecords),
   );
 }
 
