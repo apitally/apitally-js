@@ -1,11 +1,5 @@
 import { Writable } from "node:stream";
-import {
-  context,
-  diag,
-  type Span,
-  type Tracer,
-  trace,
-} from "@opentelemetry/api";
+import { diag, type Tracer } from "@opentelemetry/api";
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import {
   InMemoryLogRecordExporter,
@@ -28,7 +22,7 @@ import {
   createLogPipeline,
   createTracePipeline,
   enableAsyncContextManager,
-  startServerSpan,
+  runInsideRequest,
 } from "../utils.js";
 
 interface CaptureFixture {
@@ -43,18 +37,6 @@ function createCaptureFixture(): CaptureFixture {
   const { pipeline, tracer } = createTracePipeline();
   const { loggerProvider, logExporter } = createLogPipeline(pipeline);
   return { pipeline, tracer, loggerProvider, logExporter };
-}
-
-// Runs fn inside a kept request and completes it, so captured logs release.
-async function runInsideRequest(
-  fixture: CaptureFixture,
-  fn: () => void | Promise<void>,
-): Promise<Span> {
-  const { span, request } = startServerSpan(fixture.tracer);
-  await context.with(trace.setSpan(request.context, span), fn);
-  span.end();
-  fixture.pipeline.handleTransportCompletion(request.record);
-  return span;
 }
 
 function silenceConsole() {

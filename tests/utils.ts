@@ -157,6 +157,18 @@ export function createRequestContext(
   };
 }
 
+// Runs fn inside a kept request and completes it, so buffered telemetry releases.
+export async function runInsideRequest(
+  fixture: { pipeline: SpanPipeline; tracer: Tracer },
+  fn: () => void | Promise<void>,
+): Promise<Span> {
+  const { span, request } = startServerSpan(fixture.tracer);
+  await context.with(trace.setSpan(request.context, span), fn);
+  span.end();
+  fixture.pipeline.handleTransportCompletion(request.record);
+  return span;
+}
+
 // Starts a SERVER span under a fresh request context, optionally under a sampled
 // remote parent so the test picks the trace id.
 export function startServerSpan(

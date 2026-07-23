@@ -665,7 +665,7 @@ function resolveCallbackSampleRate(
   return 1;
 }
 
-function coerceToException(error: unknown): Exception {
+export function coerceToException(error: unknown): Exception {
   if (typeof error === "string") {
     return error;
   }
