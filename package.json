@@ -73,6 +73,16 @@
         "default": "./dist/express/register.cjs"
       }
     },
+    "./hono": {
+      "import": {
+        "types": "./dist/hono/index.d.ts",
+        "default": "./dist/hono/index.js"
+      },
+      "require": {
+        "types": "./dist/hono/index.d.cts",
+        "default": "./dist/hono/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "peerDependencies": {
@@ -116,6 +126,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.4",
+    "@hono/node-server": "^2.0.11",
     "@opentelemetry/api": "^1.9.1",
     "@sentry/node": "^10.67.0",
     "@types/compression": "^1.8.1",
@@ -127,6 +138,7 @@
     "esbuild-fix-imports-plugin": "^1.0.23",
     "express": "^5.2.1",
     "express4": "npm:express@^4.22.2",
+    "hono": "^4.12.31",
     "pino": "^10.3.1",
     "protobufjs": "^8.7.1",
     "supertest": "^7.2.2",

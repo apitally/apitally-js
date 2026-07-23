@@ -176,6 +176,18 @@ export async function withServer(
   }
 }
 
+// Reads the response body to completion, then yields one macrotask turn so a
+// response tee's completion chain settles before assertions.
+export async function readResponseAndSettleTransport(
+  response: Response,
+): Promise<Buffer> {
+  const body = Buffer.from(await response.arrayBuffer());
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+  return body;
+}
+
 // Resolves when the span pipeline finishes its next request, composing with
 // the log pipeline's release hook. Used where response completion is not
 // observable from the client side, e.g. an aborted request.

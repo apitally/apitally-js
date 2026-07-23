@@ -5,7 +5,7 @@ import { useApitally } from "../../src/express/index.js";
 import { setConsumer } from "../../src/spanProcessor.js";
 import { WRITE_TOKEN } from "../utils.js";
 
-// The canonical app fixture driven by every framework's integration suite:
+// The uniform app fixture driven by every framework's integration suite:
 // an item GET with a path parameter, an item POST consuming a JSON body, a
 // health check, a synchronously throwing error route, a consumer route, a
 // streaming route, and a mounted sub-router with a nested mount.
