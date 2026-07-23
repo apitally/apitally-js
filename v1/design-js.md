@@ -59,7 +59,7 @@ None of these fire on a SIGTERM left to the default handler — the process dies
 
 ## 5. Request model: span filtering and exclusion
 
-As `design.md` §5: the in-flight request map keyed by SERVER span id is the single keep/drop point, classification happens at span start, children inherit their local parent's entry, lookup miss defaults to dropped. OPTIONS, websocket schemes, and path/user-agent exclusions apply at the same point; path and query are derived from the full-URL attribute and written onto the span when the producing instrumentation omitted them. The per-message span drop (kind + name suffix + scope) is retained for user-owned socket instrumentations even though the SDK's own middleware never emits such spans.
+As `design.md` §5: the in-flight request map, keyed by every span id of the request, is the single keep/drop point; classification happens at span start, children inherit their local parent's entry and stay resolvable until the request completes, lookup miss defaults to dropped. OPTIONS, websocket schemes, and path/user-agent exclusions apply at the same point; path and query are derived from the full-URL attribute and written onto the span when the producing instrumentation omitted them. The per-message span drop (kind + name suffix + scope) is retained for user-owned socket instrumentations even though the SDK's own middleware never emits such spans.
 
 ## 6. Sampling and per-request buffering
 

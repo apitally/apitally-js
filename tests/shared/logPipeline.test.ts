@@ -46,6 +46,32 @@ describe("logPipeline", () => {
     expect(record.instrumentationScope.name).toBe("myapp");
   });
 
+  it("exports a log emitted after the emitting child span ended while the request is in flight with the request linkage", () => {
+    const { pipeline, tracer } = createTracePipeline();
+    const { loggerProvider, logExporter } = createLogPipeline(pipeline);
+    const { span, request } = startServerSpan(tracer);
+    const child = tracer.startSpan(
+      "child",
+      {},
+      trace.setSpan(request.context, span),
+    );
+    child.end();
+    loggerProvider.getLogger("myapp").emit({
+      body: "after child end",
+      context: trace.setSpan(request.context, child),
+    });
+    span.end();
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
+
+    pipeline.handleTransportCompletion(request.record);
+    const [record] = logExporter.getFinishedLogRecords();
+    expect(record.body).toBe("after child end");
+    expect(record.spanContext?.spanId).toBe(child.spanContext().spanId);
+    expect(record.attributes).toEqual({
+      "apitally.request.server_span_id": span.spanContext().spanId,
+    });
+  });
+
   it("passes a log emitted after a kept release through immediately", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);

@@ -40,7 +40,7 @@ import { logDebug, logWarning } from "./logger.js";
 
 export const MAX_BUFFERED_SPANS = 1_000;
 export const MAX_STASHED_REQUESTS = 2_048;
-const MAX_KEPT_SERVER_SPAN_IDS = 10_000;
+const MAX_KEPT_SPAN_IDS = 10_000;
 
 const PER_MESSAGE_SPAN_NAME_SUFFIXES = [
   " http send",
@@ -177,10 +177,11 @@ export function writeRequestAttribute(
 interface RequestEntry {
   readonly serverSpanId: string;
   readonly serverSpan: Span;
+  // Every span id in the in-flight request map pointing at this entry
+  readonly spanIds: Set<string>;
   record?: RequestRecord;
   buffered: ReadableSpan[];
   endedServerSpan?: ReadableSpan;
-  dropReason?: RequestDropReason;
   transportCompleted: boolean;
   released: boolean;
 }
@@ -196,15 +197,18 @@ export class SpanPipeline implements SpanProcessor {
   private readonly config: ApitallyConfig;
   private readonly sampleRateBound: bigint;
   private readonly excludePathPatterns: RegExp[];
-  // In-flight request map keyed by span id; all spans of a request share one entry,
-  // and a lookup miss means dropped. Only kept requests are entered, so dropped
-  // requests and non-request roots fall to the miss rule with all their descendants.
+  // In-flight request map keyed by span id; all spans of a request share one entry.
+  // Every id stays mapped until the request completes, so log records emitted after
+  // their span ended still resolve. A lookup miss means dropped or completed; only
+  // kept requests are entered, so dropped requests and non-request roots fall to
+  // the miss rule with all their descendants.
   private readonly requests = new Map<string, RequestEntry>();
   private readonly stash = new Map<string, RequestStash>();
   private readonly demotedSpanIds = new Set<string>();
-  // SERVER span ids of requests released as kept, so log records emitted under
-  // the released span still pass through; oldest evicted at the cap.
-  private readonly keptServerSpanIds = new Set<string>();
+  // Span ids of requests released as kept, mapped to their SERVER span id, so
+  // late spans and log records still export after the release; oldest evicted
+  // at the cap.
+  private readonly keptSpanIds = new Map<string, string>();
 
   constructor(downstream: SpanProcessor) {
     this.downstream = downstream;
@@ -229,10 +233,16 @@ export class SpanPipeline implements SpanProcessor {
         return;
       }
       const entry = this.requests.get(parent.spanId);
-      if (!entry || entry.dropReason) {
+      const spanId = span.spanContext().spanId;
+      if (!entry) {
+        // A span started under a request already released as kept exports at
+        // its end, like the released request's other late telemetry.
+        const serverSpanId = this.keptSpanIds.get(parent.spanId);
+        if (serverSpanId !== undefined) {
+          this.addKeptSpanId(spanId, serverSpanId);
+        }
         return;
       }
-      const spanId = span.spanContext().spanId;
       if (span.kind === SpanKind.SERVER) {
         // A second span-producing middleware is active for the same request; Apitally
         // deduplicates on its own copy, but the user's exporters keep the duplicate.
@@ -242,6 +252,7 @@ export class SpanPipeline implements SpanProcessor {
         );
       }
       this.requests.set(spanId, entry);
+      entry.spanIds.add(spanId);
     } catch (error) {
       logWarning(`Error in the Apitally span processor: ${String(error)}`);
     }
@@ -253,10 +264,9 @@ export class SpanPipeline implements SpanProcessor {
       const isDemoted = this.demotedSpanIds.delete(spanId);
       const entry = this.requests.get(spanId);
       if (!entry) {
-        return;
-      }
-      if (entry.dropReason) {
-        this.requests.delete(spanId);
+        if (this.keptSpanIds.has(spanId)) {
+          this.downstream.onEnd(span);
+        }
         return;
       }
       if (spanId === entry.serverSpanId) {
@@ -264,16 +274,15 @@ export class SpanPipeline implements SpanProcessor {
         this.releaseIfComplete(entry);
         return;
       }
-      this.requests.delete(spanId);
+      // The span id stays mapped so log records emitted after this span ended
+      // still resolve to the request until it completes.
       let exportSpan = span;
       if (isDemoted) {
         const copy = copySpan(span);
         copy.apitallyData = { demoteToInternal: true };
         exportSpan = copy;
       }
-      if (entry.released) {
-        this.downstream.onEnd(exportSpan);
-      } else if (entry.buffered.length < MAX_BUFFERED_SPANS) {
+      if (entry.buffered.length < MAX_BUFFERED_SPANS) {
         entry.buffered.push(exportSpan);
       } else {
         logDebug("Apitally span buffer cap reached, dropping the span");
@@ -299,12 +308,12 @@ export class SpanPipeline implements SpanProcessor {
         // transport-observed attributes onto the export copy.
         entry.record ??= record;
         entry.transportCompleted = true;
-        if (!entry.dropReason && !this.isResponseSampledIn(entry)) {
+        if (!this.isResponseSampledIn(entry)) {
           this.dropRequestOnResponse(entry, record);
         }
       }
       this.metricsRecorder?.(record);
-      if (entry && !entry.dropReason) {
+      if (entry) {
         this.releaseIfComplete(entry);
       }
     } catch (error) {
@@ -352,15 +361,13 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  // The SERVER span id for an in-flight span, or the id itself for the SERVER
-  // span of a request released as kept; undefined when the request is dropped
-  // or unknown. The log pipeline resolves request linkage through this lookup.
+  // The SERVER span id for a span of an in-flight request or of a request
+  // released as kept; undefined when the request is dropped or unknown. The
+  // log pipeline resolves request linkage through this lookup.
   resolveServerSpanId(spanId: string): string | undefined {
-    const entry = this.requests.get(spanId);
-    if (entry) {
-      return entry.dropReason ? undefined : entry.serverSpanId;
-    }
-    return this.keptServerSpanIds.has(spanId) ? spanId : undefined;
+    return (
+      this.requests.get(spanId)?.serverSpanId ?? this.keptSpanIds.get(spanId)
+    );
   }
 
   // Whether the SERVER span id still has its in-flight map entry, i.e. the
@@ -379,14 +386,14 @@ export class SpanPipeline implements SpanProcessor {
   async shutdown(): Promise<void> {
     try {
       for (const entry of new Set(this.requests.values())) {
-        if (!entry.released && entry.transportCompleted && !entry.dropReason) {
+        if (!entry.released && entry.transportCompleted) {
           this.releaseRequest(entry, entry.endedServerSpan ?? entry.serverSpan);
         }
       }
       this.requests.clear();
       this.stash.clear();
       this.demotedSpanIds.clear();
-      this.keptServerSpanIds.clear();
+      this.keptSpanIds.clear();
     } catch (error) {
       logWarning(`Error in the Apitally span processor: ${String(error)}`);
     }
@@ -433,6 +440,7 @@ export class SpanPipeline implements SpanProcessor {
     this.requests.set(spanId, {
       serverSpanId: spanId,
       serverSpan: span,
+      spanIds: new Set([spanId]),
       record,
       buffered: [],
       transportCompleted: false,
@@ -518,16 +526,15 @@ export class SpanPipeline implements SpanProcessor {
     entry: RequestEntry,
     record: RequestRecord,
   ): void {
-    // Setting the reason on the shared entry flips the request's still-in-flight
-    // spans to dropped, so late telemetry is discarded locally.
-    entry.dropReason = "sampled-out";
+    // Removing every span id sends the dropped request's late telemetry to the
+    // lookup-miss rule, so it is discarded locally.
     entry.released = true;
     entry.buffered = [];
     record.dropReason = "sampled-out";
     if (entry.record) {
       entry.record.dropReason = "sampled-out";
     }
-    this.requests.delete(entry.serverSpanId);
+    this.removeCompletedRequestSpanIds(entry);
     this.stash.delete(entry.serverSpanId);
     this.onRequestFinished?.(entry.serverSpanId, false);
   }
@@ -544,14 +551,10 @@ export class SpanPipeline implements SpanProcessor {
   // Export-copy processing runs in the exporter at batch-drain time.
   private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
     entry.released = true;
-    this.requests.delete(entry.serverSpanId);
-    if (this.keptServerSpanIds.size >= MAX_KEPT_SERVER_SPAN_IDS) {
-      const oldestId = this.keptServerSpanIds.values().next().value;
-      if (oldestId !== undefined) {
-        this.keptServerSpanIds.delete(oldestId);
-      }
+    this.removeCompletedRequestSpanIds(entry);
+    for (const spanId of entry.spanIds) {
+      this.addKeptSpanId(spanId, entry.serverSpanId);
     }
-    this.keptServerSpanIds.add(entry.serverSpanId);
     for (const bufferedSpan of entry.buffered) {
       this.downstream.onEnd(bufferedSpan);
     }
@@ -572,6 +575,23 @@ export class SpanPipeline implements SpanProcessor {
     }
     this.downstream.onEnd(exportSpan);
     this.onRequestFinished?.(entry.serverSpanId, true);
+  }
+
+  private removeCompletedRequestSpanIds(entry: RequestEntry): void {
+    for (const spanId of entry.spanIds) {
+      this.requests.delete(spanId);
+      this.demotedSpanIds.delete(spanId);
+    }
+  }
+
+  private addKeptSpanId(spanId: string, serverSpanId: string): void {
+    if (this.keptSpanIds.size >= MAX_KEPT_SPAN_IDS) {
+      const oldestId = this.keptSpanIds.keys().next().value;
+      if (oldestId !== undefined) {
+        this.keptSpanIds.delete(oldestId);
+      }
+    }
+    this.keptSpanIds.set(spanId, serverSpanId);
   }
 }
 
