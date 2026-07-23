@@ -4,9 +4,13 @@ import { afterEach, vi } from "vitest";
 import { resetConfig } from "../src/config.js";
 import { resetEmittedWarnings } from "../src/logger.js";
 
-// Ambient Apitally and OTel env vars must not leak into tests.
+// Ambient Apitally, OTel, and proxy env vars must not leak into tests.
 for (const key of Object.keys(process.env)) {
-  if (key.startsWith("APITALLY_") || key.startsWith("OTEL_")) {
+  if (
+    key.startsWith("APITALLY_") ||
+    key.startsWith("OTEL_") ||
+    /^(http_proxy|https_proxy|no_proxy)$/i.test(key)
+  ) {
     delete process.env[key];
   }
 }
