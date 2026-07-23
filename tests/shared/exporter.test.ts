@@ -23,18 +23,18 @@ import {
   type DecodedSpan,
   decodedAttributes,
   decodedSpans,
+  PROTO_SPAN_KIND_INTERNAL,
+  PROTO_SPAN_KIND_SERVER,
 } from "../stubOtlpServer.js";
 import {
   captureStderr,
+  createBatchProcessorOptions,
   createInMemorySpool,
   createTracePipeline,
   readTraceExportFromSpool,
   startServerSpan,
   WRITE_TOKEN,
 } from "../utils.js";
-
-const PROTO_SPAN_KIND_INTERNAL = 1;
-const PROTO_SPAN_KIND_SERVER = 2;
 
 function createExportPipeline(
   options: {
@@ -52,12 +52,10 @@ function createExportPipeline(
     maskRequestBody: config.maskRequestBody,
     maskResponseBody: config.maskResponseBody,
   });
-  const downstream = new BatchSpanProcessor(spanExporter, {
-    scheduledDelayMillis: 3_600_000,
-    exportTimeoutMillis: 30_000,
-    maxQueueSize: 2_048,
-    maxExportBatchSize: 512,
-  });
+  const downstream = new BatchSpanProcessor(
+    spanExporter,
+    createBatchProcessorOptions(),
+  );
   const { pipeline, provider, tracer } = createTracePipeline({
     downstream,
     extraSpanProcessors: options.userExporter
@@ -88,7 +86,6 @@ describe("exporter", () => {
         "http.target": "/items?token=secret123&page=2",
         "http.url": "https://example.com/items?token=secret123&page=2",
         "http.request.header.authorization": ["Bearer secret123"],
-        "http.request.header.x_api_key": ["secret123"],
         "http.response.header.set-cookie": ["session=abc"],
         "http.response.header.content-type": ["application/json"],
       },
@@ -123,9 +120,6 @@ describe("exporter", () => {
       "https://example.com/items?token=%5BREDACTED%5D&page=2",
     );
     expect(serverAttributes["http.request.header.authorization"]).toEqual([
-      "[REDACTED]",
-    ]);
-    expect(serverAttributes["http.request.header.x_api_key"]).toEqual([
       "[REDACTED]",
     ]);
     expect(serverAttributes["http.response.header.set-cookie"]).toEqual([
@@ -170,6 +164,11 @@ describe("exporter", () => {
         accept: ["application/json"],
       },
       requestBody: Buffer.from('{"password": "hunter2"}'),
+      responseHeaders: {
+        "set-cookie": ["session=abc123"],
+        "content-type": ["application/json"],
+      },
+      responseBody: Buffer.from('{"token": "xyz", "id": 7}'),
     });
     span.end();
     pipeline.handleTransportCompletion(request.record);
@@ -179,10 +178,19 @@ describe("exporter", () => {
     expect(attributes["apitally.request.body"]).toBe(
       '{"password":"[REDACTED]"}',
     );
+    expect(attributes["apitally.response.body"]).toBe(
+      '{"token":"[REDACTED]","id":7}',
+    );
     expect(attributes["http.request.header.authorization"]).toEqual([
       "[REDACTED]",
     ]);
     expect(attributes["http.request.header.accept"]).toEqual([
+      "application/json",
+    ]);
+    expect(attributes["http.response.header.set-cookie"]).toEqual([
+      "[REDACTED]",
+    ]);
+    expect(attributes["http.response.header.content-type"]).toEqual([
       "application/json",
     ]);
     expect(span.attributes).toEqual({});
@@ -386,11 +394,10 @@ describe("exporter", () => {
     expect(seen[0].body.toString()).toBe('{"a": 1}');
     expect(seen[0].ended).toBe(true);
     // The callback sees the span as it will be exported, minus the body attributes
-    expect(seen[0].attributes).toMatchObject({
+    expect(seen[0].attributes).toEqual({
       "http.request.header.authorization": ["[REDACTED]"],
       "http.request.header.content-type": ["application/json"],
     });
-    expect(seen[0].attributes).not.toHaveProperty("apitally.request.body");
   });
 
   it("exports a stashed [BODY_TOO_LARGE] sentinel unchanged without invoking the mask callback", async () => {

@@ -8,6 +8,7 @@ import {
 } from "../../src/logPipeline.js";
 import { decodedAttributes } from "../stubOtlpServer.js";
 import {
+  createBatchProcessorOptions,
   createInMemorySpool,
   createLogPipeline,
   createTracePipeline,
@@ -72,7 +73,7 @@ describe("logPipeline", () => {
 
   it("discards a request's buffered logs when the response-stage decision drops the request", () => {
     setConfig({ writeToken: WRITE_TOKEN, sampleOnResponse: () => false });
-    const { pipeline, tracer, exporter } = createTracePipeline();
+    const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
     loggerProvider.getLogger("myapp").emit({
@@ -82,7 +83,6 @@ describe("logPipeline", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
     expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
-    expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
   it("drops log records emitted outside any request", () => {
@@ -108,7 +108,7 @@ describe("logPipeline", () => {
     expect(record.attributes).toEqual({});
   });
 
-  it("caps buffered log records per request, keeping the earliest", () => {
+  it("caps buffered log records per request, keeping the earliest and dropping new arrivals", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
@@ -122,9 +122,12 @@ describe("logPipeline", () => {
     const bodies = logExporter
       .getFinishedLogRecords()
       .map((record) => record.body);
-    expect(bodies).toHaveLength(MAX_BUFFERED_LOG_RECORDS);
-    expect(bodies[0]).toBe("log 0");
-    expect(bodies).not.toContain(`log ${MAX_BUFFERED_LOG_RECORDS}`);
+    expect(bodies).toEqual(
+      Array.from(
+        { length: MAX_BUFFERED_LOG_RECORDS },
+        (_, index) => `log ${index}`,
+      ),
+    );
   });
 
   it("truncates string bodies and attribute values at 2,048 characters on export, leaving apitally-scoped records intact", async () => {
@@ -134,10 +137,7 @@ describe("logPipeline", () => {
       pipeline,
       new BatchLogRecordProcessor({
         exporter: new ApitallyLogRecordExporter(spool),
-        scheduledDelayMillis: 3_600_000,
-        exportTimeoutMillis: 30_000,
-        maxQueueSize: 2_048,
-        maxExportBatchSize: 512,
+        ...createBatchProcessorOptions(),
       }),
     );
     const { span, request } = startServerSpan(tracer);

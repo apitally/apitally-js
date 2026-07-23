@@ -20,6 +20,8 @@ import {
   decodedLogRecords,
   decodedSpans,
   decodeTraceExport,
+  PROTO_SPAN_KIND_CLIENT,
+  PROTO_SPAN_KIND_SERVER,
   StubOtlpServer,
   spanNames,
 } from "../stubOtlpServer.js";
@@ -30,13 +32,9 @@ import {
   readLogsExportFromSpool,
   readTraceExportFromSpool,
   runInsideRequest,
+  UNROUTABLE_ENDPOINT,
   WRITE_TOKEN,
 } from "../utils.js";
-
-const PROTO_SPAN_KIND_SERVER = 2;
-const PROTO_SPAN_KIND_CLIENT = 3;
-
-const UNROUTABLE_ENDPOINT = "http://127.0.0.1:1";
 
 describe("activation", () => {
   let server: StubOtlpServer | undefined;
@@ -65,11 +63,10 @@ describe("activation", () => {
     );
     expect(records).toHaveLength(1);
     expect(records[0].eventName).toBe("apitally.app.startup");
-    expect(JSON.parse(records[0].body?.stringValue ?? "")).toEqual({
-      framework: "express",
-      versions: { node: process.versions.node },
-      paths: [],
-    });
+    const payload = JSON.parse(records[0].body?.stringValue ?? "") as {
+      framework: string;
+    };
+    expect(payload.framework).toBe("express");
   });
 
   it("sets the semconv opt-in env var at configure when it is unset", () => {

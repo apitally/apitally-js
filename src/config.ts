@@ -42,15 +42,16 @@ export type ApitallyConfig = Required<
 > &
   Pick<ApitallyOptions, OptionalConfigKeys> & { otlpEndpoint: string };
 
-export const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
+const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
 export const DEFAULT_ENV = "prod";
 
 // Captured bodies above the cap are never exported; the attribute carries the
 // sentinel instead, and a body must never be exported truncated.
 export const MAX_BODY_SIZE = 50_000;
 export const BODY_TOO_LARGE = "[BODY_TOO_LARGE]";
+export const BODY_TOO_LARGE_BUFFER = Buffer.from(BODY_TOO_LARGE);
 
-export const ALLOWED_CONTENT_TYPES = [
+const ALLOWED_CONTENT_TYPES = [
   "application/json",
   "application/problem+json",
   "application/vnd.api+json",
@@ -156,6 +157,10 @@ export function isAllowedContentType(
   return ALLOWED_CONTENT_TYPES.some((allowed) =>
     normalized.startsWith(allowed),
   );
+}
+
+export function matchesAny(patterns: RegExp[], value: string): boolean {
+  return patterns.some((pattern) => pattern.test(value));
 }
 
 function resolveConfig(options: ApitallyOptions): {

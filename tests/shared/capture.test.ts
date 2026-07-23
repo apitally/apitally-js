@@ -29,6 +29,22 @@ function createChunkedResponse(): {
   };
 }
 
+function readerFrom(
+  response: Response,
+): ReadableStreamDefaultReader<Uint8Array> {
+  if (!response.body) {
+    throw new Error("The response has no body stream");
+  }
+  return response.body.getReader();
+}
+
+async function readText(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<string> {
+  const { value } = await reader.read();
+  return Buffer.from(value ?? []).toString();
+}
+
 describe("capture", () => {
   it("captures a complete allowed body and resolves the size from the running count", () => {
     const capture = new BodyCapture({
@@ -180,19 +196,3 @@ describe("capture", () => {
     expect(await captured).toEqual({ completed: false });
   });
 });
-
-function readerFrom(
-  response: Response,
-): ReadableStreamDefaultReader<Uint8Array> {
-  if (!response.body) {
-    throw new Error("The response has no body stream");
-  }
-  return response.body.getReader();
-}
-
-async function readText(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-): Promise<string> {
-  const { value } = await reader.read();
-  return Buffer.from(value ?? []).toString();
-}

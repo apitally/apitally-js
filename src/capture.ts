@@ -1,10 +1,9 @@
 import {
-  BODY_TOO_LARGE,
+  BODY_TOO_LARGE_BUFFER,
   isAllowedContentType,
   MAX_BODY_SIZE,
 } from "./config.js";
 
-const BODY_TOO_LARGE_BUFFER = Buffer.from(BODY_TOO_LARGE);
 const READ_TIMEOUT_MILLIS = 5_000;
 
 export interface BodyCaptureOptions {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -68,6 +68,30 @@ import {
 
 export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
 
+// Nothing listens on port 1, so a stray send fails fast without leaving the host.
+export const UNROUTABLE_ENDPOINT = "http://127.0.0.1:1";
+
+// The version expectation is read straight from package.json, independent of
+// the SDK's own version resolution under test.
+export function readPackageVersion(): string {
+  const { version } = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+  return version;
+}
+
+// Batch processor options with the scheduled flush pushed out of reach, so
+// tests drain batches only through forceFlush. Returns a fresh object per
+// processor because the BatchSpanProcessor shim mutates its config.
+export function createBatchProcessorOptions() {
+  return {
+    scheduledDelayMillis: 3_600_000,
+    exportTimeoutMillis: 30_000,
+    maxQueueSize: 2_048,
+    maxExportBatchSize: 512,
+  };
+}
+
 // Activation is guarded against test environments; the global teardown
 // restores the cleared markers.
 export function clearTestRunnerMarkers(): void {
@@ -84,7 +108,7 @@ export function configureAndActivate(
 ): ActivationHandles {
   clearTestRunnerMarkers();
   // A stray worker cycle must never reach the real ingest endpoint
-  process.env.APITALLY_OTLP_ENDPOINT ??= "http://127.0.0.1:1";
+  process.env.APITALLY_OTLP_ENDPOINT ??= UNROUTABLE_ENDPOINT;
   activationFactories.createSpool = () =>
     new Spool(mkdtempSync(join(tmpdir(), "apitally-test-")));
   activationFactories.createExportWorker = (workerOptions) =>

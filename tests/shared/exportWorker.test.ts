@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { context } from "@opentelemetry/api";
-import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { isTracingSuppressed } from "@opentelemetry/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -29,8 +27,20 @@ import {
   buildMetricsPayload,
   buildTracePayload,
   captureStderr,
+  enableAsyncContextManager,
+  readPackageVersion,
   WRITE_TOKEN,
 } from "../utils.js";
+
+function findUnusedPort(): Promise<number> {
+  return new Promise((resolve) => {
+    const probe = createNetServer();
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as { port: number };
+      probe.close(() => resolve(port));
+    });
+  });
+}
 
 describe("exportWorker", () => {
   let tempDir: string;
@@ -88,9 +98,7 @@ describe("exportWorker", () => {
     await spool.append("metrics", metricsPayload);
     await worker.runCycle();
     expect(server.paths()).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
-    const { version } = JSON.parse(
-      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-    ) as { version: string };
+    const version = readPackageVersion();
     for (const request of server.requests) {
       expect(request.headers.authorization).toBe(`Bearer ${WRITE_TOKEN}`);
       expect(request.headers["apitally-env"]).toBe("dev");
@@ -230,9 +238,7 @@ describe("exportWorker", () => {
   });
 
   it("runs flush callbacks under suppressed tracing at the start of each cycle", async () => {
-    context.setGlobalContextManager(
-      new AsyncLocalStorageContextManager().enable(),
-    );
+    enableAsyncContextManager();
     const worker = createWorker();
     const suppressed: boolean[] = [];
     worker.flushCallbacks.push(() => {
@@ -366,13 +372,3 @@ describe("exportWorker", () => {
     expect(deliveredNames).toEqual(names);
   });
 });
-
-function findUnusedPort(): Promise<number> {
-  return new Promise((resolve) => {
-    const probe = createNetServer();
-    probe.listen(0, "127.0.0.1", () => {
-      const { port } = probe.address() as { port: number };
-      probe.close(() => resolve(port));
-    });
-  });
-}

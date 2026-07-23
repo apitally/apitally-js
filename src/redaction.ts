@@ -3,6 +3,7 @@ import {
   DEFAULT_MASK_HEADERS,
   DEFAULT_MASK_QUERY_PARAMS,
   getConfig,
+  matchesAny,
 } from "./config.js";
 
 export const REDACTED = "[REDACTED]";
@@ -136,8 +137,4 @@ function compilePatterns(defaults: string[], userPatterns: string[]): RegExp[] {
   return [...defaults, ...userPatterns].map(
     (pattern) => new RegExp(pattern, "i"),
   );
-}
-
-function matchesAny(patterns: RegExp[], value: string): boolean {
-  return patterns.some((pattern) => pattern.test(value));
 }

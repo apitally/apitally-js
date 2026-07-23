@@ -9,6 +9,7 @@ import {
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
   BODY_TOO_LARGE,
+  BODY_TOO_LARGE_BUFFER,
   type BodyMaskCallback,
   MAX_BODY_SIZE,
 } from "./config.js";
@@ -27,7 +28,6 @@ const REQUEST_HEADER_ATTRIBUTE_PREFIX = "http.request.header.";
 const RESPONSE_HEADER_ATTRIBUTE_PREFIX = "http.response.header.";
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
 const SERIALIZATION_CHUNK_SIZE = 32;
-const BODY_TOO_LARGE_BUFFER = Buffer.from(BODY_TOO_LARGE);
 
 export interface ApitallySpanExporterOptions {
   redaction: Redaction;

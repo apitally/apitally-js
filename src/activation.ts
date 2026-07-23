@@ -323,9 +323,6 @@ async function drainAndStop(handles: ActivationHandles): Promise<void> {
 }
 
 function installBeforeExitHook(slot: ActivationSlot): void {
-  if (slot.beforeExitListener) {
-    return;
-  }
   const listener = () => {
     // Fire-and-forget: the drain's own pending work keeps the event loop alive
     // until it completes, and a repeated beforeExit joins the settled promise.

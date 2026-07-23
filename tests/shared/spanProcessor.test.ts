@@ -21,6 +21,7 @@ import {
 import {
   CollectingSpanProcessor,
   captureStderr,
+  createBatchProcessorOptions,
   createTracePipeline,
   enableAsyncContextManager,
   startServerSpan,
@@ -293,10 +294,13 @@ describe("spanProcessor", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const names = exporter.getFinishedSpans().map((span) => span.name);
-    expect(names).toHaveLength(MAX_BUFFERED_SPANS + 1);
-    expect(names[0]).toBe("child-0");
-    expect(names).not.toContain(`child-${MAX_BUFFERED_SPANS}`);
-    expect(names[names.length - 1]).toBe("GET /items");
+    expect(names).toEqual([
+      ...Array.from(
+        { length: MAX_BUFFERED_SPANS },
+        (_, index) => `child-${index}`,
+      ),
+      "GET /items",
+    ]);
   });
 
   it("exports a late-ending descendant immediately after a kept release and discards it after a drop", () => {
@@ -504,12 +508,10 @@ describe("spanProcessor", () => {
 
   it("flushes released requests downstream on provider forceFlush and shutdown without tearing down the pipeline", async () => {
     const apitallyExporter = new InMemorySpanExporter();
-    const downstream = new BatchSpanProcessor(apitallyExporter, {
-      scheduledDelayMillis: 3_600_000,
-      exportTimeoutMillis: 30_000,
-      maxQueueSize: 2_048,
-      maxExportBatchSize: 512,
-    });
+    const downstream = new BatchSpanProcessor(
+      apitallyExporter,
+      createBatchProcessorOptions(),
+    );
     const pipeline = new SpanPipeline(downstream);
     setActiveSpanPipeline(pipeline);
     const userProvider = new NodeTracerProvider({

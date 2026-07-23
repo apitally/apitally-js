@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import {
   type Context,
   type ContextManager,
@@ -36,6 +35,7 @@ import {
 import {
   CollectOnlyMetricReader,
   captureStderr,
+  readPackageVersion,
   WRITE_TOKEN,
 } from "../utils.js";
 
@@ -97,9 +97,7 @@ describe("providers", () => {
     process.env.OTEL_SERVICE_NAME = "test-service";
     process.env.OTEL_RESOURCE_ATTRIBUTES =
       "custom.key=custom%20value,deployment.environment.name=production";
-    const { version } = JSON.parse(
-      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-    ) as { version: string };
+    const version = readPackageVersion();
 
     const resource = createResource("staging");
 

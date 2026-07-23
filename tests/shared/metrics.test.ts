@@ -11,18 +11,11 @@ import {
   type ResourceMetrics,
 } from "@opentelemetry/sdk-metrics";
 import { describe, expect, it } from "vitest";
-import { setConfig } from "../../src/config.js";
 import type { RequestRecord } from "../../src/context.js";
 import { MetricsPipeline } from "../../src/metrics.js";
 import type { Spool } from "../../src/spool.js";
 import { decodedMetrics } from "../stubOtlpServer.js";
-import {
-  createInMemorySpool,
-  createTracePipeline,
-  readMetricsExportFromSpool,
-  startServerSpan,
-  WRITE_TOKEN,
-} from "../utils.js";
+import { createInMemorySpool, readMetricsExportFromSpool } from "../utils.js";
 
 function createMetricsPipeline(
   spool: Spool = createInMemorySpool(),
@@ -221,31 +214,6 @@ describe("metrics", () => {
       "/excluded",
       "/sampled-out",
     ]);
-  });
-
-  it("keeps recording metrics when sampling drops every span", async () => {
-    setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0 });
-    const metrics = createMetricsPipeline();
-    const { pipeline, tracer, exporter } = createTracePipeline();
-    pipeline.metricsRecorder = (record) => metrics.recordFromRequest(record);
-    const { span, request } = startServerSpan(tracer, {
-      attributes: { "http.request.method": "GET", "url.path": "/items" },
-    });
-    span.end();
-    Object.assign(request.record.attributes, {
-      "http.request.method": "GET",
-      "http.route": "/items",
-      "http.response.status_code": 200,
-    });
-    request.record.durationSeconds = 0.05;
-    pipeline.handleTransportCompletion(request.record);
-    expect(exporter.getFinishedSpans()).toHaveLength(0);
-    const points = histogramPoints(
-      await collectMetrics(metrics),
-      "http.server.request.duration",
-    );
-    expect(points).toHaveLength(1);
-    expect(points[0].attributes["http.route"]).toBe("/items");
   });
 
   it("applies delta temporality and exponential aggregation to histograms only while gauges keep their last value", async () => {

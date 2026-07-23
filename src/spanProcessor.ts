@@ -16,6 +16,7 @@ import {
   DEFAULT_EXCLUDE_PATHS,
   EXCLUDE_USER_AGENTS,
   getConfig,
+  matchesAny,
   type SamplingCallback,
 } from "./config.js";
 import {
@@ -693,8 +694,4 @@ function isContribPerMessageSpan(span: Span): boolean {
     (scopeName.startsWith("@opentelemetry/instrumentation") ||
       scopeName.startsWith("opentelemetry.instrumentation."))
   );
-}
-
-function matchesAny(patterns: RegExp[], value: string): boolean {
-  return patterns.some((pattern) => pattern.test(value));
 }

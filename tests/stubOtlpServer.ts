@@ -156,6 +156,11 @@ export class StubOtlpServer {
   }
 }
 
+// OTLP protobuf SpanKind enum values as they appear in decoded exports.
+export const PROTO_SPAN_KIND_INTERNAL = 1;
+export const PROTO_SPAN_KIND_SERVER = 2;
+export const PROTO_SPAN_KIND_CLIENT = 3;
+
 export interface DecodedAnyValue {
   stringValue?: string;
   boolValue?: boolean;
