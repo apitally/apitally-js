@@ -44,8 +44,9 @@
     "check": "biome check . && tsc --noEmit",
     "check:package": "attw --pack . --profile node16",
     "format": "biome check --write .",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test": "npm run build && vitest run",
+    "test:bun": "bun test tests/bun",
+    "test:coverage": "npm run build && vitest run --coverage"
   },
   "files": [
     "dist/",
@@ -53,6 +54,16 @@
     "README.md"
   ],
   "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
     "./express": {
       "import": {
         "types": "./dist/express/index.d.ts",
@@ -128,6 +139,8 @@
     "@biomejs/biome": "^2.5.4",
     "@hono/node-server": "^2.0.11",
     "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/instrumentation-http": "^0.220.0",
+    "@opentelemetry/sdk-node": "^0.220.0",
     "@sentry/node": "^10.67.0",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",
