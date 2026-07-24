@@ -1,3 +1,4 @@
+import { SpanKind } from "@opentelemetry/api";
 import { AlwaysOnSampler } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
@@ -13,11 +14,6 @@ import {
   span,
   useApitally,
 } from "../src/index.js";
-import {
-  decodedAttributes,
-  PROTO_SPAN_KIND_INTERNAL,
-  PROTO_SPAN_KIND_SERVER,
-} from "./stubOtlpServer.js";
 import {
   configureAndActivate,
   prepareFirstRequestActivation,
@@ -45,10 +41,8 @@ describe("root entry", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /items/:id");
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-    expect(decodedAttributes(spans[0].attributes)["http.route"]).toBe(
-      "/items/:id",
-    );
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/:id");
   });
 
   it("dispatches a Hono app to the hono adapter and exports its SERVER span with the route template", async () => {
@@ -63,10 +57,8 @@ describe("root entry", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /items/:id");
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-    expect(decodedAttributes(spans[0].attributes)["http.route"]).toBe(
-      "/items/:id",
-    );
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/:id");
   });
 
   it("applies the runtime helpers to the current request and resolves shutdown", async () => {
@@ -94,25 +86,22 @@ describe("root entry", () => {
     expect(
       spans.map((exportedSpan) => [exportedSpan.name, exportedSpan.kind]),
     ).toEqual([
-      ["fetchItems", PROTO_SPAN_KIND_INTERNAL],
-      ["double count", PROTO_SPAN_KIND_INTERNAL],
-      ["GET /things/:id", PROTO_SPAN_KIND_SERVER],
+      ["fetchItems", SpanKind.INTERNAL],
+      ["double count", SpanKind.INTERNAL],
+      ["GET /things/:id", SpanKind.SERVER],
     ]);
     const serverSpan = spans[2];
-    const serverSpanId = Buffer.from(serverSpan.spanId ?? []).toString("hex");
+    const serverSpanId = serverSpan.spanContext().spanId;
     for (const childSpan of spans.slice(0, 2)) {
-      expect(Buffer.from(childSpan.parentSpanId ?? []).toString("hex")).toBe(
-        serverSpanId,
-      );
+      expect(childSpan.parentSpanContext?.spanId).toBe(serverSpanId);
     }
-    const attributes = decodedAttributes(serverSpan.attributes);
-    expect(attributes["apitally.consumer.identifier"]).toBe("acme");
-    expect(attributes["tenant.plan"]).toBe("enterprise");
+    expect(serverSpan.attributes["apitally.consumer.identifier"]).toBe("acme");
+    expect(serverSpan.attributes["tenant.plan"]).toBe("enterprise");
     expect(serverSpan.events).toHaveLength(1);
     expect(serverSpan.events[0].name).toBe("exception");
-    expect(
-      decodedAttributes(serverSpan.events[0].attributes)["exception.message"],
-    ).toBe("observed failure");
+    expect(serverSpan.events[0].attributes?.["exception.message"]).toBe(
+      "observed failure",
+    );
 
     await expect(shutdown()).resolves.toBeUndefined();
   });
@@ -132,7 +121,7 @@ describe("root entry", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /items");
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
   });
 
   it("throws an error naming the framework entry points for an unrecognized app", () => {

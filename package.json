@@ -152,7 +152,6 @@
     "express4": "npm:express@^4.22.2",
     "hono": "^4.12.31",
     "pino": "^10.3.1",
-    "protobufjs": "^8.7.1",
     "supertest": "^7.2.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",

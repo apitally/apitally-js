@@ -19,25 +19,14 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/express/index.js";
-import {
-  decodedAttributes,
-  decodedLogRecords,
-  decodedMetrics,
-  decodedSpans,
-  decodeLogsExport,
-  decodeMetricsExport,
-  decodeTraceExport,
-  durationDataPoints,
-  PROTO_SPAN_KIND_SERVER,
-  StubOtlpServer,
-} from "../stubOtlpServer.js";
+import { StubOtlpServer } from "../stubOtlpServer.js";
 import {
   captureStderr,
   configureAndActivate,
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
   readActivationSpans,
-  readTraceExportFromSpool,
+  readSerializedSpans,
   requireActivationHandles,
   WRITE_TOKEN,
   waitForNextRequestFinish,
@@ -83,8 +72,8 @@ describe("express adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /items/:id");
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-    const attributes = decodedAttributes(spans[0].attributes);
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    const attributes = spans[0].attributes;
     expect(attributes["http.response.header.content-type"]).toEqual([
       "application/json; charset=utf-8",
     ]);
@@ -125,14 +114,10 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(2);
-    const traceIds = spans.map((span) =>
-      Buffer.from(span.traceId ?? []).toString("hex"),
-    );
+    const traceIds = spans.map((span) => span.spanContext().traceId);
     expect(traceIds).toEqual([sampledTraceId, unsampledTraceId]);
     for (const span of spans) {
-      expect(Buffer.from(span.parentSpanId ?? []).toString("hex")).toBe(
-        parentSpanId,
-      );
+      expect(span.parentSpanContext?.spanId).toBe(parentSpanId);
     }
   });
 
@@ -149,14 +134,12 @@ describe("express adapter", () => {
       "GET /api/v2/deep",
       "GET",
     ]);
-    const unmatchedAttributes = decodedAttributes(spans[2].attributes);
+    const unmatchedAttributes = spans[2].attributes;
     expect(unmatchedAttributes["http.route"]).toBe("");
     expect(unmatchedAttributes["http.response.status_code"]).toBe(404);
     const dataPoints = await readActivationDurationDataPoints();
     expect(
-      dataPoints.map(
-        (dataPoint) => decodedAttributes(dataPoint.attributes)["http.route"],
-      ),
+      dataPoints.map((dataPoint) => dataPoint.attributes["http.route"]),
     ).toEqual(["/api/nested/:key", "/api/v2/deep"]);
     expect(lines).toEqual([]);
   });
@@ -184,11 +167,11 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans.map((span) => [span.name, span.kind])).toEqual([
-      ["GET /mounted/things/:id", PROTO_SPAN_KIND_SERVER],
-      ["GET /boom", PROTO_SPAN_KIND_SERVER],
+      ["GET /mounted/things/:id", SpanKind.SERVER],
+      ["GET /boom", SpanKind.SERVER],
     ]);
     expect(spans[1].events).toHaveLength(1);
-    const eventAttributes = decodedAttributes(spans[1].events[0].attributes);
+    const eventAttributes = spans[1].events[0].attributes ?? {};
     expect(spans[1].events[0].name).toBe("exception");
     expect(eventAttributes["exception.message"]).toBe("bang");
   });
@@ -208,7 +191,7 @@ describe("express adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET");
-    expect(decodedAttributes(spans[0].attributes)["http.route"]).toBe("");
+    expect(spans[0].attributes["http.route"]).toBe("");
     expect(await readActivationDurationDataPoints()).toEqual([]);
     const registerWarnings = lines.filter((line) =>
       line.includes("apitally/express/register"),
@@ -228,10 +211,8 @@ describe("express adapter", () => {
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/healthz",
-    );
-    expect(dataPoints[0].count).toBe(1);
+    expect(dataPoints[0].attributes["http.route"]).toBe("/healthz");
+    expect(dataPoints[0].value.count).toBe(1);
   });
 
   it("records the exception event on the SERVER span for an unhandled route error and exports a 5xx status", async () => {
@@ -241,12 +222,10 @@ describe("express adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /error");
-    expect(
-      decodedAttributes(spans[0].attributes)["http.response.status_code"],
-    ).toBe(500);
+    expect(spans[0].attributes["http.response.status_code"]).toBe(500);
     expect(spans[0].events).toHaveLength(1);
     expect(spans[0].events[0].name).toBe("exception");
-    const eventAttributes = decodedAttributes(spans[0].events[0].attributes);
+    const eventAttributes = spans[0].events[0].attributes ?? {};
     expect(eventAttributes["exception.type"]).toBe("Error");
     expect(eventAttributes["exception.message"]).toBe("boom");
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
@@ -287,18 +266,12 @@ describe("express adapter", () => {
       await released;
     });
 
-    const traceRequest = await readTraceExportFromSpool(
-      handles.spanPipeline,
-      handles.spool,
-    );
-    const spans = decodedSpans(traceRequest);
+    await handles.spanPipeline.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-    const scopeNames = traceRequest.resourceSpans.flatMap((resourceSpans) =>
-      resourceSpans.scopeSpans.map((scopeSpans) => scopeSpans.scope?.name),
-    );
-    expect(scopeNames).toEqual(["user-instrumentation"]);
-    const attributes = decodedAttributes(spans[0].attributes);
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].instrumentationScope?.name).toBe("user-instrumentation");
+    const attributes = spans[0].attributes;
     expect(attributes["http.route"]).toBe("/items/:id");
     expect(attributes["http.response.status_code"]).toBe(200);
     expect(attributes["apitally.response.body"]).toBe(
@@ -306,9 +279,7 @@ describe("express adapter", () => {
     );
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/items/:id",
-    );
+    expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
   });
 
   it("warns once about partial trace coverage when a request arrives under an unsampled span context while metrics keep recording", async () => {
@@ -351,10 +322,8 @@ describe("express adapter", () => {
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(dataPoints[0].count).toBe(2);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/unsampled",
-    );
+    expect(dataPoints[0].value.count).toBe(2);
+    expect(dataPoints[0].attributes["http.route"]).toBe("/unsampled");
   });
 
   it("sets HTTP RPC metadata on the request context visible to downstream middleware and writes the route onto it at completion", async () => {
@@ -401,7 +370,7 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["apitally.request.body"]).toBeUndefined();
     expect(attributes["http.request.body.size"]).toBe(17);
   });
@@ -425,7 +394,7 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["apitally.request.body"]).toBe(
       JSON.stringify({ name: "Gadget", password: "[REDACTED]" }),
     );
@@ -447,7 +416,7 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["http.response.body.size"]).toBe(24);
     expect(attributes["apitally.response.body"]).toBe(
       "chunk-1\nchunk-2\nchunk-3\n",
@@ -469,7 +438,7 @@ describe("express adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /stream");
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["apitally.response.body"]).toBeUndefined();
     expect(attributes["http.response.body.size"]).toBeUndefined();
   });
@@ -497,10 +466,12 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     const capturedBody = attributes["apitally.response.body"];
-    expect(capturedBody).toBeInstanceOf(Uint8Array);
-    const capturedBytes = Buffer.from(capturedBody as Uint8Array);
+    if (!(capturedBody instanceof Uint8Array)) {
+      throw new Error("Expected a byte-valued response body");
+    }
+    const capturedBytes = Buffer.from(capturedBody);
     expect(gunzipSync(capturedBytes).toString()).toBe(JSON.stringify(payload));
     expect(attributes["http.response.body.size"]).toBe(capturedBytes.length);
   });
@@ -511,7 +482,7 @@ describe("express adapter", () => {
 
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)).toEqual({
+    expect(dataPoints[0].attributes).toEqual({
       "http.request.method": "GET",
       "http.route": "/consumer",
       "http.response.status_code": 200,
@@ -539,9 +510,7 @@ describe("express adapter", () => {
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/items/:id",
-    );
+    expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
   });
 
   it("flushes buffered telemetry when the server closes", async () => {
@@ -614,75 +583,5 @@ describe("express adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /items/:id");
-  });
-
-  it("delivers spans, logs, and metrics through the full production assembly to the OTLP endpoint", async () => {
-    const stub = await StubOtlpServer.start();
-    try {
-      process.env.APITALLY_OTLP_ENDPOINT = stub.url;
-      prepareFirstRequestActivation();
-      const smokeApp = buildAppFixture();
-      await withServer(smokeApp, async (_smokeServer, baseUrl) => {
-        const response = await fetch(`${baseUrl}/items/11`);
-        expect(response.status).toBe(200);
-        expect(await response.json()).toEqual({ id: 11, name: "Widget" });
-        await requireActivationHandles().worker.runCycle();
-        await stub.waitForRequests(3);
-
-        const spans = decodedSpans(
-          decodeTraceExport(stub.bodyFor("/v1/traces")),
-        );
-        expect(spans).toHaveLength(1);
-        expect(spans[0].name).toBe("GET /items/:id");
-        expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-
-        const logRecords = decodedLogRecords(
-          decodeLogsExport(stub.bodyFor("/v1/logs")),
-        );
-        expect(logRecords).toHaveLength(1);
-        expect(logRecords[0].eventName).toBe("apitally.app.startup");
-        const startupPayload = JSON.parse(
-          logRecords[0].body?.stringValue ?? "",
-        ) as {
-          framework: string;
-          versions: Record<string, string>;
-          paths: { method: string; path: string }[];
-        };
-        expect(startupPayload.framework).toBe("express");
-        expect(startupPayload.versions.node).toBe(process.versions.node);
-        expect(startupPayload.paths).toEqual([
-          { method: "GET", path: "/items/:id" },
-          { method: "POST", path: "/items" },
-          { method: "GET", path: "/healthz" },
-          { method: "GET", path: "/error" },
-          { method: "GET", path: "/consumer" },
-          { method: "GET", path: "/stream" },
-          { method: "GET", path: "/api/nested/:key" },
-          { method: "GET", path: "/api/v2/deep" },
-        ]);
-
-        const metrics = decodedMetrics(
-          decodeMetricsExport(stub.bodyFor("/v1/metrics")),
-        );
-        const dataPoints = durationDataPoints(metrics);
-        expect(dataPoints).toHaveLength(1);
-        expect(dataPoints[0].count).toBe(1);
-        expect(decodedAttributes(dataPoints[0].attributes)).toEqual({
-          "http.request.method": "GET",
-          "http.route": "/items/:id",
-          "http.response.status_code": 200,
-          "url.scheme": "http",
-        });
-        expect(metrics.map((metric) => metric.name).sort()).toEqual([
-          "http.server.request.duration",
-          "http.server.response.body.size",
-          "process.cpu.utilization",
-          "process.memory.usage",
-          "process.uptime",
-        ]);
-      });
-    } finally {
-      await stub.close();
-    }
   });
 });

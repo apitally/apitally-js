@@ -30,12 +30,19 @@ import {
   InMemoryLogRecordExporter,
   LoggerProvider,
   type LogRecordProcessor,
+  type ReadableLogRecord,
   SimpleLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
-import { MeterProvider, MetricReader } from "@opentelemetry/sdk-metrics";
+import {
+  type DataPoint,
+  DataPointType,
+  type ExponentialHistogram,
+  type ExponentialHistogramMetricData,
+  MetricReader,
+  type ResourceMetrics,
+} from "@opentelemetry/sdk-metrics";
 import {
   AlwaysOnSampler,
-  BasicTracerProvider,
   InMemorySpanExporter,
   type ReadableSpan,
   SimpleSpanProcessor,
@@ -65,19 +72,6 @@ import {
   prepareFirstRequestActivation,
   requireActivationHandles,
 } from "./harness.js";
-import {
-  type DecodedExponentialHistogramDataPoint,
-  type DecodedLogsRequest,
-  type DecodedMetricsRequest,
-  type DecodedSpan,
-  type DecodedTraceRequest,
-  decodedMetrics,
-  decodedSpans,
-  decodeLogsExport,
-  decodeMetricsExport,
-  decodeTraceExport,
-  durationDataPoints,
-} from "./stubOtlpServer.js";
 
 export {
   clearTestRunnerMarkers,
@@ -303,81 +297,44 @@ export function createInMemorySpool(): Spool {
   return new Spool(join(tmpdir(), `apitally-missing-${randomUUID()}`));
 }
 
-// Drains the pipeline into the spool and decodes everything exported so far.
-// Accepts anything flushable in front of the spool: a tracer provider or the
-// span pipeline itself.
-export async function readTraceExportFromSpool(
-  provider: { forceFlush(): Promise<void> },
-  spool: Spool,
-): Promise<DecodedTraceRequest> {
-  await provider.forceFlush();
-  await spool.closeCurrentFiles();
-  const resourceSpans: DecodedTraceRequest["resourceSpans"] = [];
-  for (const file of spool.pendingFiles()) {
-    if (file.signal !== "traces") {
-      continue;
-    }
-    resourceSpans.push(
-      ...decodeTraceExport(await file.readStoredBytes()).resourceSpans,
-    );
-  }
-  return { resourceSpans };
+export function readSerializedSpans(): ReadableSpan[] {
+  return vi
+    .mocked(ProtobufTraceSerializer.serializeRequest)
+    .mock.calls.flatMap(([spans]) => spans);
 }
 
-// Drains the log pipeline into the spool and decodes everything exported so far.
-export async function readLogsExportFromSpool(
-  provider: LoggerProvider,
-  spool: Spool,
-): Promise<DecodedLogsRequest> {
-  await provider.forceFlush();
-  await spool.closeCurrentFiles();
-  const resourceLogs: DecodedLogsRequest["resourceLogs"] = [];
-  for (const file of spool.pendingFiles()) {
-    if (file.signal !== "logs") {
-      continue;
-    }
-    resourceLogs.push(
-      ...decodeLogsExport(await file.readStoredBytes()).resourceLogs,
-    );
-  }
-  return { resourceLogs };
+export function readSerializedLogRecords(): ReadableLogRecord[] {
+  return vi
+    .mocked(ProtobufLogsSerializer.serializeRequest)
+    .mock.calls.flatMap(([records]) => records);
 }
 
-// Decodes the metrics exported to the spool so far; collection happens before,
-// through the metrics pipeline's own collect-and-export entry point.
-export async function readMetricsExportFromSpool(
-  spool: Spool,
-): Promise<DecodedMetricsRequest> {
-  await spool.closeCurrentFiles();
-  const resourceMetrics: DecodedMetricsRequest["resourceMetrics"] = [];
-  for (const file of spool.pendingFiles()) {
-    if (file.signal !== "metrics") {
-      continue;
-    }
-    resourceMetrics.push(
-      ...decodeMetricsExport(await file.readStoredBytes()).resourceMetrics,
-    );
-  }
-  return { resourceMetrics };
+export function readSerializedResourceMetrics(): ResourceMetrics[] {
+  return vi
+    .mocked(ProtobufMetricsSerializer.serializeRequest)
+    .mock.calls.map(([resourceMetrics]) => resourceMetrics);
 }
 
-// Reads all spans the activated pipeline exported so far, decoded.
-export async function readActivationSpans(): Promise<DecodedSpan[]> {
+export async function readActivationSpans(): Promise<ReadableSpan[]> {
   const handles = requireActivationHandles();
-  return decodedSpans(
-    await readTraceExportFromSpool(handles.spanPipeline, handles.spool),
-  );
+  await handles.spanPipeline.forceFlush();
+  return readSerializedSpans();
 }
 
-// Collects and reads the request duration histogram data points recorded so far.
 export async function readActivationDurationDataPoints(): Promise<
-  DecodedExponentialHistogramDataPoint[]
+  DataPoint<ExponentialHistogram>[]
 > {
   const handles = requireActivationHandles();
   await handles.metricsPipeline.collectAndExport();
-  return durationDataPoints(
-    decodedMetrics(await readMetricsExportFromSpool(handles.spool)),
-  );
+  return readSerializedResourceMetrics()
+    .flatMap((resourceMetrics) => resourceMetrics.scopeMetrics)
+    .flatMap((scopeMetrics) => scopeMetrics.metrics)
+    .filter(
+      (metric): metric is ExponentialHistogramMetricData =>
+        metric.dataPointType === DataPointType.EXPONENTIAL_HISTOGRAM &&
+        metric.descriptor.name === "http.server.request.duration",
+    )
+    .flatMap((metric) => metric.dataPoints);
 }
 
 // Collects metrics on demand without exporting them anywhere.
@@ -396,46 +353,4 @@ export function captureStderr(): string[] {
     },
   );
   return written;
-}
-
-// Real OTLP protobuf payloads for export tests, built with the same serializers the SDK uses.
-export function buildTracePayload(spanName: string): Uint8Array {
-  const exporter = new InMemorySpanExporter();
-  const provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
-  });
-  provider.getTracer("test").startSpan(spanName).end();
-  return requireSerialized(
-    ProtobufTraceSerializer.serializeRequest(exporter.getFinishedSpans()),
-  );
-}
-
-export function buildLogsPayload(body: string): Uint8Array {
-  const exporter = new InMemoryLogRecordExporter();
-  const provider = new LoggerProvider({
-    processors: [new SimpleLogRecordProcessor({ exporter })],
-  });
-  provider.getLogger("test").emit({ body });
-  return requireSerialized(
-    ProtobufLogsSerializer.serializeRequest(exporter.getFinishedLogRecords()),
-  );
-}
-
-export async function buildMetricsPayload(
-  metricName: string,
-): Promise<Uint8Array> {
-  const reader = new CollectOnlyMetricReader();
-  const provider = new MeterProvider({ readers: [reader] });
-  provider.getMeter("test").createCounter(metricName).add(1);
-  const { resourceMetrics } = await reader.collect();
-  return requireSerialized(
-    ProtobufMetricsSerializer.serializeRequest(resourceMetrics),
-  );
-}
-
-function requireSerialized(payload: Uint8Array | undefined): Uint8Array {
-  if (!payload) {
-    throw new Error("Failed to serialize OTLP payload");
-  }
-  return payload;
 }

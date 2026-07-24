@@ -7,6 +7,7 @@ import {
 import {
   BatchSpanProcessor,
   InMemorySpanExporter,
+  type ReadableSpan,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
@@ -20,18 +21,11 @@ import { ApitallySpanExporter } from "../../src/exporter.js";
 import { Redaction } from "../../src/redaction.js";
 import { MAX_STASHED_REQUESTS } from "../../src/spanProcessor.js";
 import {
-  type DecodedSpan,
-  decodedAttributes,
-  decodedSpans,
-  PROTO_SPAN_KIND_INTERNAL,
-  PROTO_SPAN_KIND_SERVER,
-} from "../stubOtlpServer.js";
-import {
   captureStderr,
   createBatchProcessorOptions,
   createInMemorySpool,
   createTracePipeline,
-  readTraceExportFromSpool,
+  readSerializedSpans,
   startServerSpan,
   WRITE_TOKEN,
 } from "../utils.js";
@@ -63,23 +57,23 @@ function createExportPipeline(
       : [],
     resource: options.resource,
   });
-  return { pipeline, provider, tracer, spool };
+  return { pipeline, provider, tracer };
 }
 
 function attributesOfSpan(
-  spans: DecodedSpan[],
+  spans: ReadableSpan[],
   name: string,
 ): Record<string, unknown> {
   const span = spans.find((candidate) => candidate.name === name);
   if (!span) {
     throw new Error(`No exported span named ${name}`);
   }
-  return decodedAttributes(span.attributes);
+  return span.attributes;
 }
 
 describe("exporter", () => {
   it("redacts query and captured header attributes in both semconv normalizations on every span, leaving the original untouched", async () => {
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer, {
       attributes: {
         "url.query": "token=secret123&page=2",
@@ -106,7 +100,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
     const clientAttributes = attributesOfSpan(spans, "GET");
     expect(clientAttributes["url.full"]).toBe(
@@ -139,7 +134,7 @@ describe("exporter", () => {
   });
 
   it("applies the request record onto the export copy last, so late-learned transport values win", async () => {
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer, {
       attributes: { "http.route": "/raw-path", "url.path": "/items/42" },
     });
@@ -148,7 +143,8 @@ describe("exporter", () => {
     request.record.attributes["http.response.body.size"] = 45;
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     const attributes = attributesOfSpan(spans, "GET /items");
     expect(attributes["http.route"]).toBe("/items/{id}");
     expect(attributes["http.response.body.size"]).toBe(45);
@@ -158,7 +154,7 @@ describe("exporter", () => {
   it("keeps captured headers and bodies off the live span and out of user exporters", async () => {
     setConfig({ writeToken: WRITE_TOKEN });
     const userExporter = new InMemorySpanExporter();
-    const { pipeline, provider, tracer, spool } = createExportPipeline({
+    const { pipeline, provider, tracer } = createExportPipeline({
       userExporter,
     });
     const { span, request } = startServerSpan(tracer, { name: "POST /items" });
@@ -177,7 +173,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     const attributes = attributesOfSpan(spans, "POST /items");
     expect(attributes["apitally.request.body"]).toBe(
       '{"password":"[REDACTED]"}',
@@ -205,7 +202,7 @@ describe("exporter", () => {
 
   it("exports a nested SERVER span as INTERNAL on Apitally's copy and warns once naming the producing scope", async () => {
     const userExporter = new InMemorySpanExporter();
-    const { pipeline, provider, tracer, spool } = createExportPipeline({
+    const { pipeline, provider, tracer } = createExportPipeline({
       userExporter,
     });
     const lines = captureStderr();
@@ -225,13 +222,14 @@ describe("exporter", () => {
       pipeline.handleTransportCompletion(request.record);
     }
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans).toHaveLength(4);
     expect(spans.find((span) => span.name === "duplicate 1")?.kind).toBe(
-      PROTO_SPAN_KIND_INTERNAL,
+      SpanKind.INTERNAL,
     );
     expect(spans.find((span) => span.name === "GET /items 1")?.kind).toBe(
-      PROTO_SPAN_KIND_SERVER,
+      SpanKind.SERVER,
     );
     const userDuplicate = userExporter
       .getFinishedSpans()
@@ -243,7 +241,7 @@ describe("exporter", () => {
 
   it("exports a nested SERVER span that ends after its request released as INTERNAL on Apitally's copy", async () => {
     const userExporter = new InMemorySpanExporter();
-    const { pipeline, provider, tracer, spool } = createExportPipeline({
+    const { pipeline, provider, tracer } = createExportPipeline({
       userExporter,
     });
     captureStderr();
@@ -258,13 +256,14 @@ describe("exporter", () => {
     pipeline.handleTransportCompletion(request.record);
     duplicate.end();
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
     expect(spans.find((span) => span.name === "duplicate")?.kind).toBe(
-      PROTO_SPAN_KIND_INTERNAL,
+      SpanKind.INTERNAL,
     );
     expect(spans.find((span) => span.name === "GET /items")?.kind).toBe(
-      PROTO_SPAN_KIND_SERVER,
+      SpanKind.SERVER,
     );
     const userDuplicate = userExporter
       .getFinishedSpans()
@@ -278,7 +277,7 @@ describe("exporter", () => {
       "service.name": "user-service",
     });
     const userExporter = new InMemorySpanExporter();
-    const { pipeline, provider, tracer, spool } = createExportPipeline({
+    const { pipeline, provider, tracer } = createExportPipeline({
       resource,
       userExporter,
       env: "prod",
@@ -289,15 +288,18 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const exported = await readTraceExportFromSpool(provider, spool);
-    // One resourceSpans group: the rewritten resource is shared across the batch
-    expect(exported.resourceSpans).toHaveLength(1);
-    const resourceAttributes = decodedAttributes(
-      exported.resourceSpans[0].resource?.attributes ?? [],
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
+    expect(spans).toHaveLength(2);
+    expect(spans[0].resource).toBe(spans[1].resource);
+    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe(
+      "prod",
     );
-    expect(resourceAttributes["deployment.environment.name"]).toBe("prod");
-    expect(resourceAttributes["service.name"]).toBe("user-service");
-    expect(decodedSpans(exported)).toHaveLength(2);
+    expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
+    expect(spans[1].resource.attributes["deployment.environment.name"]).toBe(
+      "prod",
+    );
+    expect(spans[1].resource.attributes["service.name"]).toBe("user-service");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("staging");
     const [userSpan] = userExporter.getFinishedSpans();
@@ -311,7 +313,7 @@ describe("exporter", () => {
       "service.name": "user-service",
     });
     const userExporter = new InMemorySpanExporter();
-    const { pipeline, provider, tracer, spool } = createExportPipeline({
+    const { pipeline, provider, tracer } = createExportPipeline({
       resource,
       userExporter,
       env: "staging",
@@ -321,13 +323,13 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const exported = await readTraceExportFromSpool(provider, spool);
-    expect(exported.resourceSpans).toHaveLength(1);
-    const resourceAttributes = decodedAttributes(
-      exported.resourceSpans[0].resource?.attributes ?? [],
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe(
+      "staging",
     );
-    expect(resourceAttributes["deployment.environment.name"]).toBe("staging");
-    expect(resourceAttributes["service.name"]).toBe("user-service");
+    expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
     expect(lines).toEqual([]);
     const [userSpan] = userExporter.getFinishedSpans();
     expect(
@@ -341,7 +343,7 @@ describe("exporter", () => {
       maskRequestBody: () => null,
       maskResponseBody: (() => undefined) as unknown as BodyMaskCallback,
     });
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const lines = captureStderr();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
@@ -351,7 +353,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     const attributes = attributesOfSpan(spans, "GET /items");
     expect(attributes["apitally.request.body"]).toBe("[REDACTED]");
     expect(attributes["apitally.response.body"]).toBe("[REDACTED]");
@@ -365,7 +368,7 @@ describe("exporter", () => {
         throw new Error("mask failed");
       },
     });
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const lines = captureStderr();
     for (const name of ["POST /first", "POST /second"]) {
       const { span, request } = startServerSpan(tracer, { name });
@@ -376,7 +379,8 @@ describe("exporter", () => {
       pipeline.handleTransportCompletion(request.record);
     }
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(
       attributesOfSpan(spans, "POST /first")["apitally.request.body"],
     ).toBe("[REDACTED]");
@@ -393,7 +397,7 @@ describe("exporter", () => {
       maskResponseBody: (async (body: Buffer) =>
         body) as unknown as BodyMaskCallback,
     });
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const lines = captureStderr();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
@@ -402,7 +406,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(
       attributesOfSpan(spans, "GET /items")["apitally.response.body"],
     ).toBe("[REDACTED]");
@@ -415,7 +420,7 @@ describe("exporter", () => {
       writeToken: WRITE_TOKEN,
       maskRequestBody: () => Buffer.alloc(MAX_BODY_SIZE + 1, "a"),
     });
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
       requestBody: Buffer.from('{"a": 1}'),
@@ -423,7 +428,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe(
       "[BODY_TOO_LARGE]",
     );
@@ -438,7 +444,7 @@ describe("exporter", () => {
         return Buffer.from('{"a": 2, "password": "hunter2"}');
       },
     });
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
       requestHeaders: {
@@ -450,7 +456,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe(
       '{"a":2,"password":"[REDACTED]"}',
     );
@@ -473,7 +480,7 @@ describe("exporter", () => {
         return body;
       },
     });
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
       requestBody: Buffer.from("[BODY_TOO_LARGE]"),
@@ -481,7 +488,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe(
       "[BODY_TOO_LARGE]",
     );
@@ -490,7 +498,7 @@ describe("exporter", () => {
 
   it("passes a pre-compressed response body through as bytes without decompression", async () => {
     const compressed = gzipSync('{"password": "hunter2"}');
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
       responseBody: compressed,
@@ -498,7 +506,8 @@ describe("exporter", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     const body = attributesOfSpan(spans, "GET /items")[
       "apitally.response.body"
     ];
@@ -506,7 +515,7 @@ describe("exporter", () => {
   });
 
   it("drops a span whose export processing fails instead of exporting it raw", async () => {
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     tracer.startSpan("child", {}, trace.setSpan(request.context, span)).end();
     const poisonedHeaders: Record<string, string[]> = {
@@ -525,14 +534,15 @@ describe("exporter", () => {
     const lines = captureStderr();
     pipeline.handleTransportCompletion(request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans.map((span) => span.name)).toEqual(["child"]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("dropped");
   });
 
   it("evicts the oldest stashed payloads when the process-wide cap is reached", async () => {
-    const { pipeline, provider, tracer, spool } = createExportPipeline();
+    const { pipeline, provider, tracer } = createExportPipeline();
     const first = startServerSpan(tracer, { name: "GET /first" });
     pipeline.updateStash(first.span.spanContext().spanId, {
       requestBody: Buffer.from('{"n": 1}'),
@@ -552,7 +562,8 @@ describe("exporter", () => {
     last.span.end();
     pipeline.handleTransportCompletion(last.request.record);
 
-    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    await provider.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
     expect(
       attributesOfSpan(spans, "GET /first")["apitally.request.body"],

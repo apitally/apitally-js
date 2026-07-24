@@ -14,8 +14,10 @@ import { describe, expect, it } from "vitest";
 import type { RequestRecord } from "../../src/context.js";
 import { MetricsPipeline } from "../../src/metrics.js";
 import type { Spool } from "../../src/spool.js";
-import { decodedMetrics } from "../stubOtlpServer.js";
-import { createInMemorySpool, readMetricsExportFromSpool } from "../utils.js";
+import {
+  createInMemorySpool,
+  readSerializedResourceMetrics,
+} from "../utils.js";
 
 function createMetricsPipeline(
   spool: Spool = createInMemorySpool(),
@@ -299,18 +301,24 @@ describe("metrics", () => {
       });
     }
     await metrics.collectAndExport();
-    const exported = await readMetricsExportFromSpool(spool);
-    const duration = decodedMetrics(exported).find(
-      (metric) => metric.name === "http.server.request.duration",
-    );
-    const points = duration?.exponentialHistogram?.dataPoints ?? [];
+    const resourceMetrics = readSerializedResourceMetrics();
+    expect(resourceMetrics).toHaveLength(1);
+
+    const duration = resourceMetrics[0].scopeMetrics
+      .flatMap((scope) => scope.metrics)
+      .find(
+        (metric) => metric.descriptor.name === "http.server.request.duration",
+      ) as ExponentialHistogramMetricData;
+
+    expect(duration).toBeDefined();
+    const points = duration.dataPoints;
     expect(points).toHaveLength(1);
-    expect(points[0].scale).toBe(3);
-    expect(points[0].count).toBe(500);
-    expect(points[0].sum).toBeCloseTo(expectedSum, 8);
-    expect(points[0].min).toBe(0.08);
-    expect(points[0].max).toBe(0.08 + (0.04 * 499) / 500);
-    const bucketTotal = (points[0].positive?.bucketCounts ?? []).reduce(
+    expect(points[0].value.scale).toBe(3);
+    expect(points[0].value.count).toBe(500);
+    expect(points[0].value.sum).toBeCloseTo(expectedSum, 8);
+    expect(points[0].value.min).toBe(0.08);
+    expect(points[0].value.max).toBe(0.08 + (0.04 * 499) / 500);
+    const bucketTotal = (points[0].value.positive?.bucketCounts ?? []).reduce(
       (total, count) => total + count,
       0,
     );
@@ -341,22 +349,29 @@ describe("metrics", () => {
     const spool = createInMemorySpool();
     const metrics = createMetricsPipeline(spool);
     await metrics.collectAndExport();
+    const resourceMetrics = readSerializedResourceMetrics();
+    expect(resourceMetrics).toHaveLength(1);
+
     const exported = new Map(
-      decodedMetrics(await readMetricsExportFromSpool(spool)).map((metric) => [
-        metric.name,
-        metric,
-      ]),
+      resourceMetrics[0].scopeMetrics
+        .flatMap((scope) => scope.metrics)
+        .map((metric) => [metric.descriptor.name, metric]),
     );
     expect([...exported.keys()].sort()).toEqual([
       "process.cpu.utilization",
       "process.memory.usage",
       "process.uptime",
     ]);
-    const cpuPoint = exported.get("process.cpu.utilization")?.gauge
-      ?.dataPoints[0];
-    const memoryPoint = exported.get("process.memory.usage")?.gauge
-      ?.dataPoints[0];
-    expect(cpuPoint?.timeUnixNano).toBeDefined();
-    expect(cpuPoint?.timeUnixNano).toBe(memoryPoint?.timeUnixNano);
+
+    const cpuMetric = exported.get(
+      "process.cpu.utilization",
+    ) as GaugeMetricData;
+    const memoryMetric = exported.get(
+      "process.memory.usage",
+    ) as GaugeMetricData;
+    const cpuPoint = cpuMetric.dataPoints[0];
+    const memoryPoint = memoryMetric.dataPoints[0];
+    expect(cpuPoint.endTime).toBeDefined();
+    expect(cpuPoint.endTime).toEqual(memoryPoint.endTime);
   });
 });

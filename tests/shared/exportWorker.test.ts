@@ -15,22 +15,24 @@ import {
   MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS,
   Spool,
 } from "../../src/spool.js";
+import { StubOtlpServer } from "../stubOtlpServer.js";
 import {
-  decodeLogsExport,
-  decodeMetricsExport,
-  decodeTraceExport,
-  StubOtlpServer,
-  spanNames,
-} from "../stubOtlpServer.js";
-import {
-  buildLogsPayload,
-  buildMetricsPayload,
-  buildTracePayload,
   captureStderr,
   enableAsyncContextManager,
   readPackageVersion,
   WRITE_TOKEN,
 } from "../utils.js";
+
+const TRACE_PAYLOAD_ITEMS = Buffer.from("trace-items");
+const TRACE_PAYLOAD_A = Buffer.from("trace-a");
+const TRACE_PAYLOAD_B = Buffer.from("trace-b");
+const TRACE_PAYLOAD_C = Buffer.from("trace-c");
+const TRACE_PAYLOAD_OLD = Buffer.from("trace-old");
+const TRACE_PAYLOAD_LAST = Buffer.from("trace-last");
+const LOGS_PAYLOAD_HELLO = Buffer.from("logs-hello");
+const LOGS_PAYLOAD_HAPPENED = Buffer.from("logs-happened");
+const LOGS_PAYLOAD_FRESH = Buffer.from("logs-fresh");
+const METRICS_PAYLOAD_THINGS = Buffer.from("metrics-things");
 
 function findUnusedPort(): Promise<number> {
   return new Promise((resolve) => {
@@ -77,25 +79,22 @@ describe("exportWorker", () => {
     return worker;
   }
 
-  async function appendClosedTraceFiles(count: number): Promise<string[]> {
-    const names: string[] = [];
+  async function appendClosedTraceFiles(count: number): Promise<Buffer[]> {
+    const payloads: Buffer[] = [];
     for (let index = 0; index < count; index++) {
-      const name = `GET /${index}`;
-      names.push(name);
-      await spool.append("traces", buildTracePayload(name));
+      const payload = Buffer.from(`trace-${index}`);
+      payloads.push(payload);
+      await spool.append("traces", payload);
       await spool.closeCurrentFiles();
     }
-    return names;
+    return payloads;
   }
 
   it("posts all three signals with export headers in one cycle", async () => {
     const worker = createWorker();
-    const tracePayload = buildTracePayload("GET /items");
-    const logsPayload = buildLogsPayload("something happened");
-    const metricsPayload = await buildMetricsPayload("app.things");
-    await spool.append("traces", tracePayload);
-    await spool.append("logs", logsPayload);
-    await spool.append("metrics", metricsPayload);
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
+    await spool.append("logs", LOGS_PAYLOAD_HAPPENED);
+    await spool.append("metrics", METRICS_PAYLOAD_THINGS);
     await worker.runCycle();
     expect(server.paths()).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
     const version = readPackageVersion();
@@ -107,31 +106,15 @@ describe("exportWorker", () => {
       expect(request.headers["user-agent"]).toBe(`apitally-js/${version}`);
     }
     const [traceRequest, logsRequest, metricsRequest] = server.requests;
-    expect(gunzipSync(traceRequest.body)).toEqual(Buffer.from(tracePayload));
-    expect(spanNames(decodeTraceExport(traceRequest.body))).toEqual([
-      "GET /items",
-    ]);
-    const logRecords = decodeLogsExport(logsRequest.body).resourceLogs.flatMap(
-      (resourceLogs) =>
-        resourceLogs.scopeLogs.flatMap((scopeLogs) => scopeLogs.logRecords),
-    );
-    expect(logRecords.map((record) => record.body?.stringValue)).toEqual([
-      "something happened",
-    ]);
-    const metricNames = decodeMetricsExport(
-      metricsRequest.body,
-    ).resourceMetrics.flatMap((resourceMetrics) =>
-      resourceMetrics.scopeMetrics.flatMap((scopeMetrics) =>
-        scopeMetrics.metrics.map((metric) => metric.name),
-      ),
-    );
-    expect(metricNames).toEqual(["app.things"]);
+    expect(gunzipSync(traceRequest.body)).toEqual(TRACE_PAYLOAD_ITEMS);
+    expect(gunzipSync(logsRequest.body)).toEqual(LOGS_PAYLOAD_HAPPENED);
+    expect(gunzipSync(metricsRequest.body)).toEqual(METRICS_PAYLOAD_THINGS);
     expect(spool.pendingFiles()).toEqual([]);
   });
 
   it("exports on its own timer shortly after start", async () => {
     const worker = createWorker({ initialExportDelayMillis: 1 });
-    await spool.append("traces", buildTracePayload("GET /items"));
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     worker.start();
     await server.waitForRequests(1);
     expect(server.paths()).toEqual(["/v1/traces"]);
@@ -141,7 +124,7 @@ describe("exportWorker", () => {
     const statuses = [503];
     server.respond = () => ({ status: statuses.shift() ?? 200 });
     const worker = createWorker();
-    await spool.append("traces", buildTracePayload("GET /items"));
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
     expect(spool.pendingFiles()).toHaveLength(1);
     await worker.runCycle();
@@ -149,15 +132,16 @@ describe("exportWorker", () => {
     expect(server.paths()).toEqual(["/v1/traces", "/v1/traces"]);
     const [first, second] = server.requests;
     expect(first.body.equals(second.body)).toBe(true);
-    expect(spanNames(decodeTraceExport(first.body))).toEqual(["GET /items"]);
+    expect(gunzipSync(first.body)).toEqual(TRACE_PAYLOAD_ITEMS);
   });
 
   it("sends one probe per cycle during an outage and delivers data byte-identically after recovery", async () => {
     let failing = true;
     server.respond = () => ({ status: failing ? 503 : 200 });
     const worker = createWorker();
-    for (const name of ["GET /a", "GET /b", "GET /c"]) {
-      await spool.append("traces", buildTracePayload(name));
+    const payloads = [TRACE_PAYLOAD_A, TRACE_PAYLOAD_B, TRACE_PAYLOAD_C];
+    for (const payload of payloads) {
+      await spool.append("traces", payload);
       await worker.runCycle();
     }
     expect(server.paths()).toEqual(["/v1/traces", "/v1/traces", "/v1/traces"]);
@@ -171,10 +155,11 @@ describe("exportWorker", () => {
     expect(spool.pendingFiles()).toEqual([]);
     const delivered = server.requests.slice(3);
     expect(delivered[0].body.equals(probeBodies[0])).toBe(true);
-    const deliveredNames = delivered.flatMap((request) =>
-      spanNames(decodeTraceExport(request.body)),
+    const expectedConcatenated = Buffer.concat(payloads);
+    const deliveredConcatenated = Buffer.concat(
+      delivered.map((request) => gunzipSync(request.body)),
     );
-    expect(deliveredNames).toEqual(["GET /a", "GET /b", "GET /c"]);
+    expect(deliveredConcatenated).toEqual(expectedConcatenated);
   });
 
   it("sends at most ten files per regular cycle", async () => {
@@ -197,7 +182,7 @@ describe("exportWorker", () => {
         headers: { "Apitally-Export-Interval": value },
       });
       const worker = createWorker();
-      await spool.append("traces", buildTracePayload("GET /items"));
+      await spool.append("traces", TRACE_PAYLOAD_ITEMS);
       await worker.runCycle();
       expect(worker.intervalMillis).toBe(expectedMillis);
     },
@@ -210,7 +195,7 @@ describe("exportWorker", () => {
     });
     const worker = createWorker();
     const intervalBefore = worker.intervalMillis;
-    await spool.append("traces", buildTracePayload("GET /items"));
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
     expect(worker.intervalMillis).toBe(intervalBefore);
   });
@@ -225,8 +210,8 @@ describe("exportWorker", () => {
       return { status: 200 };
     };
     const worker = createWorker();
-    await spool.append("traces", buildTracePayload("GET /items"));
-    await spool.append("logs", buildLogsPayload("hello"));
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
+    await spool.append("logs", LOGS_PAYLOAD_HELLO);
     const runningCycle = worker.runCycle();
     await server.waitForRequests(1);
     const flush = worker.runCycle();
@@ -255,12 +240,11 @@ describe("exportWorker", () => {
     try {
       process.env.HTTP_PROXY = proxy.url;
       const worker = createWorker();
-      const payload = buildTracePayload("GET /items");
-      await spool.append("traces", payload);
+      await spool.append("traces", TRACE_PAYLOAD_ITEMS);
       await worker.runCycle();
       expect(server.paths()).toEqual(["/v1/traces"]);
       expect(proxy.connectTargets).toEqual([`127.0.0.1:${server.port}`]);
-      expect(gunzipSync(server.requests[0].body)).toEqual(Buffer.from(payload));
+      expect(gunzipSync(server.requests[0].body)).toEqual(TRACE_PAYLOAD_ITEMS);
       expect(spool.pendingFiles()).toEqual([]);
     } finally {
       await proxy.close();
@@ -273,12 +257,12 @@ describe("exportWorker", () => {
     });
     const worker = createWorker();
     const lines = captureStderr();
-    await spool.append("traces", buildTracePayload("GET /a"));
-    await spool.append("logs", buildLogsPayload("hello"));
+    await spool.append("traces", TRACE_PAYLOAD_A);
+    await spool.append("logs", LOGS_PAYLOAD_HELLO);
     await worker.runCycle();
     expect(server.paths()).toEqual(["/v1/traces", "/v1/logs"]);
     expect(spool.pendingFiles()).toEqual([]);
-    await spool.append("traces", buildTracePayload("GET /b"));
+    await spool.append("traces", TRACE_PAYLOAD_B);
     await worker.runCycle();
     expect(spool.pendingFiles()).toEqual([]);
     expect(lines).toHaveLength(1);
@@ -291,7 +275,7 @@ describe("exportWorker", () => {
       server.respond = () => ({ status });
       const worker = createWorker();
       const lines = captureStderr();
-      await spool.append("traces", buildTracePayload("GET /items"));
+      await spool.append("traces", TRACE_PAYLOAD_ITEMS);
       await worker.runCycle();
       expect(server.paths()).toEqual(["/v1/traces"]);
       expect(spool.pendingFiles()).toHaveLength(1);
@@ -304,9 +288,9 @@ describe("exportWorker", () => {
     const worker = createWorker({
       otlpEndpoint: `http://127.0.0.1:${unusedPort}`,
     });
-    await spool.append("traces", buildTracePayload("GET /a"));
+    await spool.append("traces", TRACE_PAYLOAD_A);
     await spool.rotateForExport();
-    await spool.append("logs", buildLogsPayload("hello"));
+    await spool.append("logs", LOGS_PAYLOAD_HELLO);
     await worker.runCycle();
     const files = spool.pendingFiles();
     expect(files.map((file) => file.signal)).toEqual(["traces", "logs"]);
@@ -324,7 +308,7 @@ describe("exportWorker", () => {
       return { status: 200 };
     };
     const worker = createWorker();
-    await spool.append("traces", buildTracePayload("GET /items"));
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
     expect(server.paths()).toEqual(["/v1/traces", "/v1/traces"]);
     expect(server.requests[0].body.equals(server.requests[1].body)).toBe(true);
@@ -334,7 +318,7 @@ describe("exportWorker", () => {
   it("aborts a hung POST at the configured timeout without an immediate re-post", async () => {
     server.respond = () => ({ status: 200, hang: true });
     const worker = createWorker({ requestTimeoutMillis: 50 });
-    await spool.append("traces", buildTracePayload("GET /items"));
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
     expect(server.paths()).toEqual(["/v1/traces"]);
     expect(spool.pendingFiles()).toHaveLength(1);
@@ -342,8 +326,8 @@ describe("exportWorker", () => {
 
   it("drops an expired file at the final drain while a never-attempted file still delivers", async () => {
     const worker = createWorker();
-    await spool.append("traces", buildTracePayload("GET /old"));
-    await spool.append("logs", buildLogsPayload("fresh"));
+    await spool.append("traces", TRACE_PAYLOAD_OLD);
+    await spool.append("logs", LOGS_PAYLOAD_FRESH);
     await spool.rotateForExport();
     const [tracesFile] = spool
       .pendingFiles()
@@ -360,15 +344,19 @@ describe("exportWorker", () => {
 
   it("delivers every pending and current file in one final drain", async () => {
     const worker = createWorker();
-    const names = await appendClosedTraceFiles(MAX_SENDS_PER_CYCLE + 2);
-    await spool.append("traces", buildTracePayload("GET /last"));
-    names.push("GET /last");
-    await worker.finalDrain();
-    expect(server.paths()).toEqual(Array(names.length).fill("/v1/traces"));
-    expect(spool.pendingFiles()).toEqual([]);
-    const deliveredNames = server.requests.flatMap((request) =>
-      spanNames(decodeTraceExport(request.body)),
+    const expectedPayloads = await appendClosedTraceFiles(
+      MAX_SENDS_PER_CYCLE + 2,
     );
-    expect(deliveredNames).toEqual(names);
+    await spool.append("traces", TRACE_PAYLOAD_LAST);
+    expectedPayloads.push(TRACE_PAYLOAD_LAST);
+    await worker.finalDrain();
+    expect(server.paths()).toEqual(
+      Array(expectedPayloads.length).fill("/v1/traces"),
+    );
+    expect(spool.pendingFiles()).toEqual([]);
+    const deliveredPayloads = server.requests.map((request) =>
+      gunzipSync(request.body),
+    );
+    expect(deliveredPayloads).toEqual(expectedPayloads);
   });
 });

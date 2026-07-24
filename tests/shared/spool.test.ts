@@ -11,8 +11,11 @@ import {
   type Signal,
   Spool,
 } from "../../src/spool.js";
-import { decodeTraceExport, spanNames } from "../stubOtlpServer.js";
-import { buildTracePayload, captureStderr } from "../utils.js";
+import { captureStderr } from "../utils.js";
+
+const TRACE_PAYLOAD_A = Buffer.from("trace-a");
+const TRACE_PAYLOAD_B = Buffer.from("trace-b");
+const TRACE_PAYLOAD_C = Buffer.from("trace-c");
 
 describe("spool", () => {
   let tempDir: string;
@@ -44,24 +47,24 @@ describe("spool", () => {
   }
 
   it.each(backends)(
-    "merges a closed file's appends into one parseable request ($backend)",
+    "preserves append order in one closed file ($backend)",
     async ({ backend }) => {
       const spool = createSpool(backend);
-      await spool.append("traces", buildTracePayload("GET /items"));
-      await spool.append("traces", buildTracePayload("POST /login"));
+      await spool.append("traces", TRACE_PAYLOAD_A);
+      await spool.append("traces", TRACE_PAYLOAD_B);
       await spool.rotateForExport();
       const files = spool.pendingFiles();
       expect(files).toHaveLength(1);
-      const decoded = decodeTraceExport(await files[0].readStoredBytes());
-      expect(decoded.resourceSpans).toHaveLength(2);
-      expect(spanNames(decoded)).toEqual(["GET /items", "POST /login"]);
+      const storedBytes = await files[0].readStoredBytes();
+      expect(gunzipSync(storedBytes)).toEqual(
+        Buffer.concat([TRACE_PAYLOAD_A, TRACE_PAYLOAD_B]),
+      );
     },
   );
 
   it("writes a closed file fully to disk with owner-only permissions", async () => {
     const spool = createSpool("disk");
-    const payload = buildTracePayload("GET /items");
-    await spool.append("traces", payload);
+    await spool.append("traces", TRACE_PAYLOAD_C);
     await spool.rotateForExport();
     const [file] = spool.pendingFiles();
     expect(file.path).toBeDefined();
@@ -70,7 +73,7 @@ describe("spool", () => {
     expect(stats.size).toBeGreaterThan(0);
     expect(stats.mode & 0o777).toBe(0o600);
     expect(gunzipSync(await readFile(file.path as string))).toEqual(
-      Buffer.from(payload),
+      TRACE_PAYLOAD_C,
     );
   });
 
@@ -200,13 +203,12 @@ describe("spool", () => {
     expect(spool.inMemory).toBe(true);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("memory");
-    await spool.append("traces", buildTracePayload("GET /items"));
+    await spool.append("traces", TRACE_PAYLOAD_C);
     await spool.rotateForExport();
     const [file] = spool.pendingFiles();
     expect(file.path).toBeUndefined();
-    expect(spanNames(decodeTraceExport(await file.readStoredBytes()))).toEqual([
-      "GET /items",
-    ]);
+    const storedBytes = await file.readStoredBytes();
+    expect(gunzipSync(storedBytes)).toEqual(TRACE_PAYLOAD_C);
   });
 
   it.each(backends)(

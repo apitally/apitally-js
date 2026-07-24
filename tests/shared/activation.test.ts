@@ -1,4 +1,9 @@
-import { trace } from "@opentelemetry/api";
+import { SpanKind, trace } from "@opentelemetry/api";
+import {
+  ProtobufLogsSerializer,
+  ProtobufMetricsSerializer,
+  ProtobufTraceSerializer,
+} from "@opentelemetry/otlp-transformer";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -16,21 +21,14 @@ import {
 } from "../../src/activation.js";
 import type { ApitallyOptions } from "../../src/config.js";
 import { getActiveSpanPipeline } from "../../src/spanProcessor.js";
-import {
-  decodedLogRecords,
-  decodedSpans,
-  decodeTraceExport,
-  PROTO_SPAN_KIND_CLIENT,
-  PROTO_SPAN_KIND_SERVER,
-  StubOtlpServer,
-  spanNames,
-} from "../stubOtlpServer.js";
+import { StubOtlpServer } from "../stubOtlpServer.js";
 import {
   captureStderr,
   clearTestRunnerMarkers,
   configureAndActivate,
-  readLogsExportFromSpool,
-  readTraceExportFromSpool,
+  readActivationSpans,
+  readSerializedLogRecords,
+  readSerializedSpans,
   runInsideRequest,
   UNROUTABLE_ENDPOINT,
   WRITE_TOKEN,
@@ -58,12 +56,11 @@ describe("activation", () => {
 
     expect(getActivationHandles()).toBe(handles);
     expect(getActiveSpanPipeline()).toBe(handles.spanPipeline);
-    const records = decodedLogRecords(
-      await readLogsExportFromSpool(handles.loggerProvider, handles.spool),
-    );
+    await handles.loggerProvider.forceFlush();
+    const records = readSerializedLogRecords();
     expect(records).toHaveLength(1);
     expect(records[0].eventName).toBe("apitally.app.startup");
-    const payload = JSON.parse(records[0].body?.stringValue ?? "") as {
+    const payload = JSON.parse(String(records[0].body)) as {
       framework: string;
     };
     expect(payload.framework).toBe("express");
@@ -92,12 +89,10 @@ describe("activation", () => {
       },
     );
 
-    const spans = decodedSpans(
-      await readTraceExportFromSpool(handles.spanPipeline, handles.spool),
-    );
+    const spans = await readActivationSpans();
     expect(spans.map((span) => [span.name, span.kind])).toEqual([
-      ["GET", PROTO_SPAN_KIND_CLIENT],
-      ["GET /items", PROTO_SPAN_KIND_SERVER],
+      ["GET", SpanKind.CLIENT],
+      ["GET /items", SpanKind.SERVER],
     ]);
   });
 
@@ -110,14 +105,12 @@ describe("activation", () => {
         spanProcessors: [new SimpleSpanProcessor(userExporter)],
       }),
     );
-    const handles = configureAndActivate();
+    configureAndActivate();
     const response = await fetch(`${server.url}/external`);
     await response.arrayBuffer();
 
     expect(userExporter.getFinishedSpans()).toHaveLength(0);
-    const spans = decodedSpans(
-      await readTraceExportFromSpool(handles.spanPipeline, handles.spool),
-    );
+    const spans = await readActivationSpans();
     expect(spans).toEqual([]);
   });
 
@@ -214,9 +207,8 @@ describe("activation", () => {
     expect(secondCopy.getActivationHandles()?.spanPipeline).toBe(
       handles.spanPipeline,
     );
-    const records = decodedLogRecords(
-      await readLogsExportFromSpool(handles.loggerProvider, handles.spool),
-    );
+    await handles.loggerProvider.forceFlush();
+    const records = readSerializedLogRecords();
     expect(records).toHaveLength(1);
     expect(records[0].eventName).toBe("apitally.app.startup");
 
@@ -237,11 +229,10 @@ describe("activation", () => {
     await runInsideRequest({ pipeline: handles.spanPipeline, tracer }, () => {
       console.info("captured once");
     });
-    const records = decodedLogRecords(
-      await readLogsExportFromSpool(handles.loggerProvider, handles.spool),
-    );
+    await handles.loggerProvider.forceFlush();
+    const records = readSerializedLogRecords();
     expect(records).toHaveLength(1);
-    expect(records[0].body?.stringValue).toBe("captured once");
+    expect(records[0].body).toBe("captured once");
   });
 
   it("warns once when a second module copy has a different version", async () => {
@@ -281,7 +272,17 @@ describe("activation", () => {
     expect(shutdown()).toBe(drain);
     await drain;
     expect(server.paths()).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
-    expect(spanNames(decodeTraceExport(server.requests[0].body))).toEqual([
+
+    expect(
+      vi.mocked(ProtobufTraceSerializer.serializeRequest),
+    ).toHaveBeenCalled();
+    expect(
+      vi.mocked(ProtobufLogsSerializer.serializeRequest),
+    ).toHaveBeenCalled();
+    expect(
+      vi.mocked(ProtobufMetricsSerializer.serializeRequest),
+    ).toHaveBeenCalled();
+    expect(readSerializedSpans().map((span) => span.name)).toEqual([
       "GET /items",
     ]);
 

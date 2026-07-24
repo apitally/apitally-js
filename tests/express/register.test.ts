@@ -5,12 +5,11 @@ import "../../src/express/register.js";
 import express from "express";
 import { describe, expect, it } from "vitest";
 import { useApitally } from "../../src/express/index.js";
-import { decodedAttributes, decodedLogRecords } from "../stubOtlpServer.js";
 import {
   captureStderr,
   prepareFirstRequestActivation,
   readActivationSpans,
-  readLogsExportFromSpool,
+  readSerializedLogRecords,
   requireActivationHandles,
   WRITE_TOKEN,
   withServer,
@@ -39,19 +38,16 @@ describe("express register", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /api/items/:id");
-    expect(decodedAttributes(spans[0].attributes)["http.route"]).toBe(
-      "/api/items/:id",
-    );
+    expect(spans[0].attributes["http.route"]).toBe("/api/items/:id");
 
     const handles = requireActivationHandles();
-    const logRecords = decodedLogRecords(
-      await readLogsExportFromSpool(handles.loggerProvider, handles.spool),
-    );
+    await handles.loggerProvider.forceFlush();
+    const logRecords = readSerializedLogRecords();
     expect(logRecords).toHaveLength(1);
     expect(logRecords[0].eventName).toBe("apitally.app.startup");
-    const startupPayload = JSON.parse(
-      logRecords[0].body?.stringValue ?? "",
-    ) as { paths: { method: string; path: string }[] };
+    const startupPayload = JSON.parse(String(logRecords[0].body)) as {
+      paths: { method: string; path: string }[];
+    };
     expect(startupPayload.paths).toEqual([
       { method: "GET", path: "/api/items/:id" },
     ]);

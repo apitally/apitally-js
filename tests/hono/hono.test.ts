@@ -12,18 +12,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/hono/index.js";
 import {
-  decodedAttributes,
-  decodedSpans,
-  PROTO_SPAN_KIND_SERVER,
-} from "../stubOtlpServer.js";
-import {
   captureStderr,
   configureAndActivate,
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
   readActivationSpans,
   readResponseAndSettleTransport,
-  readTraceExportFromSpool,
+  readSerializedSpans,
   WRITE_TOKEN,
   waitForNextRequestFinish,
 } from "../utils.js";
@@ -48,8 +43,8 @@ describe("hono adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /items/:id");
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-    const attributes = decodedAttributes(spans[0].attributes);
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    const attributes = spans[0].attributes;
     expect(attributes["http.response.header.content-type"]).toEqual([
       "application/json",
     ]);
@@ -91,14 +86,10 @@ describe("hono adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(2);
-    const traceIds = spans.map((span) =>
-      Buffer.from(span.traceId ?? []).toString("hex"),
-    );
+    const traceIds = spans.map((span) => span.spanContext().traceId);
     expect(traceIds).toEqual([sampledTraceId, unsampledTraceId]);
     for (const span of spans) {
-      expect(Buffer.from(span.parentSpanId ?? []).toString("hex")).toBe(
-        parentSpanId,
-      );
+      expect(span.parentSpanContext?.spanId).toBe(parentSpanId);
     }
   });
 
@@ -121,14 +112,12 @@ describe("hono adapter", () => {
       "GET /api/v2/deep",
       "GET",
     ]);
-    const unmatchedAttributes = decodedAttributes(spans[2].attributes);
+    const unmatchedAttributes = spans[2].attributes;
     expect(unmatchedAttributes["http.route"]).toBe("");
     expect(unmatchedAttributes["http.response.status_code"]).toBe(404);
     const dataPoints = await readActivationDurationDataPoints();
     expect(
-      dataPoints.map(
-        (dataPoint) => decodedAttributes(dataPoint.attributes)["http.route"],
-      ),
+      dataPoints.map((dataPoint) => dataPoint.attributes["http.route"]),
     ).toEqual(["/api/nested/:key", "/api/v2/deep"]);
     expect(lines).toEqual([]);
   });
@@ -150,10 +139,8 @@ describe("hono adapter", () => {
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/healthz",
-    );
-    expect(dataPoints[0].count).toBe(1);
+    expect(dataPoints[0].attributes["http.route"]).toBe("/healthz");
+    expect(dataPoints[0].value.count).toBe(1);
   });
 
   it("records the exception event on the SERVER span for an unhandled route error and exports a 5xx status", async () => {
@@ -165,12 +152,10 @@ describe("hono adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /error");
-    expect(
-      decodedAttributes(spans[0].attributes)["http.response.status_code"],
-    ).toBe(500);
+    expect(spans[0].attributes["http.response.status_code"]).toBe(500);
     expect(spans[0].events).toHaveLength(1);
     expect(spans[0].events[0].name).toBe("exception");
-    const eventAttributes = decodedAttributes(spans[0].events[0].attributes);
+    const eventAttributes = spans[0].events[0].attributes ?? {};
     expect(eventAttributes["exception.type"]).toBe("Error");
     expect(eventAttributes["exception.message"]).toBe("boom");
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
@@ -213,18 +198,12 @@ describe("hono adapter", () => {
     expect(await response.json()).toEqual({ id: 5, name: "Widget" });
     await released;
 
-    const traceRequest = await readTraceExportFromSpool(
-      handles.spanPipeline,
-      handles.spool,
-    );
-    const spans = decodedSpans(traceRequest);
+    await handles.spanPipeline.forceFlush();
+    const spans = readSerializedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0].kind).toBe(PROTO_SPAN_KIND_SERVER);
-    const scopeNames = traceRequest.resourceSpans.flatMap((resourceSpans) =>
-      resourceSpans.scopeSpans.map((scopeSpans) => scopeSpans.scope?.name),
-    );
-    expect(scopeNames).toEqual(["user-instrumentation"]);
-    const attributes = decodedAttributes(spans[0].attributes);
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].instrumentationScope?.name).toBe("user-instrumentation");
+    const attributes = spans[0].attributes;
     expect(attributes["http.route"]).toBe("/items/:id");
     expect(attributes["http.response.status_code"]).toBe(200);
     expect(attributes["apitally.response.body"]).toBe(
@@ -232,9 +211,7 @@ describe("hono adapter", () => {
     );
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/items/:id",
-    );
+    expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
   });
 
   it("warns once about partial trace coverage when a request arrives under an unsampled span context while metrics keep recording", async () => {
@@ -273,10 +250,8 @@ describe("hono adapter", () => {
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(dataPoints[0].count).toBe(2);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/unsampled",
-    );
+    expect(dataPoints[0].value.count).toBe(2);
+    expect(dataPoints[0].attributes["http.route"]).toBe("/unsampled");
   });
 
   it("captures, masks, and redacts request and response bodies per configuration and keeps captured payloads off the live span", async () => {
@@ -301,7 +276,7 @@ describe("hono adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["apitally.request.body"]).toBe(
       JSON.stringify({ name: "Gadget", password: "[REDACTED]" }),
     );
@@ -325,7 +300,7 @@ describe("hono adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["http.response.body.size"]).toBe(24);
     expect(attributes["apitally.response.body"]).toBe(
       "chunk-1\nchunk-2\nchunk-3\n",
@@ -352,12 +327,12 @@ describe("hono adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     const capturedBody = attributes["apitally.response.body"];
-    expect(capturedBody).toBeInstanceOf(Uint8Array);
-    expect(Buffer.from(capturedBody as Uint8Array).equals(wireBytes)).toBe(
-      true,
-    );
+    if (!(capturedBody instanceof Uint8Array)) {
+      throw new Error("Expected a byte-valued response body");
+    }
+    expect(Buffer.from(capturedBody).equals(wireBytes)).toBe(true);
     expect(attributes["http.response.body.size"]).toBe(wireBytes.length);
   });
 
@@ -369,7 +344,7 @@ describe("hono adapter", () => {
 
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)).toEqual({
+    expect(dataPoints[0].attributes).toEqual({
       "http.request.method": "GET",
       "http.route": "/consumer",
       "http.response.status_code": 200,
@@ -403,9 +378,7 @@ describe("hono adapter", () => {
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(decodedAttributes(dataPoints[0].attributes)["http.route"]).toBe(
-      "/items/:id",
-    );
+    expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
   });
 
   it("runs the wrapped onError handler and records the exception event even when it was registered after useApitally", async () => {
@@ -424,14 +397,10 @@ describe("hono adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /fail");
-    expect(
-      decodedAttributes(spans[0].attributes)["http.response.status_code"],
-    ).toBe(503);
+    expect(spans[0].attributes["http.response.status_code"]).toBe(503);
     expect(spans[0].events).toHaveLength(1);
     expect(spans[0].events[0].name).toBe("exception");
-    expect(
-      decodedAttributes(spans[0].events[0].attributes)["exception.message"],
-    ).toBe("bad");
+    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("bad");
   });
 
   it("warns once about routes registered before useApitally and exports their requests with a cleared route skipped by the request metrics", async () => {
@@ -450,7 +419,7 @@ describe("hono adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET");
-    expect(decodedAttributes(spans[0].attributes)["http.route"]).toBe("");
+    expect(spans[0].attributes["http.route"]).toBe("");
     expect(await readActivationDurationDataPoints()).toEqual([]);
     const orderingWarnings = lines.filter((line) =>
       line.includes("immediately after creating the app"),
@@ -504,12 +473,12 @@ describe("hono adapter", () => {
     // The mask callback receives the wire bytes in the exporter, the
     // observable proof that the capture came from the byte-faithful cache entry
     expect(observedWireBody).toBe(wireBody);
-    const jsonAttributes = decodedAttributes(spans[0].attributes);
+    const jsonAttributes = spans[0].attributes;
     expect(jsonAttributes["apitally.request.body"]).toBe('{"b":2,"a":1}');
     expect(jsonAttributes["http.request.body.size"]).toBe(
       Buffer.byteLength(wireBody),
     );
-    const formAttributes = decodedAttributes(spans[1].attributes);
+    const formAttributes = spans[1].attributes;
     expect(formAttributes["apitally.request.body"]).toBeUndefined();
   });
 
@@ -527,7 +496,7 @@ describe("hono adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET");
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["http.route"]).toBe("");
     expect(attributes["http.response.status_code"]).toBe(404);
     expect(await readActivationDurationDataPoints()).toEqual([]);

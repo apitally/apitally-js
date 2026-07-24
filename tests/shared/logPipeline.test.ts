@@ -6,13 +6,12 @@ import {
   ApitallyLogRecordExporter,
   MAX_BUFFERED_LOG_RECORDS,
 } from "../../src/logPipeline.js";
-import { decodedAttributes } from "../stubOtlpServer.js";
 import {
   createBatchProcessorOptions,
   createInMemorySpool,
   createLogPipeline,
   createTracePipeline,
-  readLogsExportFromSpool,
+  readSerializedLogRecords,
   startServerSpan,
   WRITE_TOKEN,
 } from "../utils.js";
@@ -195,25 +194,20 @@ describe("logPipeline", () => {
     pipeline.handleTransportCompletion(request.record);
     loggerProvider.getLogger("apitally").emit({ body: "c".repeat(3_000) });
 
-    const exported = await readLogsExportFromSpool(loggerProvider, spool);
-    expect(exported.resourceLogs).toHaveLength(1);
-    const scopeLogs = exported.resourceLogs[0].scopeLogs;
-    expect(scopeLogs.map((scope) => scope.scope?.name)).toEqual([
+    await loggerProvider.forceFlush();
+    const records = readSerializedLogRecords();
+    expect(records.map((record) => record.instrumentationScope.name)).toEqual([
       "myapp",
       "apitally",
     ]);
-    const [appRecord] = scopeLogs[0].logRecords;
-    expect(appRecord.body?.stringValue).toBe("a".repeat(2_048));
-    expect(
-      Buffer.from(appRecord.traceId ?? Uint8Array.of()).toString("hex"),
-    ).toBe(span.spanContext().traceId);
-    const attributes = decodedAttributes(appRecord.attributes);
-    expect(attributes.note).toBe("b".repeat(2_048));
-    expect(attributes.count).toBe(7);
-    expect(attributes["apitally.request.server_span_id"]).toBe(
+    const [appRecord, apitallyRecord] = records;
+    expect(appRecord.body).toBe("a".repeat(2_048));
+    expect(appRecord.spanContext?.traceId).toBe(span.spanContext().traceId);
+    expect(appRecord.attributes.note).toBe("b".repeat(2_048));
+    expect(appRecord.attributes.count).toBe(7);
+    expect(appRecord.attributes["apitally.request.server_span_id"]).toBe(
       span.spanContext().spanId,
     );
-    const [startupRecord] = scopeLogs[1].logRecords;
-    expect(startupRecord.body?.stringValue).toBe("c".repeat(3_000));
+    expect(apitallyRecord.body).toBe("c".repeat(3_000));
   });
 });

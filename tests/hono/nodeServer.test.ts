@@ -4,7 +4,7 @@ import { connect } from "node:net";
 import { type ServerType, serve } from "@hono/node-server";
 import type { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { decodedAttributes } from "../stubOtlpServer.js";
+
 import {
   configureAndActivate,
   prepareFirstRequestActivation,
@@ -51,7 +51,7 @@ describe("hono adapter over @hono/node-server", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /stream");
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["http.response.body.size"]).toBe(24);
     expect(attributes["apitally.response.body"]).toBe(
       "chunk-1\nchunk-2\nchunk-3\n",
@@ -68,9 +68,7 @@ describe("hono adapter over @hono/node-server", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    expect(decodedAttributes(spans[0].attributes)["client.address"]).toBe(
-      "127.0.0.1",
-    );
+    expect(spans[0].attributes["client.address"]).toBe("127.0.0.1");
   });
 
   it("releases an aborted request through the close path with the partial response body suppressed", async () => {
@@ -88,7 +86,7 @@ describe("hono adapter over @hono/node-server", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].name).toBe("GET /stream");
-    const attributes = decodedAttributes(spans[0].attributes);
+    const attributes = spans[0].attributes;
     expect(attributes["apitally.response.body"]).toBeUndefined();
     expect(attributes["http.response.body.size"]).toBeUndefined();
   });
