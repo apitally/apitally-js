@@ -45,7 +45,7 @@ Replace the v0 SDK with a v1 built on OpenTelemetry: the SDK produces spans, log
 **Quality and tooling**
 
 - R9. Toolchain: Biome, strict tsc, tsup dual ESM+CJS (unbundled), attw-clean package shape, vitest — with CI jobs landing only alongside what they check (no placeholder jobs or exports-map entries).
-- R10. Test suite per the conventions in design-js §16: two-tier layout, contract-derived scenarios with cited authority, deterministic (wall-clock sleeps and fake timers banned), exact-by-default assertions, Bun smoke suite, version matrix.
+- R10. Test suite per the conventions in design-js §16: two-tier layout, contract-derived scenarios with cited authority, deterministic (wall-clock sleeps and fake timers banned), exact-by-default assertions, version matrix.
 - R11. `AGENTS.md` carries the code style and test conventions from design §16 + design-js §16.
 - R12. Nothing is released as part of this plan.
 
@@ -72,7 +72,7 @@ Replace the v0 SDK with a v1 built on OpenTelemetry: the SDK produces spans, log
 
 Design-level decisions live in `design-js.md` (D1-D8) and are not restated here. Plan-owned decisions:
 
-- KTD1. **No-placeholder sequencing.** Exports-map entries, CI jobs, and the root entry land only with their real files: `./express` and `./express/register` in U13, `./hono` in U14, `"."` in U15; CI `check` starts as biome+tsc; `test`, `build`, and `coverage` join in U3; attw joins in U13 alongside the first exports-map entry, `test-bun` in U15, `test-matrix` in U16.
+- KTD1. **No-placeholder sequencing.** Exports-map entries, CI jobs, and the root entry land only with their real files: `./express` and `./express/register` in U13, `./hono` in U14, `"."` in U15; CI `check` starts as biome+tsc; `test`, `build`, and `coverage` join in U3; attw joins in U13 alongside the first exports-map entry; `test-matrix` joins in U16.
 - KTD2. **Module-lands-with-test rhythm.** Each module commits together with its focused test module; module order within units is dependency order. Where a module's concrete peer lands later, it is written against interface types — OTel's where one exists, otherwise a small SDK-internal seam interface declared in the earlier unit's module — and wired centrally in `src/activation.ts` (U12). Seam interfaces declared before U12 are provisional until wired: a wrong guess reworks the earlier module and its committed tests at U12 — the accepted cost of no-placeholder sequencing — and U12 owns reconciling that drift.
 - KTD3. **Unit clustering.** Units are cohesive module clusters sized for meaningful review, not per-module micro-units; the per-unit Files lists preserve the v0/Python porting map as the authority on provenance.
 - KTD4. **Test conventions** (aligned decisions, recorded in design-js §16, enforced via `AGENTS.md`): two-tier layout; independent per-framework files with a cross-framework naming and ordering contract plus shared helpers; subject-predicate naming; lifecycle-arc ordering; contract-derived scenario selection with authority citations (Python suite mined as evidence, not authority); deterministic seams only; exact-by-default assertions.
@@ -105,7 +105,7 @@ flowchart TB
   U11 --> U12
   U12 --> U13[U13 Express adapter]
   U12 --> U14[U14 Hono adapter]
-  U13 --> U15[U15 root entry + Bun lane]
+  U13 --> U15[U15 root entry]
   U14 --> U15
   U15 --> U16[U16 review + hardening + docs]
 ```
@@ -119,7 +119,7 @@ End state after U16. U1 deletes `eslint.config.js`, `scripts/`, `.github/workflo
 ```
 .github/workflows/
   tests.yaml            jobs: check (U1); test, coverage, build (U3); attw (U13);
-                        test-bun (U15); test-matrix (U16); ci-gate (U1 — needs every
+                        test-matrix (U16); ci-gate (U1 — needs every
                         other job, if: always(), the single required status check)
 AGENTS.md               U1
 README.md               U16 rewrite
@@ -187,8 +187,6 @@ tests/
     hono.test.ts
     nodeServer.test.ts  real-socket smoke via @hono/node-server
     routes.test.ts
-  bun/
-    hono.test.ts        U15  Bun smoke
 ```
 
 ### Sources
@@ -217,7 +215,7 @@ tests/
 | U12 | Activation orchestration | 1b | `src/activation.ts` | U5, U6, U8, U9, U10, U11 |
 | U13 | Express adapter | 1c | `src/express/*.ts` | U12 |
 | U14 | Hono adapter | 1d | `src/hono/*.ts` | U12 |
-| U15 | Root entry and Bun lane | 1d | `src/index.ts`, `tests/bun/` | U13, U14 |
+| U15 | Root entry | 1d | `src/index.ts`, `tests/index.test.ts` | U13, U14 |
 | U16 | Review, hardening, docs | 1e | CI `test-matrix`, `README.md` | U15 |
 
 ### U1. Repo reset and toolchain
@@ -485,27 +483,26 @@ tests/
   - `app.route()` sub-app routes carry mount prefixes in templates (design §8; v0 parity in `routes.test.ts`)
   - with `hono/compress` active, the captured response body is the compressed wire bytes the tee observed (design-js §7 — JS-only)
   - over a real socket (`@hono/node-server`): a streamed response completes transport at the last byte and exports with correct sizes, and a client abort mid-stream releases the request with the partial body suppressed, never exported (design §7; design-js §6 — JS-only, U14-only)
-- **Verification:** integration suite green on Node via `app.request()`; Bun execution proven in U15.
+- **Verification:** integration suite green on Node via `app.request()`.
 
-### U15. Root entry and Bun lane
+### U15. Root entry
 
-- **Goal:** the complete root entry with duck-type dispatch, plus the Bun smoke suite and `test-bun` CI job; the `"."` exports-map entry lands here.
+- **Goal:** the complete root entry with duck-type dispatch; the `"."` exports-map entry lands here.
 - **Requirements:** R2, R4, R7, R8, R9.
 - **Dependencies:** U13, U14.
-- **Files:** `src/index.ts` (ported from py `__init__.py` dispatch shape), `tests/index.test.ts`, `tests/dist.test.ts` (dist smoke + process-liveness child tests), `tests/distApp.mjs` (child fixture: plain JS, spawned with node, loads the package by self-reference), `tests/bun/hono.test.ts`, `package.json` exports edit, CI workflow edit.
-- **Approach:** root `useApitally` duck-types Express (function with `use`/`handle`) vs Hono (object with `routes`/`fetch`/`route`) and delegates; detection failure throws naming the framework subpath entry points; runtime surface re-exports (`setConsumer`, `setRequestAttribute`, `captureException`, `shutdown`, `instrument`, `span`, `ApitallySpanProcessor`); adapters carry zero runtime framework imports so the root stays side-effect-free. The Bun suite (`bun test`) runs the Hono uniform app end-to-end on Bun against the in-memory pipeline plus one spool/export cycle, using the `configureAndActivate` helper to clear `NODE_ENV=test` set by `bun test`. From this unit the `test` script builds first (`npm run build` precedes vitest, locally and in CI), so the dist child tests always run against fresh artifacts: `tests/dist.test.ts` spawns the plain-JS `distApp.mjs` fixture, which loads the built artifacts through package self-reference — the exports map resolves `import` to the ESM build and `require` to the CJS build, the real mixed-loading condition — and the same fixture carries the process-liveness contract (child must exit on its own).
+- **Files:** `src/index.ts` (ported from py `__init__.py` dispatch shape), `tests/index.test.ts`, `tests/dist.test.ts` (dist smoke + process-liveness child tests), `tests/distApp.mjs` (child fixture: plain JS, spawned with node, loads the package by self-reference), `package.json` exports edit.
+- **Approach:** root `useApitally` duck-types Express (function with `use`/`handle`) vs Hono (object with `routes`/`fetch`/`route`) and delegates; detection failure throws naming the framework subpath entry points; runtime surface re-exports (`setConsumer`, `setRequestAttribute`, `captureException`, `shutdown`, `instrument`, `span`, `ApitallySpanProcessor`); adapters carry zero runtime framework imports so the root stays side-effect-free. From this unit the `test` script builds first (`npm run build` precedes vitest, locally and in CI), so the dist child tests always run against fresh artifacts: `tests/dist.test.ts` spawns the plain-JS `distApp.mjs` fixture, which loads the built artifacts through package self-reference — the exports map resolves `import` to the ESM build and `require` to the CJS build, the real mixed-loading condition — and the same fixture carries the process-liveness contract (child must exit on its own).
 - **Test scenarios:**
   - root `useApitally` dispatches Express and Hono apps to their adapters, integration-smoked through the root entry (design-js §13)
   - an unrecognized app throws an error naming the subpath entry points (design-js §13)
   - the runtime surface works via root imports inside a request (design-js §13)
   - `ApitallySpanProcessor` imported from the root works in a user-constructed provider's `spanProcessors` array (design-js §13 — pins the root export wiring; the attachment semantics are U7's)
-  - Bun smoke: the Hono app produces spans, logs, and metrics on Bun, and one spool/export cycle round-trips, exercising the `captureResponse` Bun workaround (design-js §1/§7/§8 — JS-only)
   - dist smoke: a child script loading the built CJS entry via `require` and the built ESM entry via `import` in one process activates once and double-wraps nothing (design-js §4 — the real mixed-loading failure mode, proven against dist artifacts, not a simulated module registry)
   - the dist child resolves and patches winston and pino through both the CJS and ESM entries (design-js §16 — the `createRequire` anchor survives tsup's CJS `import.meta` rewrite; runs against built artifacts)
   - the documented existing-OTel setup in a child process — `NodeSDK` with `instrumentation-http` loaded and `ApitallySpanProcessor` constructed before `useApitally` — adopts the user's SERVER spans: the first request delivers metrics only, subsequent requests deliver adopted spans through the processor with no duplicates (design-js §2 — D1; runs against built artifacts)
   - a child app in the express-generator shape — `apitally/express/register` first import, module-scope router, `useApitally` after app creation — exports full route templates (design-js §8 — proves the documented setup under real import evaluation order, against built artifacts)
   - a spawned child script that boots the Express app with `useApitally`, serves one request, and closes its server exits on its own — the SDK never holds the process open (design-js §4 — JS-only; process-level liveness is only observable from outside the process; runs against the built artifacts)
-- **Verification:** `npm test` and `bun test` green; `test-bun` CI job green; attw validates the root entry.
+- **Verification:** `npm test` green; attw validates the root entry.
 
 ### U16. Review, hardening, docs
 
@@ -527,7 +524,6 @@ tests/
 | `npm test` | vitest suite (shared + adapters) | every commit from U3 |
 | `npm run build` | dual ESM+CJS build | every commit from U3 |
 | attw | package-shape check on the exports map | every commit from U13 (first exports entry) |
-| `bun test tests/bun` | Bun smoke suite | from U15 (`test-bun` CI job) |
 | CI `test-matrix` | framework/Node/Sentry version pins | U16 |
 
 Quality gates: the coverage job runs from U3 as a review input — the report feeds the U12/U16 audit gates to surface unasserted code, deliberately not a numeric threshold (scenario selection is contract-derived; a percentage bar would incentivize pinning non-contract behavior); test scenarios in each unit are the per-unit acceptance set — a unit is not done while any cited scenario is unwritten or red; assertions follow the exact-by-default discipline (design-js §16).
@@ -537,7 +533,7 @@ Quality gates: the coverage job runs from U3 as a review input — the report fe
 ## Definition of Done
 
 - All units U1-U16 complete; every per-unit verification satisfied.
-- Full CI green: `check`, `test`, `coverage`, `build`/attw, `test-bun`, `test-matrix`.
+- Full CI green: `check`, `test`, `coverage`, `build`/attw, `test-matrix`.
 - `design-js.md` spike section replaced with recorded outcomes; any resulting design edits applied.
 - `AGENTS.md` in place and the U16 conformance review passed.
 - Both KTD7 audit gates passed (U12 shared-suite, U16 full-suite) against the acceptance bar.
@@ -553,7 +549,6 @@ Quality gates: the coverage job runs from U3 as a review input — the report fe
 - OTel experimental 0.x churn (`sdk-logs`, `otlp-transformer`, `instrumentation-undici`): minor-pinned; Renovate bumps land only with green CI; the announced OTel JS SDK 3.0 (~Sept 2026) will need a dedicated compatibility pass.
 - Express route templates ride registration-time capture (the mechanism dd-trace/New Relic/Elastic/OTel all use — router 2.x makes post-hoc readback impossible); the first-line register import makes capture independent of app shape, and a skipped import degrades to cleared routes plus warnings naming the fix. Express 4/5 structural differences (`app.handle`, router prototype shape) are covered by the version matrix.
 - D4's attach points (console wraps, winston prototype shadow, pino discovery patch) share D1's exposure class — peer internals — but the patches are attachment-only: log data flows through official seams (winston transport contract, pino `streamWrite` hook), so a peer major moving internals degrades to capture-not-attached, never to capturing data the app's logging policy strips. Mitigation: spike 8 pinned the mechanism across the declared ranges (winston 3.2.0-3.19, pino 9.6.0-10.x, zero drift observed), the matrix runs the declared floors, and the patches are check-and-mark (design-js §4), so re-entry composes instead of stacking.
-- Bun behavior drift (fetch internals, node:http compat): the Bun CI lane pins a version and Renovate bumps it.
-- Bun `AsyncLocalStorage` edge cases: the Bun smoke suite (`eventName` support was a listed risk here; spike 4 resolved it — native support verified).
-- The worker's Bun proxy branch (native `proxy` fetch option) ships without test execution — the Bun smoke sets no proxy env vars; accepted gap for phase 1. Likewise the winston/pino patch path never runs on Bun in CI — the Bun smoke exercises console capture only; accepted gap (the patches are runtime-agnostic prototype wraps, and the Bun claim is scoped to Hono).
+- Bun behavior drift (fetch internals, node:http compat) and `AsyncLocalStorage` edge cases remain unverified.
+- The worker's Bun proxy branch (native `proxy` fetch option) ships without test execution. The winston/pino patch path also does not run on Bun; the Bun claim remains scoped to Hono.
 - Spike outcomes are point-in-time: U1 pins the exact versions the spikes verified (OTel stable 2.9.0, experimental 0.220.0, instrumentation-undici 0.30.0, undici 6.27.0) and dependency versions stay frozen through U16 (Renovate PRs held) so recorded spike facts stay valid.

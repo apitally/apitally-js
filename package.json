@@ -44,9 +44,8 @@
     "check": "biome check . && tsc --noEmit",
     "check:package": "attw --pack . --profile node16",
     "format": "biome check --write .",
-    "test": "npm run build && vitest run",
-    "test:bun": "bun test tests/bun",
-    "test:coverage": "npm run build && vitest run --coverage"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "files": [
     "dist/",

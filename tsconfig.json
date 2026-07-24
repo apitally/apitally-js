@@ -1,6 +1,5 @@
 {
   "include": ["src", "tests", "*.config.ts"],
-  "exclude": ["tests/bun"],
   "compilerOptions": {
     "module": "NodeNext",
     "target": "ES2022",

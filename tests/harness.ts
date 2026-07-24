@@ -21,8 +21,7 @@ import {
 import { Spool } from "../src/spool.js";
 import { resetStartupEventEmitted } from "../src/startup.js";
 
-// Runner-agnostic test helpers shared between the vitest suites (through
-// tests/utils.ts) and the bun lane, which cannot load vitest imports.
+// Test helpers shared between the Vitest suites through tests/utils.ts.
 
 export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
 
