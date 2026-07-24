@@ -241,6 +241,37 @@ describe("exporter", () => {
     expect(lines[0]).toContain("@hono/otel");
   });
 
+  it("exports a nested SERVER span that ends after its request released as INTERNAL on Apitally's copy", async () => {
+    const userExporter = new InMemorySpanExporter();
+    const { pipeline, provider, tracer, spool } = createExportPipeline({
+      userExporter,
+    });
+    captureStderr();
+    const producingTracer = provider.getTracer("@hono/otel");
+    const { span, request } = startServerSpan(tracer, { name: "GET /items" });
+    const duplicate = producingTracer.startSpan(
+      "duplicate",
+      { kind: SpanKind.SERVER },
+      trace.setSpan(request.context, span),
+    );
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+    duplicate.end();
+
+    const spans = decodedSpans(await readTraceExportFromSpool(provider, spool));
+    expect(spans).toHaveLength(2);
+    expect(spans.find((span) => span.name === "duplicate")?.kind).toBe(
+      PROTO_SPAN_KIND_INTERNAL,
+    );
+    expect(spans.find((span) => span.name === "GET /items")?.kind).toBe(
+      PROTO_SPAN_KIND_SERVER,
+    );
+    const userDuplicate = userExporter
+      .getFinishedSpans()
+      .find((span) => span.name === "duplicate");
+    expect(userDuplicate?.kind).toBe(SpanKind.SERVER);
+  });
+
   it("rewrites a differing deployment environment resource attribute to the resolved env on Apitally's copies only, warning once", async () => {
     const resource = resourceFromAttributes({
       "deployment.environment.name": "staging",

@@ -186,6 +186,12 @@ interface RequestEntry {
   released: boolean;
 }
 
+interface KeptSpanEntry {
+  readonly serverSpanId: string;
+  // Carries the demotion decision across the release for spans that end late
+  readonly demoted: boolean;
+}
+
 // The single keep/drop decision point in front of Apitally's export path. Requests
 // are buffered per request and released to the downstream processor when both the
 // SERVER span has ended and the transport has completed, exactly once per request.
@@ -205,10 +211,9 @@ export class SpanPipeline implements SpanProcessor {
   private readonly requests = new Map<string, RequestEntry>();
   private readonly stash = new Map<string, RequestStash>();
   private readonly demotedSpanIds = new Set<string>();
-  // Span ids of requests released as kept, mapped to their SERVER span id, so
-  // late spans and log records still export after the release; oldest evicted
-  // at the cap.
-  private readonly keptSpanIds = new Map<string, string>();
+  // Span ids of requests released as kept, so late spans and log records still
+  // export after the release; oldest evicted at the cap.
+  private readonly keptSpanIds = new Map<string, KeptSpanEntry>();
 
   constructor(downstream: SpanProcessor) {
     this.downstream = downstream;
@@ -237,9 +242,12 @@ export class SpanPipeline implements SpanProcessor {
       if (!entry) {
         // A span started under a request already released as kept exports at
         // its end, like the released request's other late telemetry.
-        const serverSpanId = this.keptSpanIds.get(parent.spanId);
-        if (serverSpanId !== undefined) {
-          this.addKeptSpanId(spanId, serverSpanId);
+        const kept = this.keptSpanIds.get(parent.spanId);
+        if (kept) {
+          this.addKeptSpanId(spanId, {
+            serverSpanId: kept.serverSpanId,
+            demoted: false,
+          });
         }
         return;
       }
@@ -264,8 +272,15 @@ export class SpanPipeline implements SpanProcessor {
       const isDemoted = this.demotedSpanIds.delete(spanId);
       const entry = this.requests.get(spanId);
       if (!entry) {
-        if (this.keptSpanIds.has(spanId)) {
-          this.downstream.onEnd(span);
+        const kept = this.keptSpanIds.get(spanId);
+        if (kept) {
+          let exportSpan = span;
+          if (kept.demoted) {
+            const copy = copySpan(span);
+            copy.apitallyData = { demoteToInternal: true };
+            exportSpan = copy;
+          }
+          this.downstream.onEnd(exportSpan);
         }
         return;
       }
@@ -366,7 +381,8 @@ export class SpanPipeline implements SpanProcessor {
   // log pipeline resolves request linkage through this lookup.
   resolveServerSpanId(spanId: string): string | undefined {
     return (
-      this.requests.get(spanId)?.serverSpanId ?? this.keptSpanIds.get(spanId)
+      this.requests.get(spanId)?.serverSpanId ??
+      this.keptSpanIds.get(spanId)?.serverSpanId
     );
   }
 
@@ -551,9 +567,12 @@ export class SpanPipeline implements SpanProcessor {
   // Export-copy processing runs in the exporter at batch-drain time.
   private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
     entry.released = true;
-    this.removeCompletedRequestSpanIds(entry);
     for (const spanId of entry.spanIds) {
-      this.addKeptSpanId(spanId, entry.serverSpanId);
+      this.requests.delete(spanId);
+      this.addKeptSpanId(spanId, {
+        serverSpanId: entry.serverSpanId,
+        demoted: this.demotedSpanIds.delete(spanId),
+      });
     }
     for (const bufferedSpan of entry.buffered) {
       this.downstream.onEnd(bufferedSpan);
@@ -584,14 +603,14 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  private addKeptSpanId(spanId: string, serverSpanId: string): void {
+  private addKeptSpanId(spanId: string, kept: KeptSpanEntry): void {
     if (this.keptSpanIds.size >= MAX_KEPT_SPAN_IDS) {
       const oldestId = this.keptSpanIds.keys().next().value;
       if (oldestId !== undefined) {
         this.keptSpanIds.delete(oldestId);
       }
     }
-    this.keptSpanIds.set(spanId, serverSpanId);
+    this.keptSpanIds.set(spanId, kept);
   }
 }
 
