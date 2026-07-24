@@ -142,9 +142,6 @@ export function captureResponse(
     statusText: response.statusText,
     headers: response.headers,
   });
-  // Force Bun to initialize the headers (workaround for lazy evaluation in
-  // Bun's Response implementation).
-  void teedResponse.headers;
   const capturedBodyPromise = Promise.race([
     pipePromise,
     timeoutPromise,
