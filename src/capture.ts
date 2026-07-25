@@ -94,7 +94,6 @@ export class BodyCapture {
 export interface CapturedBody {
   body?: Buffer;
   size?: number;
-  completed: boolean;
 }
 
 // The response is teed so capture does not consume or delay the application's
@@ -112,7 +111,10 @@ export function captureResponse(
   });
   if (!response.body) {
     bodyCapture.markComplete();
-    return [response, Promise.resolve(capturedBodyResult(bodyCapture, true))];
+    return [
+      response,
+      Promise.resolve({ body: bodyCapture.body, size: bodyCapture.size }),
+    ];
   }
   let readStarted = false;
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
@@ -126,15 +128,15 @@ export function captureResponse(
     .pipeTo(writable)
     .then(() => {
       bodyCapture.markComplete();
-      return capturedBodyResult(bodyCapture, true);
+      return { body: bodyCapture.body, size: bodyCapture.size };
     })
-    .catch(() => capturedBodyResult(bodyCapture, false));
+    .catch(() => ({}));
   // A response nobody ever reads would leave the pipe promise pending forever.
   let readTimeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<CapturedBody>((resolve) => {
     readTimeout = setTimeout(() => {
       if (!readStarted) {
-        resolve({ completed: false });
+        resolve({});
       }
     }, readTimeoutMillis);
     readTimeout.unref();
@@ -178,13 +180,6 @@ export function normalizeHeaders(
     }
   }
   return normalized;
-}
-
-function capturedBodyResult(
-  bodyCapture: BodyCapture,
-  completed: boolean,
-): CapturedBody {
-  return { body: bodyCapture.body, size: bodyCapture.size, completed };
 }
 
 // Duck-typed on iterability: a plain header record has no Symbol.iterator, and

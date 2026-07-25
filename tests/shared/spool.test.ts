@@ -68,7 +68,7 @@ describe("spool", () => {
     const [file] = spool.pendingFiles();
     expect(file.path).toBeDefined();
     const stats = await stat(file.path as string);
-    expect(stats.size).toBe(file.compressedSize);
+    expect(stats.size).toBe(file.storedSize);
     expect(stats.size).toBeGreaterThan(0);
     expect(stats.mode & 0o777).toBe(0o600);
     expect(gunzipSync(await readFile(file.path as string))).toEqual(
@@ -129,7 +129,7 @@ describe("spool", () => {
         "logs",
       ]);
       spool.maxSize =
-        files.reduce((total, file) => total + file.compressedSize, 0) - 1;
+        files.reduce((total, file) => total + file.storedSize, 0) - 1;
       await spool.rotateForExport();
       expect(spool.pendingFiles().map((file) => file.signal)).toEqual([
         "metrics",

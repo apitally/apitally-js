@@ -207,7 +207,6 @@ export class SpoolFile {
   readonly path?: string;
   firstAttemptAtMillis?: number;
   uncompressedSize = 0;
-  compressedSize = 0;
   readonly gzip: Gzip;
   private readonly fileStream?: WriteStream;
   private readonly memoryChunks?: Buffer[];
@@ -281,7 +280,6 @@ export class SpoolFile {
     }
     this.gzip.end();
     await this.closedPromise;
-    this.compressedSize = this.storedSize;
   }
 
   get storedSize(): number {

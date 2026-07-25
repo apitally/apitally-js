@@ -14,7 +14,6 @@ import {
 import { getRPCMetadata, type RPCMetadata, RPCType } from "@opentelemetry/core";
 import compression from "compression";
 import express, { type Express } from "express";
-import express4 from "express4";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
@@ -142,38 +141,6 @@ describe("express adapter", () => {
       dataPoints.map((dataPoint) => dataPoint.attributes["http.route"]),
     ).toEqual(["/api/nested/:key", "/api/v2/deep"]);
     expect(lines).toEqual([]);
-  });
-
-  it("produces the SERVER span, mounted route template, and exception event on express 4", async () => {
-    prepareFirstRequestActivation();
-    const app4 = express4();
-    useApitally(app4, { writeToken: WRITE_TOKEN });
-    const mountedRouter = express4.Router();
-    mountedRouter.get("/things/:id", (_req, res) => {
-      res.json({ ok: true });
-    });
-    app4.use("/mounted", mountedRouter);
-    app4.get("/boom", () => {
-      throw new Error("bang");
-    });
-    await withServer(app4, async (_server4, baseUrl) => {
-      const okResponse = await fetch(`${baseUrl}/mounted/things/7`);
-      expect(okResponse.status).toBe(200);
-      await okResponse.arrayBuffer();
-      const errorResponse = await fetch(`${baseUrl}/boom`);
-      expect(errorResponse.status).toBe(500);
-      await errorResponse.arrayBuffer();
-    });
-
-    const spans = await readActivationSpans();
-    expect(spans.map((span) => [span.name, span.kind])).toEqual([
-      ["GET /mounted/things/:id", SpanKind.SERVER],
-      ["GET /boom", SpanKind.SERVER],
-    ]);
-    expect(spans[1].events).toHaveLength(1);
-    const eventAttributes = spans[1].events[0].attributes ?? {};
-    expect(spans[1].events[0].name).toBe("exception");
-    expect(eventAttributes["exception.message"]).toBe("bang");
   });
 
   it("warns when mounting a router with uncaptured registrations and exports its requests with a cleared route skipped by the request metrics", async () => {

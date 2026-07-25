@@ -75,7 +75,6 @@ describe("capture", () => {
     expect((await reader.read()).done).toBe(true);
 
     const result = await captured;
-    expect(result.completed).toBe(true);
     expect(result.body).toEqual(Buffer.from('{"items":[1,2,3]}'));
     expect(result.size).toBe(17);
   });
@@ -185,14 +184,18 @@ describe("capture", () => {
     expect(await readText(reader)).toBe('{"partial":');
     errorStream(new Error("connection reset"));
     await expect(reader.read()).rejects.toThrow("connection reset");
-    expect(await captured).toEqual({ completed: false });
+    const result = await captured;
+    expect(result.body).toBeUndefined();
+    expect(result.size).toBeUndefined();
   });
 
-  it("resolves the capture promise as incomplete when the response is never read", async () => {
+  it("resolves the capture promise without a body when the response is never read", async () => {
     const response = new Response('{"ok":true}', {
       headers: { "content-type": "application/json" },
     });
     const [, captured] = captureResponse(response, true, 0);
-    expect(await captured).toEqual({ completed: false });
+    const result = await captured;
+    expect(result.body).toBeUndefined();
+    expect(result.size).toBeUndefined();
   });
 });
