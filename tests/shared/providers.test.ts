@@ -43,7 +43,7 @@ const UUID_V4_FORMAT =
 
 // Mimics a context manager that lost its backing registration, e.g. through
 // conflicting @opentelemetry/api copies: context.with() runs but propagates nothing.
-class InertContextManager implements ContextManager {
+class NonPropagatingContextManager implements ContextManager {
   active(): Context {
     return ROOT_CONTEXT;
   }
@@ -216,9 +216,9 @@ describe("providers", () => {
     expect(lines).toHaveLength(0);
   });
 
-  it("warns when no context manager wins registration and context propagation is inert", () => {
+  it("warns when no context manager wins registration and context does not propagate", () => {
     const lines = captureStderr();
-    context.setGlobalContextManager(new InertContextManager());
+    context.setGlobalContextManager(new NonPropagatingContextManager());
 
     setupTracerProvider(createResource("prod"), []);
 

@@ -55,8 +55,8 @@ interface RequestObservation {
   matchedRoute?: MatchedRouteResult;
 }
 
-// WeakMap links route middleware to transport observation without retaining
-// completed request records.
+// WeakMap associates route middleware with transport observation without
+// retaining completed request records.
 const observationsByRecord = new WeakMap<RequestRecord, RequestObservation>();
 
 const WEB_HEADERS_GETTER: TextMapGetter<Headers> = {

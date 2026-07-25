@@ -243,10 +243,10 @@ describe("activation", () => {
   it("warns once when a second module copy has a different version", async () => {
     const lines = captureStderr();
     configureAndActivate();
-    const slot = (globalThis as Record<symbol, { sdkVersion: string }>)[
-      Symbol.for("apitally.activation")
-    ];
-    slot.sdkVersion = "0.9.0";
+    const activationState = (
+      globalThis as Record<symbol, { sdkVersion: string }>
+    )[Symbol.for("apitally.activation")];
+    activationState.sdkVersion = "0.9.0";
 
     vi.resetModules();
     const secondCopy = await import("../../src/activation.js");

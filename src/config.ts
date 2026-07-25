@@ -116,12 +116,12 @@ const TRUE_VALUES = new Set(["1", "true", "yes"]);
 
 // The ESM and CJS builds can load together, so a Symbol.for key gives both
 // copies the same configuration.
-const CONFIG_SLOT_KEY = Symbol.for("apitally.config");
+const GLOBAL_CONFIG_KEY = Symbol.for("apitally.config");
 const configHolder = globalThis as Record<symbol, ApitallyConfig | undefined>;
 
 export function setConfig(options: ApitallyOptions = {}): ApitallyConfig {
   const { config, error } = resolveConfig(options);
-  const currentConfig = configHolder[CONFIG_SLOT_KEY];
+  const currentConfig = configHolder[GLOBAL_CONFIG_KEY];
   if (currentConfig) {
     if (!isSameConfig(config, currentConfig)) {
       logWarning(
@@ -133,16 +133,16 @@ export function setConfig(options: ApitallyOptions = {}): ApitallyConfig {
   if (error) {
     logError(error);
   }
-  configHolder[CONFIG_SLOT_KEY] = config;
+  configHolder[GLOBAL_CONFIG_KEY] = config;
   return config;
 }
 
 export function getConfig(): ApitallyConfig {
-  return configHolder[CONFIG_SLOT_KEY] ?? resolveConfig({}).config;
+  return configHolder[GLOBAL_CONFIG_KEY] ?? resolveConfig({}).config;
 }
 
 export function resetConfig(): void {
-  configHolder[CONFIG_SLOT_KEY] = undefined;
+  configHolder[GLOBAL_CONFIG_KEY] = undefined;
 }
 
 // The emergency kill switch, re-checked at the activation boundary so it wins
@@ -258,8 +258,8 @@ function isHttpUrl(value: string): boolean {
   return url.protocol === "http:" || url.protocol === "https:";
 }
 
-// A silently invalid pattern could leave data unredacted, so invalid patterns
-// are logged and omitted.
+// An invalid pattern without an error could leave data unredacted, so invalid
+// patterns are logged and omitted.
 function dropInvalidPatterns(
   optionName: string,
   patterns: string[] = [],

@@ -53,7 +53,7 @@ const preCaptureFixturesByVersion = {
   "express 4": createPreCaptureRouteFixture(express4),
 };
 
-async function driveAndResolveRoutes(
+async function sendRequestsAndResolveRoutes(
   fixture: RouteFixture,
   requestPaths: string[],
 ): Promise<RouteTrackingResult[]> {
@@ -107,7 +107,7 @@ describe.each([
       child.use("/nested/:nid", grandchild);
       fixture.app.use("/api", child);
 
-      const routeResults = await driveAndResolveRoutes(fixture, [
+      const routeResults = await sendRequestsAndResolveRoutes(fixture, [
         "/api/items/42",
         "/api/nested/9/deep/1",
       ]);
@@ -153,7 +153,7 @@ describe.each([
       child.get("/x/:id", respondOk);
       fixture.app.use(["/a", "/b/:v"], child);
 
-      const routeResults = await driveAndResolveRoutes(fixture, [
+      const routeResults = await sendRequestsAndResolveRoutes(fixture, [
         "/a/x/1",
         "/b/7/x/2",
       ]);
@@ -168,7 +168,7 @@ describe.each([
       installRouteCaptureFromApp(fixture.app);
       fixture.mountedBeforeCapture.get("/items/:id", respondOk);
 
-      const [routeResult] = await driveAndResolveRoutes(fixture, [
+      const [routeResult] = await sendRequestsAndResolveRoutes(fixture, [
         "/api/items/42",
       ]);
       expect(routeResult).toEqual({ matchedUncapturedRegistration: true });
@@ -184,7 +184,9 @@ describe("express routes (express 4 syntax)", () => {
     expect(resolveStartupPaths(fixture.app)).toEqual([
       { method: "GET", path: "/re/:id" },
     ]);
-    const [routeResult] = await driveAndResolveRoutes(fixture, ["/re/42"]);
+    const [routeResult] = await sendRequestsAndResolveRoutes(fixture, [
+      "/re/42",
+    ]);
     expect(routeResult).toEqual({
       route: "/re/:id",
       matchedUncapturedRegistration: false,
@@ -200,7 +202,7 @@ describe("express routes (express 5 syntax)", () => {
     fixture.app.use("/files", catchAllRouter);
     fixture.app.get("/assets/{*path}", respondOk);
 
-    const routeResults = await driveAndResolveRoutes(fixture, [
+    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
       "/files/a/b",
       "/assets/img/logo.png",
     ]);

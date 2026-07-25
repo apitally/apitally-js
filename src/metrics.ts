@@ -139,7 +139,7 @@ export class MetricsPipeline {
   }
 }
 
-// Worker-driven collection uses exponential histograms with delta temporality.
+// The export worker collects exponential histograms with delta temporality.
 // Gauges keep the default aggregation and cumulative temporality.
 class OnDemandMetricReader extends MetricReader {
   constructor() {

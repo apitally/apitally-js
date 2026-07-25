@@ -24,7 +24,7 @@ function createRouteFixture(): RouteFixture {
   return { app, routeResults };
 }
 
-async function driveAndResolveRoutes(
+async function sendRequestsAndResolveRoutes(
   fixture: RouteFixture,
   requestPaths: string[],
 ): Promise<MatchedRouteResult[]> {
@@ -64,7 +64,7 @@ describe("hono routes", () => {
     child.route("/nested/:nid", grandchild);
     fixture.app.route("/api", child);
 
-    const routeResults = await driveAndResolveRoutes(fixture, [
+    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
       "/api/items/42",
       "/api/nested/9/deep/1",
     ]);
@@ -103,7 +103,7 @@ describe("hono routes", () => {
     });
     fixture.app.get("/known", respondOk);
 
-    const routeResults = await driveAndResolveRoutes(fixture, [
+    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
       "/unknown",
       "/guarded/anything",
     ]);

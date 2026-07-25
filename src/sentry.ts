@@ -15,9 +15,9 @@ interface SentryClient {
   on(hook: "beforeSendEvent", callback: (event: SentryEvent) => void): unknown;
 }
 
-// An initialized Sentry client opts in to linking exception event IDs with
+// An initialized Sentry client opts in to recording exception event IDs on
 // active SERVER spans. Calls outside a request are no-ops.
-export function installSentryEventIdLinkage(): void {
+export function installSentryEventIdRecording(): void {
   try {
     const client =
       getClientThroughPeerResolution() ?? getClientFromGlobalCarrier();

@@ -77,7 +77,7 @@ export class ExportWorker {
       return;
     }
     this.started = true;
-    this.armTimer(this.initialExportDelayMillis);
+    this.scheduleNextExportCycle(this.initialExportDelayMillis);
   }
 
   async stop(): Promise<void> {
@@ -269,7 +269,7 @@ export class ExportWorker {
       ) * 1000;
   }
 
-  private armTimer(delayMillis: number): void {
+  private scheduleNextExportCycle(delayMillis: number): void {
     this.timer = setTimeout(() => {
       void this.runCycle()
         .catch((error) =>
@@ -278,7 +278,9 @@ export class ExportWorker {
         .finally(() => {
           if (this.started) {
             // Jitter desynchronizes deployments whose processes started together.
-            this.armTimer(this.intervalMillis * (0.9 + Math.random() * 0.2));
+            this.scheduleNextExportCycle(
+              this.intervalMillis * (0.9 + Math.random() * 0.2),
+            );
           }
         });
     }, delayMillis);

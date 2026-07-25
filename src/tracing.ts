@@ -70,7 +70,7 @@ function runInsideSpan<Result>(
     endSpanWithError(internalSpan, error);
     throw error;
   }
-  if (isThenable(result)) {
+  if (isPromiseLike(result)) {
     // Side listener on the function's own promise, which passes through
     // unchanged; neither handler rethrows, so this chain never rejects.
     result.then(
@@ -104,7 +104,7 @@ function resolveWrapSite():
   return undefined;
 }
 
-function isThenable(value: unknown): value is PromiseLike<unknown> {
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
     typeof value === "object" &&
     value !== null &&

@@ -19,8 +19,9 @@ const SERVER_SPAN_ID_ATTRIBUTE = "apitally.request.server_span_id";
 const APITALLY_SCOPE_NAME = "apitally";
 const MAX_STRING_LENGTH = 2_048;
 
-// Records resolve request linkage through the span pipeline's in-flight map.
-// Unlinked records are dropped except the `apitally` startup event.
+// Records resolve request association through the span pipeline's in-flight
+// map. Records without an associated request are dropped except the `apitally`
+// startup event.
 export class LogPipeline implements LogRecordProcessor {
   private readonly downstream: LogRecordProcessor;
   private readonly spanPipeline: SpanPipeline;

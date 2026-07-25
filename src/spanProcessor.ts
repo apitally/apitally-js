@@ -297,8 +297,8 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  // Transport completion drives response sampling and metrics independently of
-  // span-end timing. Map misses still record metrics and discard other data.
+  // Transport completion triggers response sampling and metrics independently
+  // of span-end timing. Map misses still record metrics and discard other data.
   handleTransportCompletion(record: RequestRecord): void {
     try {
       const entry =
@@ -363,8 +363,8 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  // Kept requests remain resolvable after release so late logs retain request
-  // linkage.
+  // Kept requests remain resolvable after release so late logs retain their
+  // request association.
   resolveServerSpanId(spanId: string): string | undefined {
     return (
       this.requests.get(spanId)?.serverSpanId ??
@@ -691,8 +691,8 @@ function isTraceSampledIn(traceId: string, bound: bigint): boolean {
   return (BigInt(`0x${traceId}`) & TRACE_ID_LOW_64_BITS_MASK) < bound;
 }
 
-// A throwing or invalid-returning callback resolves to keep: data must never be
-// lost silently to a user bug. Undefined means the callback abstained.
+// A throwing or invalid-returning callback resolves to keep: a user bug must
+// never lose data without a warning. Undefined means the callback abstained.
 function resolveCallbackSampleRate(
   callback: SamplingCallback,
   span: ReadableSpan,

@@ -110,7 +110,7 @@ export function setupTracerProvider(
   contextManager.enable();
   context.setGlobalContextManager(contextManager);
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
-  warnIfContextPropagationIsInert();
+  warnIfContextDoesNotPropagate();
   return provider;
 }
 
@@ -163,8 +163,8 @@ function readDeploymentEnvironmentNameFromEnv(): string | undefined {
 }
 
 // OTel exposes no context-manager getter, so a propagated probe verifies
-// registration. Without propagation, request contexts and suppression fail silently.
-function warnIfContextPropagationIsInert(): void {
+// registration. Without propagation, request contexts and suppression fail without an error.
+function warnIfContextDoesNotPropagate(): void {
   const probeKey = createContextKey("apitally-context-probe");
   const isPropagated = context.with(
     context.active().setValue(probeKey, true),

@@ -31,7 +31,7 @@ import {
   setupTracerProvider,
 } from "./providers.js";
 import { Redaction } from "./redaction.js";
-import { installSentryEventIdLinkage } from "./sentry.js";
+import { installSentryEventIdRecording } from "./sentry.js";
 import { SpanPipeline, setActiveSpanPipeline } from "./spanProcessor.js";
 import { Spool } from "./spool.js";
 import { emitStartupEvent, type StartupEventInfo } from "./startup.js";
@@ -45,9 +45,9 @@ const BATCH_MAX_EXPORT_BATCH_SIZE = 512;
 
 // The ESM and CJS builds can load together, so a Symbol.for key gives both
 // copies the same activation state.
-const ACTIVATION_SLOT_KEY = Symbol.for("apitally.activation");
+const ACTIVATION_STATE_KEY = Symbol.for("apitally.activation");
 
-interface ActivationSlot {
+interface ActivationState {
   sdkVersion: string;
   activationAttempted: boolean;
   startupEventInfo?: StartupEventInfo;
@@ -80,48 +80,48 @@ export function configure(options: ApitallyOptions = {}): ApitallyConfig {
 
 // The first adapter registration wins so one process emits one startup event.
 export function registerStartupEventInfo(info: StartupEventInfo): void {
-  const slot = getSlot();
-  slot.startupEventInfo ??= info;
+  const activationState = getActivationState();
+  activationState.startupEventInfo ??= info;
 }
 
 // Activation is synchronous and attempted once, so concurrent first requests
 // observe either no activation or completed activation.
 export function activate(): void {
-  const slot = getSlot();
-  if (slot.activationAttempted) {
+  const activationState = getActivationState();
+  if (activationState.activationAttempted) {
     return;
   }
-  slot.activationAttempted = true;
+  activationState.activationAttempted = true;
   if (shouldSkipActivation()) {
     return;
   }
   try {
-    const handles = startPipelines(slot.startupEventInfo);
-    slot.handles = handles;
-    slot.runShutdown = () => drainAndStop(handles);
-    installBeforeExitHook(slot);
+    const handles = startPipelines(activationState.startupEventInfo);
+    activationState.handles = handles;
+    activationState.runShutdown = () => drainAndStop(handles);
+    installBeforeExitHook(activationState);
   } catch (error) {
     logError(`Apitally activation failed: ${String(error)}`);
   }
 }
 
 export function isActivated(): boolean {
-  return getSlot().handles !== undefined;
+  return getActivationState().handles !== undefined;
 }
 
 export function getActivationHandles(): ActivationHandles | undefined {
-  return getSlot().handles;
+  return getActivationState().handles;
 }
 
 // Concurrent calls and the beforeExit hook share one final drain; calls before
 // activation are no-ops.
 export function shutdown(): Promise<void> {
-  const slot = getSlot();
-  if (!slot.runShutdown) {
+  const activationState = getActivationState();
+  if (!activationState.runShutdown) {
     return Promise.resolve();
   }
-  slot.shutdownPromise ??= slot.runShutdown();
-  return slot.shutdownPromise;
+  activationState.shutdownPromise ??= activationState.runShutdown();
+  return activationState.shutdownPromise;
 }
 
 // Tests replace these factories to isolate spool files and worker timing.
@@ -135,17 +135,17 @@ const defaultFactories = { ...activationFactories };
 // Tests reset process-global activation and its side effects between cases.
 export async function resetActivation(): Promise<void> {
   Object.assign(activationFactories, defaultFactories);
-  const holder = globalThis as Record<symbol, ActivationSlot | undefined>;
-  const slot = holder[ACTIVATION_SLOT_KEY];
-  delete holder[ACTIVATION_SLOT_KEY];
+  const holder = globalThis as Record<symbol, ActivationState | undefined>;
+  const activationState = holder[ACTIVATION_STATE_KEY];
+  delete holder[ACTIVATION_STATE_KEY];
   hasWarnedAboutVersionSkew = false;
-  if (!slot) {
+  if (!activationState) {
     return;
   }
-  if (slot.beforeExitListener) {
-    process.removeListener("beforeExit", slot.beforeExitListener);
+  if (activationState.beforeExitListener) {
+    process.removeListener("beforeExit", activationState.beforeExitListener);
   }
-  const handles = slot.handles;
+  const handles = activationState.handles;
   if (!handles) {
     return;
   }
@@ -158,9 +158,9 @@ export async function resetActivation(): Promise<void> {
 
 let hasWarnedAboutVersionSkew = false;
 
-function getSlot(): ActivationSlot {
-  const holder = globalThis as Record<symbol, ActivationSlot | undefined>;
-  const existing = holder[ACTIVATION_SLOT_KEY];
+function getActivationState(): ActivationState {
+  const holder = globalThis as Record<symbol, ActivationState | undefined>;
+  const existing = holder[ACTIVATION_STATE_KEY];
   if (existing) {
     if (
       !hasWarnedAboutVersionSkew &&
@@ -173,12 +173,12 @@ function getSlot(): ActivationSlot {
     }
     return existing;
   }
-  const slot: ActivationSlot = {
+  const activationState: ActivationState = {
     sdkVersion: getDistroVersion(),
     activationAttempted: false,
   };
-  holder[ACTIVATION_SLOT_KEY] = slot;
-  return slot;
+  holder[ACTIVATION_STATE_KEY] = activationState;
+  return activationState;
 }
 
 function shouldSkipActivation(): boolean {
@@ -255,7 +255,7 @@ function startPipelines(
     installWinstonCapture(loggerProvider);
     installPinoCapture(loggerProvider);
   }
-  installSentryEventIdLinkage();
+  installSentryEventIdRecording();
   let undiciInstrumentation: UndiciInstrumentation | undefined;
   if (!hasUserProvider) {
     // With a user tracer provider, user instrumentation owns CLIENT span
@@ -305,7 +305,7 @@ async function drainAndStop(handles: ActivationHandles): Promise<void> {
   }
 }
 
-function installBeforeExitHook(slot: ActivationSlot): void {
+function installBeforeExitHook(activationState: ActivationState): void {
   const listener = () => {
     // The drain keeps the event loop alive, and repeated beforeExit events share
     // the settled promise.
@@ -313,6 +313,6 @@ function installBeforeExitHook(slot: ActivationSlot): void {
       logDebug(`Error draining telemetry on shutdown: ${String(error)}`);
     });
   };
-  slot.beforeExitListener = listener;
+  activationState.beforeExitListener = listener;
   process.on("beforeExit", listener);
 }

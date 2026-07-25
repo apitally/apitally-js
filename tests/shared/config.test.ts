@@ -149,7 +149,7 @@ describe("config", () => {
     expect(lines).toHaveLength(0);
   });
 
-  it("returns the first configuration silently when called again with the same options", () => {
+  it("returns the first configuration without logging when called again with the same options", () => {
     const lines = captureStderr();
     const first = setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
     const second = setConfig({ writeToken: WRITE_TOKEN, env: "staging" });

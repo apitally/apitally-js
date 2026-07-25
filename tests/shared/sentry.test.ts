@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/node";
 import { afterEach, describe, expect, it } from "vitest";
 import { peerResolver } from "../../src/logCapture.js";
-import { installSentryEventIdLinkage } from "../../src/sentry.js";
+import { installSentryEventIdRecording } from "../../src/sentry.js";
 import {
   captureStderr,
   createTracePipeline,
@@ -65,7 +65,7 @@ describe("sentry", () => {
 
   it("writes a Sentry exception event's id onto the active SERVER span, ignoring non-exception events", async () => {
     const { fixture, client } = createSentryFixture();
-    installSentryEventIdLinkage();
+    installSentryEventIdRecording();
     let eventId: string | undefined;
     const serverSpan = await runInsideRequest(fixture, async () => {
       const messageSent = nextEventSent(client);
@@ -86,7 +86,7 @@ describe("sentry", () => {
     peerResolver.resolveEntryPath = () => {
       throw new Error("Cannot find module '@sentry/node'");
     };
-    installSentryEventIdLinkage();
+    installSentryEventIdRecording();
     let eventId: string | undefined;
     const serverSpan = await runInsideRequest(fixture, async () => {
       const exceptionSent = nextEventSent(client);
@@ -99,17 +99,17 @@ describe("sentry", () => {
     });
   });
 
-  it("degrades silently when Sentry is absent or the carrier is malformed", () => {
+  it("does not throw or warn when Sentry is absent or the carrier is malformed", () => {
     const lines = captureStderr();
     process.env.APITALLY_DEBUG = "true";
     peerResolver.resolveEntryPath = () => {
       throw new Error("Cannot find module '@sentry/node'");
     };
-    expect(() => installSentryEventIdLinkage()).not.toThrow();
+    expect(() => installSentryEventIdRecording()).not.toThrow();
     setGlobalCarrier({});
-    expect(() => installSentryEventIdLinkage()).not.toThrow();
+    expect(() => installSentryEventIdRecording()).not.toThrow();
     setGlobalCarrier({ version: "10.0.0" });
-    expect(() => installSentryEventIdLinkage()).not.toThrow();
+    expect(() => installSentryEventIdRecording()).not.toThrow();
     expect(
       lines.filter((line) => !line.startsWith("[Apitally DEBUG]")),
     ).toEqual([]);

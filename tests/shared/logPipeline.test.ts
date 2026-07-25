@@ -17,7 +17,7 @@ import {
 } from "../utils.js";
 
 describe("logPipeline", () => {
-  it("exports a log emitted inside a request with the request linkage once the request is kept", () => {
+  it("exports a log emitted inside a request with the request association once the request is kept", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
@@ -45,7 +45,7 @@ describe("logPipeline", () => {
     expect(record.instrumentationScope.name).toBe("myapp");
   });
 
-  it("exports a log emitted after the emitting child span ended while the request is in flight with the request linkage", () => {
+  it("exports a log emitted after the emitting child span ended while the request is in flight with the request association", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);

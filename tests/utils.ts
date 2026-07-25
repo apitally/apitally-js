@@ -224,7 +224,7 @@ export class CollectingSpanProcessor implements SpanProcessor {
   }
 }
 
-// A real tracer provider drives the pipeline; extra processors model user
+// A real tracer provider includes the pipeline; extra processors model user
 // processors on the same provider.
 export function createTracePipeline(
   options: {
@@ -251,7 +251,7 @@ export interface LogTestPipeline {
   logExporter: InMemoryLogRecordExporter;
 }
 
-// A private logger provider connects to the span pipeline for request linkage.
+// A private logger provider connects to the span pipeline for request association.
 export function createLogPipeline(
   spanPipeline: SpanPipeline,
   downstream?: LogRecordProcessor,

@@ -53,7 +53,7 @@ export function emitStartupEvent(
   }
   loggerProvider.getLogger("apitally").emit({
     timestamp: Date.now(),
-    // The explicit root context keeps the record from linking to the request
+    // The explicit root context keeps the record separate from the request
     // whose handling triggered the emit.
     context: ROOT_CONTEXT,
     eventName: "apitally.app.startup",

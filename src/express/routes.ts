@@ -360,7 +360,9 @@ function wrapMountHandler(
     const consumedPath = baseUrl.startsWith(parentBaseUrl)
       ? baseUrl.slice(parentBaseUrl.length)
       : baseUrl;
-    state.mountSegments.push(pickMatchingTemplate(pathTemplates, consumedPath));
+    state.mountSegments.push(
+      selectMatchingTemplate(pathTemplates, consumedPath),
+    );
     state.mountBaseUrls.push(baseUrl);
     let exited = false;
     return mountHandler.call(this, req, res, (error?: unknown) => {
@@ -483,7 +485,7 @@ function flattenHandlers(args: unknown[]): unknown[] {
   return args.flat(Number.POSITIVE_INFINITY);
 }
 
-function pickMatchingTemplate(
+function selectMatchingTemplate(
   pathTemplates: string[],
   consumedPath: string,
 ): string {

@@ -39,7 +39,7 @@ function createCaptureFixture(): CaptureFixture {
   return { pipeline, tracer, loggerProvider, logExporter };
 }
 
-function silenceConsole() {
+function mockConsoleMethods() {
   return {
     debug: vi.spyOn(console, "debug").mockImplementation(() => {}),
     log: vi.spyOn(console, "log").mockImplementation(() => {}),
@@ -69,7 +69,7 @@ describe("logCapture", () => {
   describe("console", () => {
     it("captures console calls with per-method severities under the console scope", async () => {
       const fixture = createCaptureFixture();
-      const spies = silenceConsole();
+      const spies = mockConsoleMethods();
       installConsoleCapture(fixture.loggerProvider);
       await runInsideRequest(fixture, () => {
         console.debug("debug message");
@@ -100,7 +100,7 @@ describe("logCapture", () => {
 
     it("never captures SDK diagnostics or OpenTelemetry diagnostic output", async () => {
       const fixture = createCaptureFixture();
-      silenceConsole();
+      mockConsoleMethods();
       const lines = captureStderr();
       installConsoleCapture(fixture.loggerProvider);
       await runInsideRequest(fixture, () => {
@@ -115,7 +115,7 @@ describe("logCapture", () => {
 
     it("emits captured logs into the private provider only, never a user's global logger provider", async () => {
       const fixture = createCaptureFixture();
-      silenceConsole();
+      mockConsoleMethods();
       const userExporter = new InMemoryLogRecordExporter();
       logs.setGlobalLoggerProvider(
         new LoggerProvider({
@@ -134,7 +134,7 @@ describe("logCapture", () => {
 
     it("captures each console call once after a second install", async () => {
       const fixture = createCaptureFixture();
-      silenceConsole();
+      mockConsoleMethods();
       installConsoleCapture(fixture.loggerProvider);
       installConsoleCapture(fixture.loggerProvider);
       await runInsideRequest(fixture, () => {

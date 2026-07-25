@@ -96,8 +96,8 @@ export function installConsoleCapture(loggerProvider: LoggerProvider): void {
   };
 }
 
-// Capture uses `winston`'s transport contract so silence, level filters, and
-// formats run first. The write wrapper only attaches the transport.
+// Capture uses `winston`'s transport contract so the `silent` option, level
+// filters, and formats run first. The write wrapper only attaches the transport.
 export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   let createProbeLogger: () => object;
   let TransportBase: new () => object;
@@ -219,7 +219,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
   }
   const logger = loggerProvider.getLogger("pino");
   // WeakRef prevents the registry from retaining hook objects.
-  const retrofittedHooks = new Set<WeakRef<PinoStreamWriteHooks>>();
+  const captureInstalledHooks = new Set<WeakRef<PinoStreamWriteHooks>>();
   const userStreamWrites = new WeakMap<
     PinoStreamWriteHooks,
     (line: string) => string
@@ -266,7 +266,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
       return processed;
     };
     setPatchMarker(hooks, PINO_HOOK_MARKER);
-    retrofittedHooks.add(new WeakRef(hooks));
+    captureInstalledHooks.add(new WeakRef(hooks));
     if (userStreamWrite) {
       userStreamWrites.set(hooks, userStreamWrite);
     }
@@ -299,7 +299,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
   restorePinoCapture = () => {
     writePrototype[writeSym] = originalWrite;
     clearPatchMarker(writePrototype, PINO_PATCH_MARKER);
-    for (const hooksRef of retrofittedHooks) {
+    for (const hooksRef of captureInstalledHooks) {
       const hooks = hooksRef.deref();
       if (!hooks) {
         continue;
