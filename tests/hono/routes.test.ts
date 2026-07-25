@@ -7,89 +7,106 @@ import {
   resolveStartupPaths,
 } from "../../src/hono/routes.js";
 
-interface ObservedApp {
+interface RouteFixture {
   app: Hono;
-  results: MatchedRouteResult[];
+  routeResults: MatchedRouteResult[];
 }
 
 // Mirrors the adapter's setup shape: the observing middleware registers first,
 // so routes registered after it compose behind it.
-function createObservedApp(): ObservedApp {
+function createRouteFixture(): RouteFixture {
   const app = new Hono();
-  const results: MatchedRouteResult[] = [];
-  app.use(async (c, next) => {
+  const routeResults: MatchedRouteResult[] = [];
+  app.use(async (context, next) => {
     await next();
-    results.push(resolveMatchedRoute(c));
+    routeResults.push(resolveMatchedRoute(context));
   });
-  return { app, results };
+  return { app, routeResults };
 }
 
-const respondOk = (c: Context) => c.json({ ok: true });
+async function driveAndResolveRoutes(
+  fixture: RouteFixture,
+  requestPaths: string[],
+): Promise<MatchedRouteResult[]> {
+  const firstRouteResultIndex = fixture.routeResults.length;
+  for (const requestPath of requestPaths) {
+    const response = await fixture.app.request(requestPath);
+    await response.arrayBuffer();
+  }
+  return fixture.routeResults.slice(firstRouteResultIndex);
+}
+
+const respondOk = (context: Context) => context.json({ ok: true });
 
 describe("hono routes", () => {
-  it("resolves route templates including mount prefixes for nested sub-app mounts with path parameters", async () => {
-    const { app, results } = createObservedApp();
-    const child = new Hono();
-    child.get("/items/:id", respondOk);
-    const grandchild = new Hono();
-    grandchild.get("/deep/:x", respondOk);
-    child.route("/nested/:nid", grandchild);
-    app.route("/api", child);
-
-    await app.request("/api/items/42");
-    await app.request("/api/nested/9/deep/1");
-    expect(results).toEqual([
-      { route: "/api/items/:id" },
-      { route: "/api/nested/:nid/deep/:x" },
-    ]);
-  });
-
-  it("resolves the route handler's template, never a middleware path, including when middleware responds without calling next", async () => {
-    const { app, results } = createObservedApp();
-    app.use("/things/*", async (_c, next) => {
-      await next();
-    });
-    app.use("/blocked/*", async (c, _next) => c.json({ denied: true }, 401));
-    app.get("/things/:id", respondOk);
-    app.get("/blocked/:id", respondOk);
-
-    await app.request("/things/7");
-    const blockedResponse = await app.request("/blocked/7");
-    expect(blockedResponse.status).toBe(401);
-    expect(results).toEqual([
-      { route: "/things/:id" },
-      { route: "/blocked/:id" },
-    ]);
-  });
-
-  it("reports no match for unmatched requests, including requests matched only by middleware", async () => {
-    const { app, results } = createObservedApp();
-    app.use("/guarded/*", async (_c, next) => {
-      await next();
-    });
-    app.get("/known", respondOk);
-
-    await app.request("/unknown");
-    await app.request("/guarded/anything");
-    expect(results).toEqual([{}, {}]);
-  });
-
-  it("enumerates registered routes for the startup paths, filtering middleware entries and duplicates", () => {
-    const app = new Hono();
-    app.use(async (_c, next) => {
-      await next();
-    });
+  it("enumerates registered route templates at startup", () => {
+    const { app } = createRouteFixture();
     app.get("/items/:id", respondOk);
     app.get("/items/:id", respondOk);
     app.post("/items", respondOk);
-    const subApp = new Hono();
-    subApp.get("/deep", respondOk);
-    app.route("/api", subApp);
+    const child = new Hono();
+    child.get("/deep", respondOk);
+    app.route("/api", child);
 
     expect(resolveStartupPaths(app)).toEqual([
       { method: "GET", path: "/items/:id" },
       { method: "POST", path: "/items" },
       { method: "GET", path: "/api/deep" },
     ]);
+  });
+
+  it("resolves route templates with nested mount prefixes", async () => {
+    const fixture = createRouteFixture();
+    const grandchild = new Hono();
+    grandchild.get("/deep/:x", respondOk);
+    const child = new Hono();
+    child.get("/items/:id", respondOk);
+    child.route("/nested/:nid", grandchild);
+    fixture.app.route("/api", child);
+
+    const routeResults = await driveAndResolveRoutes(fixture, [
+      "/api/items/42",
+      "/api/nested/9/deep/1",
+    ]);
+    expect(routeResults).toEqual([
+      { route: "/api/items/:id" },
+      { route: "/api/nested/:nid/deep/:x" },
+    ]);
+  });
+
+  it("resolves route handler templates instead of middleware paths", async () => {
+    const fixture = createRouteFixture();
+    fixture.app.use("/things/*", async (_context, next) => {
+      await next();
+    });
+    fixture.app.use("/blocked/*", async (context, _next) =>
+      context.json({ denied: true }, 401),
+    );
+    fixture.app.get("/things/:id", respondOk);
+    fixture.app.get("/blocked/:id", respondOk);
+
+    const thingsResponse = await fixture.app.request("/things/7");
+    await thingsResponse.arrayBuffer();
+    const blockedResponse = await fixture.app.request("/blocked/7");
+    await blockedResponse.arrayBuffer();
+    expect(blockedResponse.status).toBe(401);
+    expect(fixture.routeResults).toEqual([
+      { route: "/things/:id" },
+      { route: "/blocked/:id" },
+    ]);
+  });
+
+  it("reports no match for unmatched and middleware-only requests", async () => {
+    const fixture = createRouteFixture();
+    fixture.app.use("/guarded/*", async (_context, next) => {
+      await next();
+    });
+    fixture.app.get("/known", respondOk);
+
+    const routeResults = await driveAndResolveRoutes(fixture, [
+      "/unknown",
+      "/guarded/anything",
+    ]);
+    expect(routeResults).toEqual([{}, {}]);
   });
 });

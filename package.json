@@ -136,7 +136,6 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.4",
-    "@hono/node-server": "^2.0.11",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/instrumentation-http": "^0.220.0",
     "@opentelemetry/sdk-node": "^0.220.0",

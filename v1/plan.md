@@ -184,7 +184,6 @@ tests/
   hono/                 U14
     app.ts
     hono.test.ts
-    nodeServer.test.ts  real-socket smoke via @hono/node-server
     routes.test.ts
 ```
 
@@ -471,8 +470,8 @@ tests/
 - **Goal:** the second adapter, proving the shared core against a fetch-based framework; the `./hono` exports-map entry lands here.
 - **Requirements:** R2, R3, R5, R7.
 - **Dependencies:** U12.
-- **Files:** `src/hono/index.ts`, `src/hono/middleware.ts`, `src/hono/routes.ts` (ported from v0 `hono/utils.ts`; mount-prefix handling for `app.route()` sub-apps), `tests/hono/app.ts`, `tests/hono/hono.test.ts`, `tests/hono/nodeServer.test.ts` (real-socket smoke via `@hono/node-server` devDependency), `tests/hono/routes.test.ts`, `package.json` exports edit.
-- **Approach:** per design-js §8: `useApitally` wraps `app.fetch` (span, fresh context, response observation — `onError`-synthesized responses return through it) and registers a thin inner middleware that records the matched route (template + match state, via the `hono/route` helpers with handler-arity discrimination) onto the per-request record after `next()`; the ordering contract is `useApitally` immediately after app creation, with a once-per-process setup warning when `app.routes` is already non-empty. The `onError` handler is wrapped through the runtime-accessible `errorHandler` property (duck-typed, defensively) on the first request — after `route()` mounting and any user `onError` registration (design-js §8); 404-ness derives from route-match state plus response status. Request bodies are captured passively by inspecting Hono's body cache (byte-faithful entries only, rejection-handled, never calling body methods — design-js §7); response bodies via the ported `captureResponse` teeing helper. Integration drives the same canonical scenario set as U13 via `app.request()`, identical `it` strings and order. A real-socket smoke binds the same uniform app to `@hono/node-server` — `app.request()` constructs requests in-process, so socket-driven stream consumption, abort, and streaming finalization (the transport-completion paths) only exist over a real connection on Node.
+- **Files:** `src/hono/index.ts`, `src/hono/middleware.ts`, `src/hono/routes.ts` (ported from v0 `hono/utils.ts`; mount-prefix handling for `app.route()` sub-apps), `tests/hono/app.ts`, `tests/hono/hono.test.ts`, `tests/hono/routes.test.ts`, `package.json` exports edit.
+- **Approach:** per design-js §8: `useApitally` wraps `app.fetch` (span, fresh context, response observation — `onError`-synthesized responses return through it) and registers a thin inner middleware that records the matched route (template + match state, via the `hono/route` helpers with handler-arity discrimination) onto the per-request record after `next()`; the ordering contract is `useApitally` immediately after app creation, with a once-per-process setup warning when `app.routes` is already non-empty. The `onError` handler is wrapped through the runtime-accessible `errorHandler` property (duck-typed, defensively) on the first request — after `route()` mounting and any user `onError` registration (design-js §8); 404-ness derives from route-match state plus response status. Request bodies are captured passively by inspecting Hono's body cache (byte-faithful entries only, rejection-handled, never calling body methods — design-js §7); response bodies via the ported `captureResponse` teeing helper. Integration drives the same canonical scenario set as U13 via `app.request()`, identical `it` strings and order.
 - **Test scenarios:** the canonical cross-framework set from U13 (same names, same order, minus the scenarios marked U13-only), plus:
   - a wrapped `onError` handler still runs and the exception event is recorded, including when the user registered it after `useApitally` (design-js §8 — lazy first-request wrap)
   - a route registered before `useApitally` triggers a once-per-process setup warning naming the ordering fix, and its requests export a cleared route skipped by the histograms (design-js §8 — JS-only; U14-only — the Hono ordering contract and its `app.routes` setup detection)
@@ -480,7 +479,6 @@ tests/
   - unmatched requests derive 404-ness from route-match state plus status, including a custom `notFound` response (design-js §8 — JS-only)
   - `app.route()` sub-app routes carry mount prefixes in templates (design §8; v0 parity in `routes.test.ts`)
   - with `hono/compress` active, the captured response body is the compressed wire bytes the tee observed (design-js §7 — JS-only)
-  - over a real socket (`@hono/node-server`): a streamed response completes transport at the last byte and exports with correct sizes, and a client abort mid-stream releases the request with the partial body suppressed, never exported (design §7; design-js §6 — JS-only, U14-only)
 - **Verification:** integration suite green on Node via `app.request()`.
 
 ### U15. Root entry
