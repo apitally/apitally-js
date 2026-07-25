@@ -117,6 +117,18 @@ export function configureAndActivate(
   return handles;
 }
 
+export function spyOnSuccessfulFetch() {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async () => new Response(null, { status: 200 }));
+}
+
+export function readFetchPaths(
+  fetchSpy: ReturnType<typeof spyOnSuccessfulFetch>,
+): string[] {
+  return fetchSpy.mock.calls.map(([url]) => new URL(String(url)).pathname);
+}
+
 // Binds a request listener to a listening server for the duration of fn.
 export async function withServer(
   listener: (req: IncomingMessage, res: ServerResponse) => void,

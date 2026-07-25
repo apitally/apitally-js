@@ -16,16 +16,16 @@ import compression from "compression";
 import express, { type Express } from "express";
 import express4 from "express4";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/express/index.js";
-import { StubOtlpServer } from "../stubOtlpServer.js";
 import {
   captureStderr,
   configureAndActivate,
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
   readActivationSpans,
+  readFetchPaths,
   readSerializedSpans,
   requireActivationHandles,
   WRITE_TOKEN,
@@ -514,19 +514,37 @@ describe("express adapter", () => {
   });
 
   it("flushes buffered telemetry when the server closes", async () => {
-    const stub = await StubOtlpServer.start();
-    try {
-      process.env.APITALLY_OTLP_ENDPOINT = stub.url;
-      prepareFirstRequestActivation();
-      await request(server).get("/items/6").expect(200);
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-      });
-      await stub.waitForRequests(2);
-      expect(stub.paths().sort()).toEqual(["/v1/metrics", "/v1/traces"]);
-    } finally {
-      await stub.close();
-    }
+    let observeFetch = () => {};
+    const fetchObserved = new Promise<void>((resolve) => {
+      observeFetch = resolve;
+    });
+    let releaseFetch = (_response: Response) => {};
+    const heldResponse = new Promise<Response>((resolve) => {
+      releaseFetch = resolve;
+    });
+    let callCount = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      callCount += 1;
+      if (callCount === 1) {
+        observeFetch();
+        return heldResponse;
+      }
+      return Promise.resolve(new Response(null, { status: 200 }));
+    });
+    prepareFirstRequestActivation();
+    await request(server).get("/items/6").expect(200);
+    const worker = requireActivationHandles().worker;
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+    await fetchObserved;
+    const joinedCycle = worker.runCycle();
+    releaseFetch(new Response(null, { status: 200 }));
+    await joinedCycle;
+    expect(readFetchPaths(fetchSpy).sort()).toEqual([
+      "/v1/metrics",
+      "/v1/traces",
+    ]);
   });
 
   it("keeps exporting requests served by a second server after the first one closes", async () => {

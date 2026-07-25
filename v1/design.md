@@ -312,7 +312,7 @@ Binding for every SDK. Each repo's AGENTS.md carries the language-specific versi
 
 ### Testing
 
-Assertions run against OTel-side data: in-memory exporters and metric readers for shared modules, the framework's test client driving a small real app for integrations. Never replace Apitally's own classes or functions with test doubles. Doubles are acceptable only where the test would otherwise leave the process: a local stub OTLP server when the export transport itself is under test (headers, retry, spool interaction), fork where forking in a test is impractical.
+Assertions run against OTel-side data: in-memory exporters and metric readers for shared modules, the framework's test client driving a small real app for integrations. Never replace Apitally's own classes or functions with test doubles. Substitute only process boundaries: test HTTP policy and orchestration at the language's network-call seam, use a local HTTP server for focused physical transport coverage, and substitute fork where real forking is impractical.
 
 - One focused test module per shared source module, one integration module per framework. Test files are named after the module they test, never after scenarios. Shared fixtures and assertion helpers live in one place.
 - Every test needs an important reason to exist: it pins a spec MUST, a settled design decision, or a behavior a plausible change would silently break. Tests that restate the implementation, or assert theoretical edge cases no real deployment hits, do not get written. Do not multiply a scenario into parameter variants.

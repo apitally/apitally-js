@@ -1,11 +1,12 @@
 import { mkdtemp, rm } from "node:fs/promises";
-import { createServer as createNetServer } from "node:net";
+import type { IncomingHttpHeaders } from "node:http";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { context } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ExportWorker,
   type ExportWorkerOptions,
@@ -15,14 +16,20 @@ import {
   MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS,
   Spool,
 } from "../../src/spool.js";
-import { StubOtlpServer } from "../stubOtlpServer.js";
 import {
   captureStderr,
   enableAsyncContextManager,
+  readFetchPaths,
   readPackageVersion,
+  spyOnSuccessfulFetch,
   WRITE_TOKEN,
+  withServer,
 } from "../utils.js";
 
+const undici = createRequire(import.meta.url)(
+  "undici",
+) as typeof import("undici");
+const TEST_ENDPOINT = "https://otlp.example";
 const TRACE_PAYLOAD_ITEMS = Buffer.from("trace-items");
 const TRACE_PAYLOAD_A = Buffer.from("trace-a");
 const TRACE_PAYLOAD_B = Buffer.from("trace-b");
@@ -34,32 +41,26 @@ const LOGS_PAYLOAD_HAPPENED = Buffer.from("logs-happened");
 const LOGS_PAYLOAD_FRESH = Buffer.from("logs-fresh");
 const METRICS_PAYLOAD_THINGS = Buffer.from("metrics-things");
 
-function findUnusedPort(): Promise<number> {
-  return new Promise((resolve) => {
-    const probe = createNetServer();
-    probe.listen(0, "127.0.0.1", () => {
-      const { port } = probe.address() as { port: number };
-      probe.close(() => resolve(port));
-    });
-  });
+interface ReceivedRequest {
+  path: string;
+  method?: string;
+  headers: IncomingHttpHeaders;
+  body: Buffer;
 }
 
 describe("exportWorker", () => {
   let tempDir: string;
   let spool: Spool;
-  let server: StubOtlpServer;
   let worker: ExportWorker | undefined;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "apitally-test-"));
     spool = new Spool(tempDir);
-    server = await StubOtlpServer.start();
   });
 
   afterEach(async () => {
     await worker?.stop();
     worker = undefined;
-    await server.close();
     await spool.clear();
     await rm(tempDir, { recursive: true, force: true });
   });
@@ -69,7 +70,7 @@ describe("exportWorker", () => {
   ): ExportWorker {
     worker = new ExportWorker({
       spool,
-      otlpEndpoint: server.url,
+      otlpEndpoint: TEST_ENDPOINT,
       writeToken: WRITE_TOKEN,
       env: "dev",
       requestTimeoutMillis: 2_000,
@@ -90,22 +91,71 @@ describe("exportWorker", () => {
     return payloads;
   }
 
-  it("posts all three signals with export headers in one cycle", async () => {
+  it("constructs the export request with the stored gzip bytes", async () => {
+    const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
-    await spool.append("logs", LOGS_PAYLOAD_HAPPENED);
-    await spool.append("metrics", METRICS_PAYLOAD_THINGS);
     await worker.runCycle();
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${TEST_ENDPOINT}/v1/traces`);
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers)).toEqual(
+      new Headers({
+        Authorization: `Bearer ${WRITE_TOKEN}`,
+        "Apitally-Env": "dev",
+        "Content-Type": "application/x-protobuf",
+        "Content-Encoding": "gzip",
+        "User-Agent": `apitally-js/${readPackageVersion()}`,
+      }),
+    );
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(gunzipSync(init?.body as Buffer)).toEqual(TRACE_PAYLOAD_ITEMS);
+    expect(spool.pendingFiles()).toEqual([]);
+  });
+
+  it("posts all three signals with export headers in one cycle", async () => {
+    const requests: ReceivedRequest[] = [];
+    await withServer(
+      (request, response) => {
+        const chunks: Buffer[] = [];
+        request.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+        request.on("end", () => {
+          requests.push({
+            path: request.url ?? "",
+            method: request.method,
+            headers: request.headers,
+            body: Buffer.concat(chunks),
+          });
+          response.writeHead(200);
+          response.end();
+        });
+      },
+      async (_server, baseUrl) => {
+        const worker = createWorker({ otlpEndpoint: baseUrl });
+        await spool.append("traces", TRACE_PAYLOAD_ITEMS);
+        await spool.append("logs", LOGS_PAYLOAD_HAPPENED);
+        await spool.append("metrics", METRICS_PAYLOAD_THINGS);
+        await worker.runCycle();
+      },
+    );
+
+    expect(requests.map((request) => request.path)).toEqual([
+      "/v1/traces",
+      "/v1/logs",
+      "/v1/metrics",
+    ]);
     const version = readPackageVersion();
-    for (const request of server.requests) {
+    for (const request of requests) {
+      expect(request.method).toBe("POST");
       expect(request.headers.authorization).toBe(`Bearer ${WRITE_TOKEN}`);
       expect(request.headers["apitally-env"]).toBe("dev");
       expect(request.headers["content-type"]).toBe("application/x-protobuf");
       expect(request.headers["content-encoding"]).toBe("gzip");
       expect(request.headers["user-agent"]).toBe(`apitally-js/${version}`);
     }
-    const [traceRequest, logsRequest, metricsRequest] = server.requests;
+    const [traceRequest, logsRequest, metricsRequest] = requests;
     expect(gunzipSync(traceRequest.body)).toEqual(TRACE_PAYLOAD_ITEMS);
     expect(gunzipSync(logsRequest.body)).toEqual(LOGS_PAYLOAD_HAPPENED);
     expect(gunzipSync(metricsRequest.body)).toEqual(METRICS_PAYLOAD_THINGS);
@@ -113,60 +163,90 @@ describe("exportWorker", () => {
   });
 
   it("exports on its own timer shortly after start", async () => {
-    const worker = createWorker({ initialExportDelayMillis: 1 });
+    let observeFetch = () => {};
+    const fetchObserved = new Promise<void>((resolve) => {
+      observeFetch = resolve;
+    });
+    let releaseFetch = (_response: Response) => {};
+    const heldResponse = new Promise<Response>((resolve) => {
+      releaseFetch = resolve;
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(() => {
+        observeFetch();
+        return heldResponse;
+      });
+    const worker = createWorker({ initialExportDelayMillis: 0 });
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     worker.start();
-    await server.waitForRequests(1);
-    expect(server.paths()).toEqual(["/v1/traces"]);
+    await fetchObserved;
+    const joinedCycle = worker.runCycle();
+    releaseFetch(new Response(null, { status: 200 }));
+    await joinedCycle;
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces"]);
   });
 
   it("retries a failed send next cycle with a byte-identical payload", async () => {
     const statuses = [503];
-    server.respond = () => ({ status: statuses.shift() ?? 200 });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(null, {
+          status: statuses.shift() ?? 200,
+        }),
+    );
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
     expect(spool.pendingFiles()).toHaveLength(1);
     await worker.runCycle();
     expect(spool.pendingFiles()).toEqual([]);
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/traces"]);
-    const [first, second] = server.requests;
-    expect(first.body.equals(second.body)).toBe(true);
-    expect(gunzipSync(first.body)).toEqual(TRACE_PAYLOAD_ITEMS);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/traces"]);
+    const firstBody = fetchSpy.mock.calls[0][1]?.body as Buffer;
+    const secondBody = fetchSpy.mock.calls[1][1]?.body as Buffer;
+    expect(firstBody.equals(secondBody)).toBe(true);
+    expect(gunzipSync(firstBody)).toEqual(TRACE_PAYLOAD_ITEMS);
   });
 
   it("sends one probe per cycle during an outage and delivers data byte-identically after recovery", async () => {
-    let failing = true;
-    server.respond = () => ({ status: failing ? 503 : 200 });
+    let isFailing = true;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(
+        async () => new Response(null, { status: isFailing ? 503 : 200 }),
+      );
     const worker = createWorker();
     const payloads = [TRACE_PAYLOAD_A, TRACE_PAYLOAD_B, TRACE_PAYLOAD_C];
     for (const payload of payloads) {
       await spool.append("traces", payload);
       await worker.runCycle();
     }
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/traces", "/v1/traces"]);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
     expect(spool.pendingFiles()).toHaveLength(1);
-    const probeBodies = server.requests.map((request) => request.body);
+    const probeBodies = fetchSpy.mock.calls.map(
+      ([, init]) => init?.body as Buffer,
+    );
     expect(probeBodies[1].equals(probeBodies[0])).toBe(true);
     expect(probeBodies[2].equals(probeBodies[0])).toBe(true);
-    failing = false;
+    isFailing = false;
     await worker.runCycle();
     await worker.runCycle();
     expect(spool.pendingFiles()).toEqual([]);
-    const delivered = server.requests.slice(3);
-    expect(delivered[0].body.equals(probeBodies[0])).toBe(true);
-    const expectedConcatenated = Buffer.concat(payloads);
-    const deliveredConcatenated = Buffer.concat(
-      delivered.map((request) => gunzipSync(request.body)),
-    );
-    expect(deliveredConcatenated).toEqual(expectedConcatenated);
+    const deliveredBodies = fetchSpy.mock.calls
+      .slice(3)
+      .map(([, init]) => init?.body as Buffer);
+    expect(deliveredBodies[0].equals(probeBodies[0])).toBe(true);
+    expect(
+      Buffer.concat(deliveredBodies.map((body) => gunzipSync(body))),
+    ).toEqual(Buffer.concat(payloads));
   });
 
   it("sends at most ten files per regular cycle", async () => {
+    const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
     await appendClosedTraceFiles(MAX_SENDS_PER_CYCLE + 2);
     await worker.runCycle();
-    expect(server.requests).toHaveLength(MAX_SENDS_PER_CYCLE);
+    expect(fetchSpy).toHaveBeenCalledTimes(MAX_SENDS_PER_CYCLE);
     expect(spool.pendingFiles()).toHaveLength(2);
   });
 
@@ -177,10 +257,13 @@ describe("exportWorker", () => {
   ])(
     "adjusts the export interval to $expectedMillis ms when the response header is $value",
     async ({ value, expectedMillis }) => {
-      server.respond = () => ({
-        status: 200,
-        headers: { "Apitally-Export-Interval": value },
-      });
+      vi.spyOn(globalThis, "fetch").mockImplementation(
+        async () =>
+          new Response(null, {
+            status: 200,
+            headers: { "Apitally-Export-Interval": value },
+          }),
+      );
       const worker = createWorker();
       await spool.append("traces", TRACE_PAYLOAD_ITEMS);
       await worker.runCycle();
@@ -189,10 +272,13 @@ describe("exportWorker", () => {
   );
 
   it("ignores a non-integer export interval header", async () => {
-    server.respond = () => ({
-      status: 200,
-      headers: { "Apitally-Export-Interval": "soon" },
-    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(null, {
+          status: 200,
+          headers: { "Apitally-Export-Interval": "soon" },
+        }),
+    );
     const worker = createWorker();
     const intervalBefore = worker.intervalMillis;
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
@@ -201,24 +287,33 @@ describe("exportWorker", () => {
   });
 
   it("coalesces a flush requested mid-cycle with the running cycle so no file posts twice", async () => {
-    let release = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
+    let observeFetch = () => {};
+    const fetchObserved = new Promise<void>((resolve) => {
+      observeFetch = resolve;
     });
-    server.respond = async () => {
-      await gate;
-      return { status: 200 };
-    };
+    let releaseFetch = (_response: Response) => {};
+    const heldResponse = new Promise<Response>((resolve) => {
+      releaseFetch = resolve;
+    });
+    let callCount = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      callCount += 1;
+      if (callCount === 1) {
+        observeFetch();
+        return heldResponse;
+      }
+      return Promise.resolve(new Response(null, { status: 200 }));
+    });
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await spool.append("logs", LOGS_PAYLOAD_HELLO);
     const runningCycle = worker.runCycle();
-    await server.waitForRequests(1);
+    await fetchObserved;
     const flush = worker.runCycle();
-    release();
+    releaseFetch(new Response(null, { status: 200 }));
     await runningCycle;
     await flush;
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/logs"]);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/logs"]);
     expect(spool.pendingFiles()).toEqual([]);
   });
 
@@ -235,32 +330,38 @@ describe("exportWorker", () => {
     expect(isTracingSuppressed(context.active())).toBe(false);
   });
 
-  it("routes the export POST through the proxy when HTTP_PROXY is set", async () => {
-    const proxy = await StubOtlpServer.start();
-    try {
-      process.env.HTTP_PROXY = proxy.url;
-      const worker = createWorker();
-      await spool.append("traces", TRACE_PAYLOAD_ITEMS);
-      await worker.runCycle();
-      expect(server.paths()).toEqual(["/v1/traces"]);
-      expect(proxy.connectTargets).toEqual([`127.0.0.1:${server.port}`]);
-      expect(gunzipSync(server.requests[0].body)).toEqual(TRACE_PAYLOAD_ITEMS);
-      expect(spool.pendingFiles()).toEqual([]);
-    } finally {
-      await proxy.close();
-    }
+  it("uses an environment proxy agent when HTTP_PROXY is set", async () => {
+    process.env.HTTP_PROXY = "http://proxy.example:8080";
+    const fetchSpy = vi
+      .spyOn(undici, "fetch")
+      .mockImplementation(
+        async () => new undici.Response(null, { status: 200 }),
+      );
+    const worker = createWorker();
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
+    await worker.runCycle();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${TEST_ENDPOINT}/v1/traces`);
+    expect(gunzipSync(init?.body as Buffer)).toEqual(TRACE_PAYLOAD_ITEMS);
+    expect(init?.dispatcher).toBeInstanceOf(undici.EnvHttpProxyAgent);
+    expect(spool.pendingFiles()).toEqual([]);
   });
 
   it("drops a permanently rejected file with one warning per status while the cycle continues", async () => {
-    server.respond = (path) => ({
-      status: path === "/v1/traces" ? 402 : 200,
-    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (url) =>
+        new Response(null, {
+          status: String(url).endsWith("/v1/traces") ? 402 : 200,
+        }),
+    );
     const worker = createWorker();
     const lines = captureStderr();
     await spool.append("traces", TRACE_PAYLOAD_A);
     await spool.append("logs", LOGS_PAYLOAD_HELLO);
     await worker.runCycle();
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/logs"]);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/logs"]);
     expect(spool.pendingFiles()).toEqual([]);
     await spool.append("traces", TRACE_PAYLOAD_B);
     await worker.runCycle();
@@ -272,59 +373,67 @@ describe("exportWorker", () => {
   it.each([{ status: 408 }, { status: 429 }, { status: 500 }, { status: 503 }])(
     "keeps the file queued for the next cycle when the server responds $status",
     async ({ status }) => {
-      server.respond = () => ({ status });
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () => new Response(null, { status }));
       const worker = createWorker();
       const lines = captureStderr();
       await spool.append("traces", TRACE_PAYLOAD_ITEMS);
       await worker.runCycle();
-      expect(server.paths()).toEqual(["/v1/traces"]);
+      expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces"]);
       expect(spool.pendingFiles()).toHaveLength(1);
       expect(lines).toEqual([]);
     },
   );
 
-  it("keeps files queued and ends the cycle on a connection error", async () => {
-    const unusedPort = await findUnusedPort();
-    const worker = createWorker({
-      otlpEndpoint: `http://127.0.0.1:${unusedPort}`,
-    });
+  it("retries a connection error once, keeps the queue, and ends the cycle", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new TypeError("fetch failed"));
+    const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_A);
     await spool.rotateForExport();
     await spool.append("logs", LOGS_PAYLOAD_HELLO);
     await worker.runCycle();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/traces"]);
+    const firstBody = fetchSpy.mock.calls[0][1]?.body as Buffer;
+    const secondBody = fetchSpy.mock.calls[1][1]?.body as Buffer;
+    expect(firstBody.equals(secondBody)).toBe(true);
     const files = spool.pendingFiles();
     expect(files.map((file) => file.signal)).toEqual(["traces", "logs"]);
     expect(files[0].firstAttemptAtMillis).toBeDefined();
     expect(files[1].firstAttemptAtMillis).toBeUndefined();
   });
 
-  it("re-posts immediately once when a connection error interrupts a send", async () => {
-    let destroyed = false;
-    server.respond = () => {
-      if (!destroyed) {
-        destroyed = true;
-        return { status: 200, destroySocket: true };
-      }
-      return { status: 200 };
-    };
-    const worker = createWorker();
+  it("aborts a timed-out POST without an immediate retry", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error("Expected request signal"));
+            return;
+          }
+          if (signal.aborted) {
+            reject(signal.reason);
+            return;
+          }
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        }),
+    );
+    const worker = createWorker({ requestTimeoutMillis: 10 });
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/traces"]);
-    expect(server.requests[0].body.equals(server.requests[1].body)).toBe(true);
-    expect(spool.pendingFiles()).toEqual([]);
-  });
-
-  it("aborts a hung POST at the configured timeout without an immediate re-post", async () => {
-    server.respond = () => ({ status: 200, hang: true });
-    const worker = createWorker({ requestTimeoutMillis: 50 });
-    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
-    await worker.runCycle();
-    expect(server.paths()).toEqual(["/v1/traces"]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(spool.pendingFiles()).toHaveLength(1);
   });
 
   it("drops an expired file at the final drain while a never-attempted file still delivers", async () => {
+    const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_OLD);
     await spool.append("logs", LOGS_PAYLOAD_FRESH);
@@ -336,13 +445,14 @@ describe("exportWorker", () => {
       performance.now() - MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS - 1;
     const lines = captureStderr();
     await worker.finalDrain();
-    expect(server.paths()).toEqual(["/v1/logs"]);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/logs"]);
     expect(spool.pendingFiles()).toEqual([]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("traces");
   });
 
   it("delivers every pending and current file in one final drain", async () => {
+    const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
     const expectedPayloads = await appendClosedTraceFiles(
       MAX_SENDS_PER_CYCLE + 2,
@@ -350,13 +460,12 @@ describe("exportWorker", () => {
     await spool.append("traces", TRACE_PAYLOAD_LAST);
     expectedPayloads.push(TRACE_PAYLOAD_LAST);
     await worker.finalDrain();
-    expect(server.paths()).toEqual(
+    expect(readFetchPaths(fetchSpy)).toEqual(
       Array(expectedPayloads.length).fill("/v1/traces"),
     );
     expect(spool.pendingFiles()).toEqual([]);
-    const deliveredPayloads = server.requests.map((request) =>
-      gunzipSync(request.body),
-    );
-    expect(deliveredPayloads).toEqual(expectedPayloads);
+    expect(
+      fetchSpy.mock.calls.map(([, init]) => gunzipSync(init?.body as Buffer)),
+    ).toEqual(expectedPayloads);
   });
 });

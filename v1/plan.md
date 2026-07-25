@@ -78,7 +78,7 @@ Design-level decisions live in `design-js.md` (D1-D8) and are not restated here.
 - KTD4. **Test conventions** (aligned decisions, recorded in design-js §16, enforced via `AGENTS.md`): two-tier layout; independent per-framework files with a cross-framework naming and ordering contract plus shared helpers; subject-predicate naming; lifecycle-arc ordering; contract-derived scenario selection with authority citations (Python suite mined as evidence, not authority); deterministic seams only; exact-by-default assertions.
 - KTD5. **Port over rewrite.** Battle-tested v0 code is ported wherever shapes match; new code is written only where v1 semantics diverge (per-unit Files lists name the source).
 - KTD6. **Spikes before code.** The design-js spikes (2-8; spike 1 was removed with D1's internals attach) are RESOLVED — run 2026-07-21, ahead of U1, as throwaway scripts against the latest stable versions. Full reports live in `v1/spikes.md`; the design-js spike section carries the dated outcomes and the resulting design edits are applied. U1 pins the exact verified versions, and dependency versions stay frozen through U16.
-- KTD7. **Test suite as deliverable.** The suite is part of the product, not a byproduct of unit-by-unit verification. Coverage ownership: every behavior is asserted in exactly one home — the lowest layer that can observe it. `tests/shared/` owns core semantics; framework suites own adapter behavior, wiring, and the canonical cross-framework set, and never re-derive shared-core semantics beyond that set (the canonical set is the only sanctioned duplication — the same contract proven per framework; membership criterion: a scenario stated purely at the public surface — request in, exported telemetry out — whose integration failure while the module suites stay green would indicate an adapter or wiring defect). Two tests citing the same authority clause outside the canonical set is a defect. Helpers stay consolidated: one pipeline builder, one activation driver, one stub-server harness — extending an existing helper always beats adding a sibling. Enforced per commit via `AGENTS.md` and holistically at two audit gates (U12: shared suite; U16: full suite) with a shared acceptance bar — the suite reads as if designed in one sitting, no unit seams showing: no helper duplicating an existing helper's job, no naming or ordering drift between modules landed in different units, no behavior asserted twice because two units each wanted local proof.
+- KTD7. **Test suite as deliverable.** The suite is part of the product, not a byproduct of unit-by-unit verification. Coverage ownership: every behavior is asserted in exactly one home — the lowest layer that can observe it. `tests/shared/` owns core semantics; framework suites own adapter behavior, wiring, and the canonical cross-framework set, and never re-derive shared-core semantics beyond that set (the canonical set is the only sanctioned duplication — the same contract proven per framework; membership criterion: a scenario stated purely at the public surface — request in, exported telemetry out — whose integration failure while the module suites stay green would indicate an adapter or wiring defect). Two tests citing the same authority clause outside the canonical set is a defect. Helpers stay consolidated: one pipeline builder, one activation driver, and one shared local-server helper — extending an existing helper always beats adding a sibling. Enforced per commit via `AGENTS.md` and holistically at two audit gates (U12: shared suite; U16: full suite) with a shared acceptance bar — the suite reads as if designed in one sitting, no unit seams showing: no helper duplicating an existing helper's job, no naming or ordering drift between modules landed in different units, no behavior asserted twice because two units each wanted local proof.
 - KTD8. **Code, naming, and comment rules** (digest of design §16; the JS derivation lands in `AGENTS.md`, modeled on the py `AGENTS.md`). Code: the least code that gets the job done, in modern idiomatic TypeScript within the Node >= 20.6.0 floor; modules read top-down (public entry points first, helpers after); no single-use helpers unless extraction meaningfully improves call-site readability; static imports at the top — optional peers resolve via synchronous `createRequire`, never static imports or dynamic `import()` (activation is synchronous); no unhandled rejections — async entry points (timer callbacks, event listeners, fire-and-forget sends) attach rejection handling; privacy by not exporting, no underscore prefixes. Naming: plain precise English, no invented shorthand or metaphors — a term qualifies only by referring to an actual thing in the codebase or its dependencies; a longer clear name over a compact clever one; vague verbs take an object or a from/to; boolean predicates read as questions (`is`/`should`/`has`); a name states what the function actually does including its outcome (`warnIfSamplerDropsSpans`, not `checkSampler`); one concept, one name across modules. Comments: sparse (one or two lines), stating only what the code cannot — a constraint, an external system's behavior, the reason for a choice — WHY, never WHAT; real component names, never metaphors; no historical references — nothing about v0, "previously", or "ported from", even though this plan's Files lists carry porting provenance; no references to the temporary `v1/` planning artifacts — no spec/design section numbers, D-numbers, unit or KTD numbers anywhere in code or tests (those docs are deleted before release; a comment that needs a rationale states the rationale itself). Testing: a test may only fail when user-observable behavior regresses against a spec or design contract — never pin documented gaps, internal mechanisms, or constants (decisions without a user-observable failure mode are enforced in review, not tests); test only the SDK's own code — never pin what OTel or a framework does on its own; do not multiply a scenario into parameter variants (`it.each` is for genuine input tables); integration tests read responses to completion before asserting on exports; only full `npm run check` / `npm test` output counts as green.
 
 ### Unit dependency graph
@@ -166,7 +166,6 @@ src/
 tests/
   setup.ts              U3   global teardown-based isolation
   utils.ts              U3   pipeline builders, configureAndActivate, exporter patches
-  stubOtlpServer.ts     U5   test infrastructure, not a test file
   index.test.ts         U15  root dispatch (src/index.ts is not a shared module)
   dist.test.ts          U15  dist smoke + process liveness (spawns distApp.mjs)
   distApp.mjs           U15  child fixture: plain JS, loads the package by
@@ -180,7 +179,7 @@ tests/
     tracing.test.ts     activation.test.ts
   express/              U13
     app.ts              uniform app fixture
-    express.test.ts     integration: canonical set + full-chain smoke
+    express.test.ts     integration: canonical set + shutdown wiring
     routes.test.ts      route reconstruction units
   hono/                 U14
     app.ts
@@ -191,7 +190,7 @@ tests/
 
 ### Sources
 
-- Python suite structure and fixture model: `../apitally-py/tests/conftest.py` (autouse teardown resets, in-memory `exporters` fixture, `StubOTLPServer`), test philosophy in `../apitally-py/AGENTS.md`.
+- Python suite structure and fixture model: `../apitally-py/tests/conftest.py` (autouse teardown resets, in-memory exporters, focused local HTTP transport fixture), test philosophy in `../apitally-py/AGENTS.md`.
 - v0 suite weaknesses motivating the determinism rules: wall-clock sleeps (600-1200ms) awaiting startup, `setImmediate` ordering waits, positional spy-arg assertions.
 - Exponential histogram scale bounds accepted by ingest: [-2, 6] (`apitally_cloud/ingester/otlp_metrics.py` in the cloud repo); JS `sdk-metrics` exposes no scale knob, hence the downscale in U9.
 
@@ -205,7 +204,7 @@ tests/
 | U2 | Verification spikes — COMPLETE | 1a | `design-js.md` (spike outcomes), `v1/spikes.md` | — (ran ahead of U1) |
 | U3 | Foundation and test harness | 1b | `src/logger.ts`, `src/config.ts`, `src/context.ts`, `tests/setup.ts`, `tests/utils.ts` | U1, U2 |
 | U4 | Redaction and consumer | 1b | `src/redaction.ts`, `src/consumer.ts` | U3 |
-| U5 | Spool and export worker | 1b | `src/spool.ts`, `src/exportWorker.ts`, `tests/stubOtlpServer.ts` | U3 |
+| U5 | Spool and export worker | 1b | `src/spool.ts`, `src/exportWorker.ts`, `tests/shared/exportWorker.test.ts` | U3 |
 | U6 | Providers | 1b | `src/providers.ts` | U3 |
 | U7 | Span pipeline | 1b | `src/spanProcessor.ts`, `src/exporter.ts` | U4 |
 | U8 | Log pipeline and capture patches | 1b | `src/logPipeline.ts`, `src/logCapture.ts` | U7 |
@@ -270,10 +269,10 @@ tests/
 
 ### U5. Spool and export worker
 
-- **Goal:** the offline transport — spool files with caps/retention plus the send-cycle worker — and the stub OTLP server test infrastructure.
+- **Goal:** the offline transport — spool files with caps/retention plus the send-cycle worker.
 - **Requirements:** R1.
 - **Dependencies:** U3.
-- **Files:** `src/spool.ts` (ported from v0 `common/tempGzipFile.ts` mechanics; py `shared/spool.py` semantics), `src/exportWorker.ts` (ported from py `shared/export.py`; v0 `common/client.ts` fetch patterns), `tests/shared/spool.test.ts`, `tests/shared/exportWorker.test.ts`, `tests/stubOtlpServer.ts` (node:http, gzip protobuf capture, protobuf decoding via devDependency, scriptable responses including `Apitally-Export-Interval`; also serves as the stub proxy for the proxy scenario — undici's proxy agents always tunnel via HTTP CONNECT, even for plain-http targets (spike 6), so the stub proxy handles CONNECT and pipes the tunneled bytes).
+- **Files:** `src/spool.ts` (ported from v0 `common/tempGzipFile.ts` mechanics; py `shared/spool.py` semantics), `src/exportWorker.ts` (ported from py `shared/export.py`; v0 `common/client.ts` fetch patterns), `tests/shared/spool.test.ts`, `tests/shared/exportWorker.test.ts` (global fetch spies with real responses for request policy, the cached CommonJS Undici fetch object for proxy selection, and one direct HTTP smoke through `withServer`).
 - **Approach:** spool per design §10 with the design-js §10 refinements: per-signal `apitally-*.gz` files in `os.tmpdir()`, created with mode `0o600` and the exclusive-create flag (py `tempfile` parity), failing through the writability-probe/memory-fallback path; 4 MB uncompressed rotation checked before append with bounded sub-chunk appends (32-record count chunks, py parity — the accepted overshoot approximation per design-js §10); append/rotate/close/upload/delete/drain serialized on one per-signal operation queue — a file is uploadable only after its gzip and file streams close, appends resolve against a specific file generation, a stream error invalidates only the current generation; 50 MB disk / 10 MB memory caps with metrics-last eviction, 59-minute retention after first send attempt, 2-hour orphan cleanup, per-cycle mtime touch, synchronous writability probe with in-memory fallback. Worker per design §10: the send cycle is a directly callable method (KTD4 determinism seam) scheduled on one unref'd timer (15s ±10% jitter, first ~2s); cycles serialized — the next timer is armed only when the cycle completes, and a mid-cycle flush request awaits the running cycle (design-js §10); 10 files per cycle oldest-first, inter-send pauses (injectable like the POST timeout — zero in tests), 10s POST timeout via `AbortSignal.timeout` (injectable for tests), retry classification with a retryable failure ending the cycle and the file left queued (design-js §10 — the outage probe is this stop-on-failure rule), `Apitally-Export-Interval` clamping, cycles under `suppressTracing`, uncapped unpaced final drain; global `fetch` when no proxy variables are configured, otherwise undici `fetch` with `EnvHttpProxyAgent` as the per-request dispatcher, with proxy behavior validated and claimed on Node only.
 - **Test scenarios:** (spool tests run against both disk and memory backends, py parity)
   - rotation occurs at the 4 MB uncompressed threshold, checked before append (design §10)
@@ -283,14 +282,14 @@ tests/
   - an unwritable temp dir falls back to memory (design §10; py parity)
   - a write failure after a successful probe (stream error mid-append) discards the current file for that signal with a deduplicated warning and never crashes the process (design §10; design §12 never-break-the-app)
   - an export cycle posts all three signals in lockstep with correct headers (`Authorization`, `Apitally-Env`, `Content-Type`, `Content-Encoding`, `User-Agent`) (spec §2-§4; design §10; design-js §10)
-  - a failed send retries next cycle with byte-identical payload, protobuf-decoded (design §10; py parity)
+  - a failed send retries next cycle with a byte-identical stored gzip payload (design §10; py parity)
   - during an outage one probe per cycle is sent without unbounded file accumulation, and data is delivered byte-identical after recovery (design §10; py parity)
   - permanent 4xx drops the file with a once-per-status warning; 408/429/5xx/connection errors are retryable, with one immediate inline re-POST on connection error (design §10; spec §10 status table)
   - the `Apitally-Export-Interval` response header adjusts the interval, clamped to [5, 60] (design §10)
-  - a hung POST aborts at the injected timeout (design §10)
-  - with `HTTP_PROXY` set, the export POST reaches the endpoint through the proxy — a stub proxy observes the request (design §10; design-js §10 — JS-only, the `EnvHttpProxyAgent` dispatcher path)
+  - a POST rejected with its request signal's timeout reason stays queued without an immediate retry (design §10)
+  - with `HTTP_PROXY` set, package Undici fetch receives the export POST with an `EnvHttpProxyAgent` dispatcher (design §10; design-js §10 — JS-only)
   - a flush requested mid-cycle coalesces with the running cycle — no file is posted twice (design-js §10 — JS-only)
-- **Verification:** module suites green including the stub-server round-trips with decoded protobuf assertions.
+- **Verification:** module suites green, including one direct HTTP round-trip for all three signals.
 
 ### U6. Providers
 
@@ -372,7 +371,7 @@ tests/
 
 - **Goal:** request histograms, process gauges, the non-periodic reader, and the exponential-histogram downscale.
 - **Requirements:** R1.
-- **Dependencies:** U3, U5, U7 (U5's stub server carries the decoded-protobuf verification; U7's release machinery drives the recording scenarios).
+- **Dependencies:** U3, U5, U7 (U5's worker drives collection; U7's release machinery drives the recording scenarios).
 - **Files:** `src/metrics.ts` (ported from py `shared/metrics.py`; v0 `common/resources.ts` gauges), `tests/shared/metrics.test.ts`.
 - **Approach:** per design §11/spec §7: three request histograms under scope `apitally`, exponential buckets, delta temporality via reader selectors scoped to histogram instruments; recorded at transport completion from the per-request record, independent of span-end timing and sampling. Downscale exponential data points to scale <= 3 by power-of-two bucket-merge before serialization (ingest accepts [-2, 6]). Process gauges (`process.cpu.utilization`, `process.memory.usage`, `process.uptime`) as observable gauges on the private MeterProvider (D5), observed in the worker's collection cycle. The reader collects only when the worker calls it.
 - **Test scenarios:**
@@ -384,7 +383,7 @@ tests/
   - downscaling merges buckets correctly down to scale <= 3 on real data points (design-js §11 — JS-only; spike 5)
   - process gauges observe on collection with cpu utilization normalized across CPUs and RSS memory (spec §7.2; D5)
   - a collection cycle with zero request traffic still exports metrics — the process gauges observe unconditionally, carrying the liveness signal (spec §7.3)
-- **Verification:** module suite green; decoded-protobuf scale assertion rides U5's stub-server round-trip.
+- **Verification:** module suite green; serializer observation owns the exact scale assertion.
 
 ### U10. Startup event and capture helpers
 
@@ -430,7 +429,7 @@ tests/
   - the startup event is emitted during activation (spec §9)
   - undici instrumentation is enabled only on the SDK-owned-provider path; adopted setups leave client-span production to the user (D6 — JS-only)
   - configure sets the semconv opt-in env var, only when unset (design-js §3)
-  - `shutdown()` drains pending exports and is idempotent; `beforeExit` triggers the same drain (design §4; design-js §13 idempotency)
+  - `shutdown()` drains pending exports and is idempotent; `beforeExit` triggers the same drain, observed at global fetch (design §4; design-js §13 idempotency)
   - a second copy of the activation module (fresh module registry, same process) observes the existing activation through the `globalThis` slot instead of re-activating (design-js §4 — JS-only, dual-build safety)
   - `useApitally` called through a second module copy neither re-wraps the app nor re-patches the loggers — one SERVER span per request, one captured record per log call — and a version-skewed second copy warns once (design-js §4 — JS-only, dual-build safety)
 - **Verification:** module suite green; end-to-end wiring re-proven through U13/U14 integration tests; seam-interface drift reconciled (KTD2) — provisional interfaces from U5-U11 meet their real callers here, and any rework of earlier modules and their tests lands in this unit. Shared-suite audit gate (KTD7): with all core modules landed, read `tests/shared/` and `tests/utils.ts` end-to-end as one artifact — dedupe against the coverage-ownership rule, consolidate helpers, normalize naming and ordering; fixes land in this unit.
@@ -462,10 +461,9 @@ tests/
   - a consumer set in a handler reaches metrics dimensions (spec §7.1; design §13; py parity)
   - the first request activates the SDK; double `useApitally` is idempotent (design §4/§3; py parity)
   - `sampleRate: 0` drops spans but keeps metrics (design §11; py parity)
-  - closing the server triggers a flush cycle (design-js §4 — JS-only; U13-only — Hono's shutdown path is the public `shutdown()`, covered in U12)
+  - closing the server triggers a flush cycle observed at global fetch and joined deterministically (design-js §4 — JS-only; U13-only — Hono's shutdown path is the public `shutdown()`, covered in U12)
   - after one of two servers bound to the same app closes, requests served by the other still export (design-js §4 — JS-only; U13-only)
   - a request dispatched through `app.handle` without a live socket server serves and exports normally (design-js §4 — JS-only; U13-only — serverless-style invocation)
-  - full-chain assembly smoke (U13-only, outside the shared set): real `useApitally` and activation with the export endpoint pointed at the stub OTLP server; provider force-flush drains the batch processors (their ~1s schedule delay never enters the test), then one directly-driven worker cycle delivers spans, logs, and metrics through spool and POST, protobuf-decoded (design §10 — first end-to-end proof of the production assembly on Node)
 - **Verification:** integration suite green through the subpath `useApitally` with exact-count pipeline assertions; attw validates the subpath (the attw CI gate starts here, with the first exports-map entry).
 
 ### U14. Hono adapter

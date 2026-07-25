@@ -1,8 +1,11 @@
 # Agent guidance
 
+Status: This is a new agent-generated codebase, largely untested and unreviewed. We're in the process of cleaning it up.
+
 ## Checks
 
-- Verify changes with the npm scripts, never with hand-picked subsets of them: `npm run check` (Biome lint and format, tsc) and `npm test` (vitest). CI runs the same commands, so only their complete output counts as green.
+- Verify code changes with the npm scripts, never with hand-picked subsets of them: `npm run check` (Biome lint and format, tsc) and `npm test` (vitest). CI runs the same commands, so only their complete output counts as green.
+- For documentation-only changes, review the diff and run `git diff --check`; reserve the npm scripts for code, configuration, or test changes.
 
 ## Code style
 
@@ -42,7 +45,7 @@
 - A test may only fail when user-observable behavior regresses against a contract. Documented gaps, internal mechanisms, and constants are never pinned; decisions without a user-observable failure mode are enforced in review, not tests.
 - Every test needs an important reason to exist: it pins a spec requirement, a settled design decision, or a behavior a plausible change would silently break. Tests that restate the implementation, or assert theoretical edge cases no real deployment hits, do not get written.
 - Test only the SDK's own code. Never write tests that assert what OpenTelemetry or a framework does on its own; dependencies appear in tests only as the environment the SDK's behavior is observed in.
-- Never replace the SDK's own classes or functions with test doubles. Doubles are acceptable only where the test would otherwise leave the process (the stub OTLP server when the export transport itself is under test).
+- Never replace the SDK's own classes or functions with test doubles. Substitute only process boundaries: test HTTP policy at the fetch implementation production calls, and reserve a local server for focused physical transport coverage.
 - Prefer one integration test proving a flow end-to-end over several micro-tests asserting its intermediate steps.
 - Do not multiply a scenario into parameter variants; `it.each` is for genuine input tables.
 

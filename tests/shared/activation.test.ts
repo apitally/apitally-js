@@ -9,7 +9,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   activate,
   activationFactories,
@@ -21,27 +21,22 @@ import {
 } from "../../src/activation.js";
 import type { ApitallyOptions } from "../../src/config.js";
 import { getActiveSpanPipeline } from "../../src/spanProcessor.js";
-import { StubOtlpServer } from "../stubOtlpServer.js";
 import {
   captureStderr,
   clearTestRunnerMarkers,
   configureAndActivate,
   readActivationSpans,
+  readFetchPaths,
   readSerializedLogRecords,
   readSerializedSpans,
   runInsideRequest,
+  spyOnSuccessfulFetch,
   UNROUTABLE_ENDPOINT,
   WRITE_TOKEN,
+  withServer,
 } from "../utils.js";
 
 describe("activation", () => {
-  let server: StubOtlpServer | undefined;
-
-  afterEach(async () => {
-    await server?.close();
-    server = undefined;
-  });
-
   it("activates once across back-to-back activate calls and emits one startup event from the first registered app info", async () => {
     registerStartupEventInfo({
       framework: "express",
@@ -78,14 +73,18 @@ describe("activation", () => {
   });
 
   it("produces client spans for outgoing requests through its own pipeline when it set up the tracer provider", async () => {
-    server = await StubOtlpServer.start();
     const handles = configureAndActivate();
     const tracer = trace.getTracer("test");
-    await runInsideRequest(
-      { pipeline: handles.spanPipeline, tracer },
-      async () => {
-        const response = await fetch(`${server?.url}/external`);
-        await response.arrayBuffer();
+    await withServer(
+      (_request, response) => response.end(),
+      async (_server, baseUrl) => {
+        await runInsideRequest(
+          { pipeline: handles.spanPipeline, tracer },
+          async () => {
+            const response = await fetch(`${baseUrl}/external`);
+            await response.arrayBuffer();
+          },
+        );
       },
     );
 
@@ -97,7 +96,6 @@ describe("activation", () => {
   });
 
   it("leaves client span production to the user when attaching to an existing tracer provider", async () => {
-    server = await StubOtlpServer.start();
     captureStderr();
     const userExporter = new InMemorySpanExporter();
     trace.setGlobalTracerProvider(
@@ -106,8 +104,13 @@ describe("activation", () => {
       }),
     );
     configureAndActivate();
-    const response = await fetch(`${server.url}/external`);
-    await response.arrayBuffer();
+    await withServer(
+      (_request, response) => response.end(),
+      async (_server, baseUrl) => {
+        const response = await fetch(`${baseUrl}/external`);
+        await response.arrayBuffer();
+      },
+    );
 
     expect(userExporter.getFinishedSpans()).toHaveLength(0);
     const spans = await readActivationSpans();
@@ -192,8 +195,7 @@ describe("activation", () => {
   });
 
   it("shares one activation and shutdown with a second module copy through the process-global state", async () => {
-    server = await StubOtlpServer.start();
-    process.env.APITALLY_OTLP_ENDPOINT = server.url;
+    const fetchSpy = spyOnSuccessfulFetch();
     registerStartupEventInfo({ framework: "hono", resolvePaths: () => [] });
     const handles = configureAndActivate();
 
@@ -213,7 +215,7 @@ describe("activation", () => {
     expect(records[0].eventName).toBe("apitally.app.startup");
 
     await secondCopy.shutdown();
-    expect(server.paths()).toEqual(["/v1/logs", "/v1/metrics"]);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/logs", "/v1/metrics"]);
   });
 
   it("keeps log capture installed once when a second module copy loads", async () => {
@@ -258,8 +260,7 @@ describe("activation", () => {
   });
 
   it("drains pending exports on shutdown exactly once across repeated calls", async () => {
-    server = await StubOtlpServer.start();
-    process.env.APITALLY_OTLP_ENDPOINT = server.url;
+    const fetchSpy = spyOnSuccessfulFetch();
     registerStartupEventInfo({ framework: "express", resolvePaths: () => [] });
     const handles = configureAndActivate();
     const tracer = trace.getTracer("test");
@@ -271,7 +272,11 @@ describe("activation", () => {
     const drain = shutdown();
     expect(shutdown()).toBe(drain);
     await drain;
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
+    expect(readFetchPaths(fetchSpy)).toEqual([
+      "/v1/traces",
+      "/v1/logs",
+      "/v1/metrics",
+    ]);
 
     expect(
       vi.mocked(ProtobufTraceSerializer.serializeRequest),
@@ -287,16 +292,15 @@ describe("activation", () => {
     ]);
 
     await shutdown();
-    expect(server.paths()).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
   it("drains buffered telemetry when the process emits beforeExit", async () => {
-    server = await StubOtlpServer.start();
-    process.env.APITALLY_OTLP_ENDPOINT = server.url;
+    const fetchSpy = spyOnSuccessfulFetch();
     configureAndActivate();
 
     process.emit("beforeExit", 0);
     await shutdown();
-    expect(server.paths()).toEqual(["/v1/metrics"]);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/metrics"]);
   });
 });
