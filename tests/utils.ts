@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import {
   createServer,
   type IncomingMessage,
@@ -54,6 +54,8 @@ import { vi } from "vitest";
 import {
   type ActivationHandles,
   activate,
+  activationFactories,
+  configure,
   getActivationHandles,
 } from "../src/activation.js";
 import type { ApitallyOptions } from "../src/config.js";
@@ -65,22 +67,15 @@ import {
   SPAN_HANDLE_KEY,
   type SpanHandle,
 } from "../src/context.js";
+import { ExportWorker } from "../src/exportWorker.js";
 import { LogPipeline } from "../src/logPipeline.js";
 import { SpanPipeline } from "../src/spanProcessor.js";
 import { Spool } from "../src/spool.js";
-import {
-  prepareFirstRequestActivation,
-  requireActivationHandles,
-} from "./harness.js";
 
-export {
-  clearTestRunnerMarkers,
-  prepareFirstRequestActivation,
-  requireActivationHandles,
-  UNROUTABLE_ENDPOINT,
-  WRITE_TOKEN,
-  waitForNextRequestFinish,
-} from "./harness.js";
+export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
+
+// Nothing listens on port 1, so a stray send fails fast without leaving the host.
+export const UNROUTABLE_ENDPOINT = "http://127.0.0.1:1";
 
 // The version expectation is read straight from package.json, independent of
 // the SDK's own version resolution under test.
@@ -103,6 +98,36 @@ export function createBatchProcessorOptions() {
   };
 }
 
+// Activation is guarded against test environments; the global teardown
+// restores the cleared markers.
+export function clearTestRunnerMarkers(): void {
+  delete process.env.VITEST;
+  delete process.env.JEST_WORKER_ID;
+  delete process.env.NODE_ENV;
+}
+
+// Configures past the test-environment guards without activating: clears the
+// test-runner markers, isolates the spool in a fresh temp directory, and keeps
+// the worker off its export timer, so a later activate() call (or a first
+// request through an adapter) starts the pipelines under test conditions.
+export function prepareFirstRequestActivation(
+  options: ApitallyOptions = {},
+): void {
+  clearTestRunnerMarkers();
+  // A stray worker cycle must never reach the real ingest endpoint
+  process.env.APITALLY_OTLP_ENDPOINT ??= UNROUTABLE_ENDPOINT;
+  activationFactories.createSpool = () =>
+    new Spool(mkdtempSync(join(tmpdir(), "apitally-test-")));
+  activationFactories.createExportWorker = (workerOptions) =>
+    new ExportWorker({
+      ...workerOptions,
+      initialExportDelayMillis: 3_600_000,
+      requestTimeoutMillis: 2_000,
+      interSendPauseMillis: () => 0,
+    });
+  configure({ writeToken: WRITE_TOKEN, ...options });
+}
+
 // Drives configure + activate and asserts activation succeeded. The global
 // teardown resets everything it starts.
 export function configureAndActivate(
@@ -113,6 +138,16 @@ export function configureAndActivate(
   const handles = getActivationHandles();
   if (!handles) {
     throw new Error("Apitally activation did not succeed");
+  }
+  return handles;
+}
+
+// Requires activation to have happened, e.g. triggered by an adapter's first
+// request after prepareFirstRequestActivation.
+export function requireActivationHandles(): ActivationHandles {
+  const handles = getActivationHandles();
+  if (!handles) {
+    throw new Error("Apitally is not activated");
   }
   return handles;
 }
@@ -158,6 +193,21 @@ export async function readResponseAndSettleTransport(
     setImmediate(resolve);
   });
   return body;
+}
+
+// Resolves when the span pipeline finishes its next request, composing with
+// the log pipeline's release hook. Used where response completion is not
+// observable from the client side, e.g. an aborted request.
+export function waitForNextRequestFinish(
+  pipeline: SpanPipeline,
+): Promise<void> {
+  return new Promise((resolve) => {
+    const previous = pipeline.onRequestFinished;
+    pipeline.onRequestFinished = (serverSpanId, kept) => {
+      previous?.(serverSpanId, kept);
+      resolve();
+    };
+  });
 }
 
 export interface TracePipeline {

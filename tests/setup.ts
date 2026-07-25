@@ -1,10 +1,30 @@
+import { context, diag, propagation, trace } from "@opentelemetry/api";
+import { logs } from "@opentelemetry/api-logs";
 import {
   ProtobufLogsSerializer,
   ProtobufMetricsSerializer,
   ProtobufTraceSerializer,
 } from "@opentelemetry/otlp-transformer";
 import { afterEach, beforeEach, vi } from "vitest";
-import { resetProcessGlobals } from "./harness.js";
+import { resetActivation } from "../src/activation.js";
+import { resetConfig } from "../src/config.js";
+import { uninstallLogCapture } from "../src/logCapture.js";
+import { resetEmittedWarnings } from "../src/logger.js";
+import { setActiveSpanPipeline } from "../src/spanProcessor.js";
+import { resetStartupEventEmitted } from "../src/startup.js";
+
+// Ambient Apitally, OTel, and proxy env vars must not leak into tests.
+for (const key of Object.keys(process.env)) {
+  if (
+    key.startsWith("APITALLY_") ||
+    key.startsWith("OTEL_") ||
+    /^(http_proxy|https_proxy|no_proxy)$/i.test(key)
+  ) {
+    delete process.env[key];
+  }
+}
+
+const envSnapshot = { ...process.env };
 
 beforeEach(() => {
   vi.spyOn(ProtobufTraceSerializer, "serializeRequest");
@@ -16,6 +36,22 @@ beforeEach(() => {
 afterEach(async () => {
   // Before restoreAllMocks: capture wraps around spied console methods must
   // unwind first, so the spies are on top when the mocks restore.
-  await resetProcessGlobals();
+  uninstallLogCapture();
+  await resetActivation();
+  for (const key of Object.keys(process.env)) {
+    if (!(key in envSnapshot)) {
+      delete process.env[key];
+    }
+  }
+  Object.assign(process.env, envSnapshot);
+  resetConfig();
+  resetEmittedWarnings();
+  resetStartupEventEmitted();
+  setActiveSpanPipeline(undefined);
+  trace.disable();
+  context.disable();
+  propagation.disable();
+  diag.disable();
+  logs.disable();
   vi.restoreAllMocks();
 });
