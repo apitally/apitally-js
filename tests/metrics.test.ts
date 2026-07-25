@@ -11,13 +11,10 @@ import {
   type ResourceMetrics,
 } from "@opentelemetry/sdk-metrics";
 import { describe, expect, it } from "vitest";
-import type { RequestRecord } from "../../src/context.js";
-import { MetricsPipeline } from "../../src/metrics.js";
-import type { Spool } from "../../src/spool.js";
-import {
-  createInMemorySpool,
-  readSerializedResourceMetrics,
-} from "../utils.js";
+import type { RequestRecord } from "../src/context.js";
+import { MetricsPipeline } from "../src/metrics.js";
+import type { Spool } from "../src/spool.js";
+import { createInMemorySpool, readSerializedResourceMetrics } from "./utils.js";
 
 function createMetricsPipeline(
   spool: Spool = createInMemorySpool(),

@@ -3,8 +3,8 @@ import {
   type ApitallyOptions,
   isAllowedContentType,
   setConfig,
-} from "../../src/config.js";
-import { captureStderr, WRITE_TOKEN } from "../utils.js";
+} from "../src/config.js";
+import { captureStderr, WRITE_TOKEN } from "./utils.js";
 
 describe("config", () => {
   it("prefers explicit options over environment variables", () => {

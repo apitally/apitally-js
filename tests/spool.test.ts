@@ -10,8 +10,8 @@ import {
   MAX_UNCOMPRESSED_FILE_SIZE,
   type Signal,
   Spool,
-} from "../../src/spool.js";
-import { captureStderr } from "../utils.js";
+} from "../src/spool.js";
+import { captureStderr } from "./utils.js";
 
 const TRACE_PAYLOAD_A = Buffer.from("trace-a");
 const TRACE_PAYLOAD_B = Buffer.from("trace-b");

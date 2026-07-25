@@ -7,8 +7,8 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { describe, expect, it } from "vitest";
-import { type SamplingCallback, setConfig } from "../../src/config.js";
-import type { RequestRecord } from "../../src/context.js";
+import { type SamplingCallback, setConfig } from "../src/config.js";
+import type { RequestRecord } from "../src/context.js";
 import {
   ApitallySpanProcessor,
   captureException,
@@ -17,7 +17,7 @@ import {
   setActiveSpanPipeline,
   setConsumer,
   setRequestAttribute,
-} from "../../src/spanProcessor.js";
+} from "../src/spanProcessor.js";
 import {
   CollectingSpanProcessor,
   captureStderr,
@@ -26,7 +26,7 @@ import {
   enableAsyncContextManager,
   startServerSpan,
   WRITE_TOKEN,
-} from "../utils.js";
+} from "./utils.js";
 
 // The low 64 bits of the trace ID decide sampling; rate 0.5 keeps IDs below 2^63.
 const TRACE_ID_KEPT_AT_HALF = `${"0".repeat(16)}7fffffffffffffff`;

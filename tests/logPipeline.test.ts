@@ -1,11 +1,11 @@
 import { ROOT_CONTEXT, trace } from "@opentelemetry/api";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { describe, expect, it } from "vitest";
-import { setConfig } from "../../src/config.js";
+import { setConfig } from "../src/config.js";
 import {
   ApitallyLogRecordExporter,
   MAX_BUFFERED_LOG_RECORDS,
-} from "../../src/logPipeline.js";
+} from "../src/logPipeline.js";
 import {
   createBatchProcessorOptions,
   createInMemorySpool,
@@ -14,7 +14,7 @@ import {
   readSerializedLogRecords,
   startServerSpan,
   WRITE_TOKEN,
-} from "../utils.js";
+} from "./utils.js";
 
 describe("logPipeline", () => {
   it("exports a log emitted inside a request with the request association once the request is kept", () => {

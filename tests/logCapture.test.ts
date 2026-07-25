@@ -14,16 +14,16 @@ import {
   installPinoCapture,
   installWinstonCapture,
   peerResolver,
-} from "../../src/logCapture.js";
-import { logWarning } from "../../src/logger.js";
-import type { SpanPipeline } from "../../src/spanProcessor.js";
+} from "../src/logCapture.js";
+import { logWarning } from "../src/logger.js";
+import type { SpanPipeline } from "../src/spanProcessor.js";
 import {
   captureStderr,
   createLogPipeline,
   createTracePipeline,
   enableAsyncContextManager,
   runInsideRequest,
-} from "../utils.js";
+} from "./utils.js";
 
 interface CaptureFixture {
   pipeline: SpanPipeline;

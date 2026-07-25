@@ -11,11 +11,11 @@ import {
   ExportWorker,
   type ExportWorkerOptions,
   MAX_SENDS_PER_CYCLE,
-} from "../../src/exportWorker.js";
+} from "../src/exportWorker.js";
 import {
   MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS,
   Spool,
-} from "../../src/spool.js";
+} from "../src/spool.js";
 import {
   captureStderr,
   enableAsyncContextManager,
@@ -24,7 +24,7 @@ import {
   spyOnSuccessfulFetch,
   WRITE_TOKEN,
   withServer,
-} from "../utils.js";
+} from "./utils.js";
 
 const undici = createRequire(import.meta.url)(
   "undici",

@@ -2,13 +2,13 @@ import { fileURLToPath } from "node:url";
 import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
-import { instrument, span } from "../../src/tracing.js";
+import { instrument, span } from "../src/tracing.js";
 import {
   createTracePipeline,
   enableAsyncContextManager,
   runInsideRequest,
   type TracePipeline,
-} from "../utils.js";
+} from "./utils.js";
 
 // Manual tracing uses the global tracer API, so the provider registers globally.
 function createTracingFixture(): TracePipeline {

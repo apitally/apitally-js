@@ -3,7 +3,7 @@ import {
   BodyCapture,
   captureResponse,
   normalizeHeaders,
-} from "../../src/capture.js";
+} from "../src/capture.js";
 
 function createChunkedResponse(): {
   response: Response;

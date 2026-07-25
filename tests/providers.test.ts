@@ -22,7 +22,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
-import { setConfig } from "../../src/config.js";
+import { setConfig } from "../src/config.js";
 import {
   createLoggerProvider,
   createMeterProvider,
@@ -30,13 +30,13 @@ import {
   hasUserTracerProvider,
   resolveEnv,
   setupTracerProvider,
-} from "../../src/providers.js";
+} from "../src/providers.js";
 import {
   CollectOnlyMetricReader,
   captureStderr,
   readPackageVersion,
   WRITE_TOKEN,
-} from "../utils.js";
+} from "./utils.js";
 
 const UUID_V4_FORMAT =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

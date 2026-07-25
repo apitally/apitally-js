@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type ApitallyConsumer,
   consumerFromStringOrObject,
-} from "../../src/consumer.js";
+} from "../src/consumer.js";
 
 describe("consumer", () => {
   it("creates a consumer from a string identifier, trimmed and capped at 128 characters", () => {

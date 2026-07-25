@@ -1,14 +1,14 @@
 import * as Sentry from "@sentry/node";
 import { afterEach, describe, expect, it } from "vitest";
-import { peerResolver } from "../../src/logCapture.js";
-import { installSentryEventIdRecording } from "../../src/sentry.js";
+import { peerResolver } from "../src/logCapture.js";
+import { installSentryEventIdRecording } from "../src/sentry.js";
 import {
   captureStderr,
   createTracePipeline,
   enableAsyncContextManager,
   runInsideRequest,
   type TracePipeline,
-} from "../utils.js";
+} from "./utils.js";
 
 function initSentryClient(): Sentry.NodeClient {
   const client =

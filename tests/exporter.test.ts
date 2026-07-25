@@ -16,10 +16,10 @@ import {
   getConfig,
   MAX_BODY_SIZE,
   setConfig,
-} from "../../src/config.js";
-import { ApitallySpanExporter } from "../../src/exporter.js";
-import { Redaction } from "../../src/redaction.js";
-import { MAX_STASHED_REQUESTS } from "../../src/spanProcessor.js";
+} from "../src/config.js";
+import { ApitallySpanExporter } from "../src/exporter.js";
+import { Redaction } from "../src/redaction.js";
+import { MAX_STASHED_REQUESTS } from "../src/spanProcessor.js";
 import {
   captureStderr,
   createBatchProcessorOptions,
@@ -28,7 +28,7 @@ import {
   readSerializedSpans,
   startServerSpan,
   WRITE_TOKEN,
-} from "../utils.js";
+} from "./utils.js";
 
 function createExportPipeline(
   options: {

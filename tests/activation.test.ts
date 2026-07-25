@@ -18,9 +18,9 @@ import {
   isActivated,
   registerStartupEventInfo,
   shutdown,
-} from "../../src/activation.js";
-import type { ApitallyOptions } from "../../src/config.js";
-import { getActiveSpanPipeline } from "../../src/spanProcessor.js";
+} from "../src/activation.js";
+import type { ApitallyOptions } from "../src/config.js";
+import { getActiveSpanPipeline } from "../src/spanProcessor.js";
 import {
   captureStderr,
   clearTestRunnerMarkers,
@@ -34,7 +34,7 @@ import {
   UNROUTABLE_ENDPOINT,
   WRITE_TOKEN,
   withServer,
-} from "../utils.js";
+} from "./utils.js";
 
 describe("activation", () => {
   it("activates once across back-to-back activate calls and emits one startup event from the first registered app info", async () => {
@@ -203,7 +203,7 @@ describe("activation", () => {
     const handles = configureAndActivate();
 
     vi.resetModules();
-    const secondCopy = await import("../../src/activation.js");
+    const secondCopy = await import("../src/activation.js");
     expect(secondCopy.activate).not.toBe(activate);
     secondCopy.configure({ writeToken: WRITE_TOKEN });
     secondCopy.activate();
@@ -226,7 +226,7 @@ describe("activation", () => {
     const handles = configureAndActivate();
 
     vi.resetModules();
-    const secondCopy = await import("../../src/activation.js");
+    const secondCopy = await import("../src/activation.js");
     secondCopy.configure({ writeToken: WRITE_TOKEN });
     secondCopy.activate();
 
@@ -249,7 +249,7 @@ describe("activation", () => {
     activationState.sdkVersion = "0.9.0";
 
     vi.resetModules();
-    const secondCopy = await import("../../src/activation.js");
+    const secondCopy = await import("../src/activation.js");
     secondCopy.activate();
     secondCopy.activate();
 

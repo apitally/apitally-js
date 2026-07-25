@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { setConfig } from "../../src/config.js";
-import { REDACTED, Redaction } from "../../src/redaction.js";
-import { WRITE_TOKEN } from "../utils.js";
+import { setConfig } from "../src/config.js";
+import { REDACTED, Redaction } from "../src/redaction.js";
+import { WRITE_TOKEN } from "./utils.js";
 
 describe("redaction", () => {
   it("masks default and user-configured query params in bare query strings, request targets, and full URLs", () => {

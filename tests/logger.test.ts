@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { logDebug, logError, logWarning } from "../../src/logger.js";
-import { captureStderr } from "../utils.js";
+import { logDebug, logError, logWarning } from "../src/logger.js";
+import { captureStderr } from "./utils.js";
 
 describe("logger", () => {
   it("emits warnings and errors to stderr", () => {
