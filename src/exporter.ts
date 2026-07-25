@@ -10,7 +10,7 @@ import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
   BODY_TOO_LARGE,
   BODY_TOO_LARGE_BUFFER,
-  type BodyMaskCallback,
+  type BodyMaskingCallback,
   DEFAULT_ENV,
   MAX_BODY_SIZE,
 } from "./config.js";
@@ -34,8 +34,8 @@ export interface ApitallySpanExporterOptions {
   redaction: Redaction;
   env: string;
   spool: Spool;
-  maskRequestBody?: BodyMaskCallback;
-  maskResponseBody?: BodyMaskCallback;
+  maskRequestBody?: BodyMaskingCallback;
+  maskResponseBody?: BodyMaskingCallback;
 }
 
 // Export copies receive transport attributes, captured data, and redaction
@@ -44,8 +44,8 @@ export class ApitallySpanExporter implements SpanExporter {
   private readonly redaction: Redaction;
   private readonly env: string;
   private readonly spool: Spool;
-  private readonly maskRequestBody?: BodyMaskCallback;
-  private readonly maskResponseBody?: BodyMaskCallback;
+  private readonly maskRequestBody?: BodyMaskingCallback;
+  private readonly maskResponseBody?: BodyMaskingCallback;
 
   constructor(options: ApitallySpanExporterOptions) {
     this.redaction = options.redaction;
@@ -197,7 +197,7 @@ export class ApitallySpanExporter implements SpanExporter {
   private processBody(
     snapshot: ReadableSpan,
     body: Buffer,
-    maskCallback: BodyMaskCallback | undefined,
+    maskCallback: BodyMaskingCallback | undefined,
     optionName: string,
   ): string | Buffer {
     if (body.equals(BODY_TOO_LARGE_BUFFER)) {

@@ -12,7 +12,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 import {
-  type BodyMaskCallback,
+  type BodyMaskingCallback,
   getConfig,
   MAX_BODY_SIZE,
   setConfig,
@@ -341,7 +341,7 @@ describe("exporter", () => {
     setConfig({
       writeToken: WRITE_TOKEN,
       maskRequestBody: () => null,
-      maskResponseBody: (() => undefined) as unknown as BodyMaskCallback,
+      maskResponseBody: (() => undefined) as unknown as BodyMaskingCallback,
     });
     const { pipeline, provider, tracer } = createExportPipeline();
     const lines = captureStderr();
@@ -395,7 +395,7 @@ describe("exporter", () => {
     setConfig({
       writeToken: WRITE_TOKEN,
       maskResponseBody: (async (body: Buffer) =>
-        body) as unknown as BodyMaskCallback,
+        body) as unknown as BodyMaskingCallback,
     });
     const { pipeline, provider, tracer } = createExportPipeline();
     const lines = captureStderr();

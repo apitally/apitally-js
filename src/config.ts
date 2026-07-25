@@ -1,7 +1,7 @@
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { logError, logWarning } from "./logger.js";
 
-export type BodyMaskCallback = (
+export type BodyMaskingCallback = (
   body: Buffer,
   span: ReadableSpan,
 ) => Buffer | null;
@@ -22,8 +22,8 @@ export interface ApitallyOptions {
   maskQueryParams?: string[];
   maskHeaders?: string[];
   maskBodyFields?: string[];
-  maskRequestBody?: BodyMaskCallback;
-  maskResponseBody?: BodyMaskCallback;
+  maskRequestBody?: BodyMaskingCallback;
+  maskResponseBody?: BodyMaskingCallback;
   excludePaths?: string[];
   sampleRate?: number;
   sampleOnRequest?: SamplingCallback;

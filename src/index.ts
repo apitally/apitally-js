@@ -5,7 +5,7 @@ import { useApitally as useApitallyHono } from "./hono/index.js";
 export { shutdown } from "./activation.js";
 export type {
   ApitallyOptions,
-  BodyMaskCallback,
+  BodyMaskingCallback as BodyMaskCallback,
   SamplingCallback,
 } from "./config.js";
 export type { ApitallyConsumer } from "./consumer.js";
