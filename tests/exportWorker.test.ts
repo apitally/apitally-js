@@ -7,12 +7,8 @@ import { gunzipSync } from "node:zlib";
 import { context } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  ExportWorker,
-  type ExportWorkerOptions,
-  MAX_SENDS_PER_CYCLE,
-} from "../src/exportWorker.js";
-import { MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS, Spool } from "../src/spool.js";
+import { ExportWorker, type ExportWorkerOptions } from "../src/exportWorker.js";
+import { Spool } from "../src/spool.js";
 import {
   captureStderr,
   enableAsyncContextManager,
@@ -229,9 +225,9 @@ describe("exportWorker", () => {
   it("sends at most ten files per regular cycle", async () => {
     const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
-    await appendClosedTraceFiles(MAX_SENDS_PER_CYCLE + 2);
+    await appendClosedTraceFiles(12);
     await worker.runCycle();
-    expect(fetchSpy).toHaveBeenCalledTimes(MAX_SENDS_PER_CYCLE);
+    expect(fetchSpy).toHaveBeenCalledTimes(10);
     expect(spool.pendingFiles()).toHaveLength(2);
   });
 
@@ -420,8 +416,7 @@ describe("exportWorker", () => {
     await spool.append("logs", LOGS_PAYLOAD_FRESH);
     await spool.rotateForExport();
     const [tracesFile] = spool.pendingFiles().filter((file) => file.signal === "traces");
-    tracesFile.firstAttemptAtMillis =
-      performance.now() - MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS - 1;
+    tracesFile.firstAttemptAtMillis = performance.now() - 60 * 60 * 1000;
     const lines = captureStderr();
     await worker.finalDrain();
     expect(readFetchPaths(fetchSpy)).toEqual(["/v1/logs"]);
@@ -433,7 +428,7 @@ describe("exportWorker", () => {
   it("delivers every pending and current file in one final drain", async () => {
     const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
-    const expectedPayloads = await appendClosedTraceFiles(MAX_SENDS_PER_CYCLE + 2);
+    const expectedPayloads = await appendClosedTraceFiles(12);
     await spool.append("traces", TRACE_PAYLOAD_LAST);
     expectedPayloads.push(TRACE_PAYLOAD_LAST);
     await worker.finalDrain();

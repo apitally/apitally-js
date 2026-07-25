@@ -5,7 +5,7 @@ import { logDebug, logWarning } from "./logger.js";
 import { getDistroVersion } from "./providers.js";
 import type { Spool, SpoolFile } from "./spool.js";
 
-export const MAX_SENDS_PER_CYCLE = 10;
+const MAX_SENDS_PER_CYCLE = 10;
 const DEFAULT_EXPORT_INTERVAL_MILLIS = 15_000;
 const EXPORT_INTERVAL_HEADER = "Apitally-Export-Interval";
 const INITIAL_EXPORT_DELAY_MILLIS = 2_000;

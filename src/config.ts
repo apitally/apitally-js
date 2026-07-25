@@ -121,10 +121,6 @@ export function getConfig(): ApitallyConfig {
   return configHolder[GLOBAL_CONFIG_KEY] ?? resolveConfig({}).config;
 }
 
-export function resetConfig(): void {
-  configHolder[GLOBAL_CONFIG_KEY] = undefined;
-}
-
 // The emergency kill switch, re-checked at the activation boundary so it wins
 // even over an explicit disabled: false option.
 export function isApitallyDisabledViaEnv(): boolean {

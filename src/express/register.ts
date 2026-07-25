@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { peerResolver } from "../logCapture.js";
+import { resolvePeerEntryPath } from "../logCapture.js";
 import { logDebug } from "../logger.js";
 import { installRouteCaptureFromExpress } from "./routes.js";
 
@@ -7,7 +7,7 @@ import { installRouteCaptureFromExpress } from "./routes.js";
 // routes registered at module scope.
 let expressModule: unknown;
 try {
-  const entryPath = peerResolver.resolveEntryPath("express");
+  const entryPath = resolvePeerEntryPath("express");
   expressModule = createRequire(entryPath)(entryPath);
 } catch {
   expressModule = undefined;

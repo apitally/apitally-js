@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import type { Hono } from "hono";
 import { configure, registerStartupEventInfo } from "../activation.js";
 import type { ApitallyOptions } from "../config.js";
-import { peerResolver } from "../logCapture.js";
+import { resolvePeerEntryPath } from "../logCapture.js";
 import { wrapAppFetch } from "./middleware.js";
 import { resolveStartupPaths } from "./routes.js";
 
@@ -24,7 +24,7 @@ export function useApitally(app: Hono, options?: ApitallyOptions): void {
 // resolved `hono` entry to its owning package.
 function resolveHonoVersion(): string | undefined {
   try {
-    const entryPath = peerResolver.resolveEntryPath("hono");
+    const entryPath = resolvePeerEntryPath("hono");
     const entryRequire = createRequire(entryPath);
     for (
       let directory = dirname(entryPath);

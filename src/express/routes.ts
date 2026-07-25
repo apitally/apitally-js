@@ -33,7 +33,7 @@ interface RouteTrackingState {
   sawCapturedRouteDispatch: boolean;
 }
 
-export interface RouteTrackingResult {
+interface RouteTrackingResult {
   route?: string;
   matchedUncapturedRegistration: boolean;
 }

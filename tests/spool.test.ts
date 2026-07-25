@@ -5,12 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS,
-  MAX_UNCOMPRESSED_FILE_SIZE,
-  type Signal,
-  Spool,
-} from "../src/spool.js";
+import { type Signal, Spool } from "../src/spool.js";
 import { captureStderr } from "./utils.js";
 
 const TRACE_PAYLOAD_A = Buffer.from("trace-a");
@@ -77,7 +72,6 @@ describe("spool", () => {
       const files = spool.pendingFiles();
       expect(files).toHaveLength(1);
       expect(files[0].uncompressedSize).toBe(3_000_000);
-      expect(files[0].uncompressedSize).toBeLessThanOrEqual(MAX_UNCOMPRESSED_FILE_SIZE);
       // Buffer.equals avoids slow element-wise comparison of megabyte buffers.
       expect(gunzipSync(await files[0].readStoredBytes()).equals(first)).toBe(true);
       expect(spool.current.get("traces")?.uncompressedSize).toBe(2_000_000);
@@ -127,8 +121,7 @@ describe("spool", () => {
       await spool.rotateForExport();
       for (const file of spool.pendingFiles()) {
         if (file.signal !== "logs") {
-          file.firstAttemptAtMillis =
-            performance.now() - MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS - 1;
+          file.firstAttemptAtMillis = performance.now() - 60 * 60 * 1000;
         }
       }
       const expiredPaths = spool

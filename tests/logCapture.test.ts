@@ -13,7 +13,6 @@ import {
   installConsoleCapture,
   installPinoCapture,
   installWinstonCapture,
-  peerResolver,
 } from "../src/logCapture.js";
 import { logWarning } from "../src/logger.js";
 import type { SpanPipeline } from "../src/spanProcessor.js";
@@ -22,6 +21,7 @@ import {
   createLogPipeline,
   createTracePipeline,
   enableAsyncContextManager,
+  mockPackageResolutionFailure,
   runInsideRequest,
 } from "./utils.js";
 
@@ -232,9 +232,7 @@ describe("logCapture", () => {
     it("is a safe no-op when winston is not installed", async () => {
       const fixture = createCaptureFixture();
       vi.spyOn(console, "error").mockImplementation(() => {});
-      peerResolver.resolveEntryPath = () => {
-        throw new Error("Cannot find module");
-      };
+      mockPackageResolutionFailure("winston");
       expect(() => installWinstonCapture(fixture.loggerProvider)).not.toThrow();
       const logger = winston.createLogger();
       await runInsideRequest(fixture, async () => {
@@ -324,9 +322,7 @@ describe("logCapture", () => {
 
     it("is a safe no-op when pino is not installed", async () => {
       const fixture = createCaptureFixture();
-      peerResolver.resolveEntryPath = () => {
-        throw new Error("Cannot find module");
-      };
+      mockPackageResolutionFailure("pino");
       expect(() => installPinoCapture(fixture.loggerProvider)).not.toThrow();
       const sink = createPinoSink();
       const logger = pino({}, sink);

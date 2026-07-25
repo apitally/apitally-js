@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import { type BodyMaskingCallback, getConfig, MAX_BODY_SIZE, setConfig } from "../src/config.js";
 import { ApitallySpanExporter } from "../src/exporter.js";
 import { Redaction } from "../src/redaction.js";
-import { MAX_STASHED_REQUESTS } from "../src/spanProcessor.js";
 import {
   captureStderr,
   createBatchProcessorOptions,
@@ -472,7 +471,7 @@ describe("exporter", () => {
     pipeline.updateStash(first.span.spanContext().spanId, {
       requestBody: Buffer.from('{"n": 1}'),
     });
-    for (let index = 0; index < MAX_STASHED_REQUESTS - 1; index++) {
+    for (let index = 1; index < 2_048; index++) {
       const filler = startServerSpan(tracer);
       pipeline.updateStash(filler.span.spanContext().spanId, {
         requestBody: Buffer.from("{}"),

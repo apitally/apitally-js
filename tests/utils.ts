@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { Module } from "node:module";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,7 +48,6 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { vi } from "vitest";
 import {
-  type ActivationHandles,
   activate,
   activationFactories,
   configure,
@@ -71,6 +71,19 @@ export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
 
 // Tests start no server on this loopback endpoint, so stray sends stay on the host.
 export const UNROUTABLE_ENDPOINT = "http://127.0.0.1:1";
+
+export function mockPackageResolutionFailure(packageName: string): void {
+  const nodeModule = Module as unknown as {
+    _resolveFilename(request: string, ...args: unknown[]): string;
+  };
+  const resolveFilename = nodeModule._resolveFilename;
+  vi.spyOn(nodeModule, "_resolveFilename").mockImplementation((request, ...args) => {
+    if (request === packageName) {
+      throw new Error(`Cannot find module '${packageName}'`);
+    }
+    return resolveFilename(request, ...args);
+  });
+}
 
 // The version expectation is read straight from package.json, independent of
 // the SDK's own version resolution under test.
@@ -119,7 +132,7 @@ export function prepareFirstRequestActivation(options: ApitallyOptions = {}): vo
   configure({ writeToken: WRITE_TOKEN, ...options });
 }
 
-export function configureAndActivate(options: ApitallyOptions = {}): ActivationHandles {
+export function configureAndActivate(options: ApitallyOptions = {}) {
   prepareFirstRequestActivation(options);
   activate();
   const handles = getActivationHandles();
@@ -129,7 +142,7 @@ export function configureAndActivate(options: ApitallyOptions = {}): ActivationH
   return handles;
 }
 
-export function requireActivationHandles(): ActivationHandles {
+export function requireActivationHandles() {
   const handles = getActivationHandles();
   if (!handles) {
     throw new Error("Apitally is not activated");

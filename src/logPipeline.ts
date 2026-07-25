@@ -13,7 +13,7 @@ import { logDebug, logWarning } from "./logger.js";
 import type { SpanPipeline } from "./spanProcessor.js";
 import type { Spool } from "./spool.js";
 
-export const MAX_BUFFERED_LOG_RECORDS = 1_000;
+const MAX_BUFFERED_LOG_RECORDS = 1_000;
 
 const SERVER_SPAN_ID_ATTRIBUTE = "apitally.request.server_span_id";
 const APITALLY_SCOPE_NAME = "apitally";

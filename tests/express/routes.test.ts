@@ -5,7 +5,6 @@ import {
   beginRouteTracking,
   finishRouteTracking,
   installRouteCaptureFromApp,
-  type RouteTrackingResult,
   resolveStartupPaths,
 } from "../../src/express/routes.js";
 import { withServer } from "../utils.js";
@@ -43,10 +42,7 @@ const preCaptureFixture = {
   mountedRouter: preCaptureMountedRouter,
 };
 
-async function sendRequestsAndResolveRoutes(
-  fixture: RouteFixture,
-  requestPaths: string[],
-): Promise<RouteTrackingResult[]> {
+async function sendRequestsAndResolveRoutes(fixture: RouteFixture, requestPaths: string[]) {
   const firstRequestIndex = fixture.requests.length;
   await withServer(fixture.app, async (_server, baseUrl) => {
     for (const requestPath of requestPaths) {

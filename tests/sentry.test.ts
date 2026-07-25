@@ -1,11 +1,11 @@
 import * as Sentry from "@sentry/node";
 import { afterEach, describe, expect, it } from "vitest";
-import { peerResolver } from "../src/logCapture.js";
 import { installSentryEventIdRecording } from "../src/sentry.js";
 import {
   captureStderr,
   createTracePipeline,
   enableAsyncContextManager,
+  mockPackageResolutionFailure,
   runInsideRequest,
   type TracePipeline,
 } from "./utils.js";
@@ -83,9 +83,7 @@ describe("sentry", () => {
 
   it("detects the client through the global carrier when peer resolution fails", async () => {
     const { fixture, client } = createSentryFixture();
-    peerResolver.resolveEntryPath = () => {
-      throw new Error("Cannot find module '@sentry/node'");
-    };
+    mockPackageResolutionFailure("@sentry/node");
     installSentryEventIdRecording();
     let eventId: string | undefined;
     const serverSpan = await runInsideRequest(fixture, async () => {
@@ -102,9 +100,7 @@ describe("sentry", () => {
   it("does not throw or warn when Sentry is absent or the carrier is malformed", () => {
     const lines = captureStderr();
     process.env.APITALLY_DEBUG = "true";
-    peerResolver.resolveEntryPath = () => {
-      throw new Error("Cannot find module '@sentry/node'");
-    };
+    mockPackageResolutionFailure("@sentry/node");
     expect(() => installSentryEventIdRecording()).not.toThrow();
     setGlobalCarrier({});
     expect(() => installSentryEventIdRecording()).not.toThrow();

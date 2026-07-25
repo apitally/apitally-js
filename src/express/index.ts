@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import type { Express } from "express";
 import { configure, registerStartupEventInfo } from "../activation.js";
 import type { ApitallyOptions } from "../config.js";
-import { peerResolver } from "../logCapture.js";
+import { resolvePeerEntryPath } from "../logCapture.js";
 import { logDebug } from "../logger.js";
 import { wrapAppHandle } from "./middleware.js";
 import { installRouteCaptureFromApp, resolveStartupPaths } from "./routes.js";
@@ -27,7 +27,7 @@ export function useApitally(app: Express, options?: ApitallyOptions): void {
 
 function resolveExpressVersion(): string | undefined {
   try {
-    const entryPath = peerResolver.resolveEntryPath("express");
+    const entryPath = resolvePeerEntryPath("express");
     const packageJson = createRequire(entryPath)("./package.json") as {
       version?: unknown;
     };

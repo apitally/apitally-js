@@ -18,8 +18,8 @@ import { logWarning } from "./logger.js";
 const SIGNALS = ["traces", "logs", "metrics"] as const;
 export type Signal = (typeof SIGNALS)[number];
 
-export const MAX_UNCOMPRESSED_FILE_SIZE = 4_000_000;
-export const MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS = 59 * 60 * 1000;
+const MAX_UNCOMPRESSED_FILE_SIZE = 4_000_000;
+const MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS = 59 * 60 * 1000;
 const MAX_SPOOL_SIZE_DISK = 50_000_000;
 const MAX_SPOOL_SIZE_MEMORY = 10_000_000;
 const MAX_UNTOUCHED_FILE_AGE_MILLIS = 2 * 60 * 60 * 1000;

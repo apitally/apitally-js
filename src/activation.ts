@@ -50,7 +50,7 @@ interface ActivationState {
   beforeExitListener?: () => void;
 }
 
-export interface ActivationHandles {
+interface ActivationHandles {
   spanPipeline: SpanPipeline;
   tracerProvider?: NodeTracerProvider;
   loggerProvider: LoggerProvider;

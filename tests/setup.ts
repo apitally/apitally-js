@@ -7,7 +7,6 @@ import {
 } from "@opentelemetry/otlp-transformer";
 import { afterEach, beforeEach, vi } from "vitest";
 import { resetActivation } from "../src/activation.js";
-import { resetConfig } from "../src/config.js";
 import { uninstallLogCapture } from "../src/logCapture.js";
 import { resetEmittedWarnings } from "../src/logger.js";
 import { setActiveSpanPipeline } from "../src/spanProcessor.js";
@@ -44,7 +43,7 @@ afterEach(async () => {
     }
   }
   Object.assign(process.env, envSnapshot);
-  resetConfig();
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for("apitally.config")];
   resetEmittedWarnings();
   resetStartupEventEmitted();
   setActiveSpanPipeline(undefined);

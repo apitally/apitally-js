@@ -12,7 +12,6 @@ import type { RequestRecord } from "../src/context.js";
 import {
   ApitallySpanProcessor,
   captureException,
-  MAX_BUFFERED_SPANS,
   SpanPipeline,
   setActiveSpanPipeline,
   setConsumer,
@@ -273,14 +272,14 @@ describe("spanProcessor", () => {
     const { pipeline, tracer, exporter } = createTracePipeline();
     const { span, request } = startServerSpan(tracer);
     const requestContext = trace.setSpan(request.context, span);
-    for (let index = 0; index <= MAX_BUFFERED_SPANS; index++) {
+    for (let index = 0; index <= 1_000; index++) {
       tracer.startSpan(`child-${index}`, {}, requestContext).end();
     }
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const names = exporter.getFinishedSpans().map((span) => span.name);
     expect(names).toEqual([
-      ...Array.from({ length: MAX_BUFFERED_SPANS }, (_, index) => `child-${index}`),
+      ...Array.from({ length: 1_000 }, (_, index) => `child-${index}`),
       "GET /items",
     ]);
   });

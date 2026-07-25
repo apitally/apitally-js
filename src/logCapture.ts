@@ -103,7 +103,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   let createProbeLogger: () => object;
   let TransportBase: new () => object;
   try {
-    const winstonEntryPath = peerResolver.resolveEntryPath("winston");
+    const winstonEntryPath = resolvePeerEntryPath("winston");
     const requireFromWinston = createRequire(winstonEntryPath);
     const winston = requireFromWinston(winstonEntryPath) as {
       createLogger: () => object;
@@ -186,7 +186,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
 export function installPinoCapture(loggerProvider: LoggerProvider): void {
   let pino: PinoModule;
   try {
-    const pinoEntryPath = peerResolver.resolveEntryPath("pino");
+    const pinoEntryPath = resolvePeerEntryPath("pino");
     pino = createRequire(pinoEntryPath)(pinoEntryPath) as PinoModule;
   } catch {
     return;
@@ -295,17 +295,12 @@ export function uninstallLogCapture(): void {
   restoreWinstonCapture = undefined;
   restorePinoCapture?.();
   restorePinoCapture = undefined;
-  peerResolver.resolveEntryPath = defaultResolveEntryPath;
 }
 
-// createRequire resolves peer libraries from the user's installation. Tests
-// replace peerResolver.resolveEntryPath to simulate an absent peer.
-export const peerResolver = {
-  resolveEntryPath(id: string): string {
-    return createRequire(import.meta.url).resolve(id);
-  },
-};
-const defaultResolveEntryPath = peerResolver.resolveEntryPath;
+// createRequire resolves peer libraries from the user's installation.
+export function resolvePeerEntryPath(id: string): string {
+  return createRequire(import.meta.url).resolve(id);
+}
 
 // The active context lets the log pipeline resolve the emitting request.
 function emitCapturedLogRecord(

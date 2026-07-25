@@ -31,8 +31,8 @@ import {
 } from "./context.js";
 import { logDebug, logWarning } from "./logger.js";
 
-export const MAX_BUFFERED_SPANS = 1_000;
-export const MAX_STASHED_REQUESTS = 2_048;
+const MAX_BUFFERED_SPANS = 1_000;
+const MAX_STASHED_REQUESTS = 2_048;
 const MAX_KEPT_SPAN_IDS = 10_000;
 
 const PER_MESSAGE_SPAN_NAME_SUFFIXES = [

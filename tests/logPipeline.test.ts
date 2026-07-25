@@ -2,7 +2,7 @@ import { ROOT_CONTEXT, trace } from "@opentelemetry/api";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { describe, expect, it } from "vitest";
 import { setConfig } from "../src/config.js";
-import { ApitallyLogRecordExporter, MAX_BUFFERED_LOG_RECORDS } from "../src/logPipeline.js";
+import { ApitallyLogRecordExporter } from "../src/logPipeline.js";
 import {
   createBatchProcessorOptions,
   createInMemorySpool,
@@ -143,15 +143,13 @@ describe("logPipeline", () => {
     const { span, request } = startServerSpan(tracer);
     const requestContext = trace.setSpan(request.context, span);
     const appLogger = loggerProvider.getLogger("myapp");
-    for (let index = 0; index <= MAX_BUFFERED_LOG_RECORDS; index++) {
+    for (let index = 0; index <= 1_000; index++) {
       appLogger.emit({ body: `log ${index}`, context: requestContext });
     }
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const bodies = logExporter.getFinishedLogRecords().map((record) => record.body);
-    expect(bodies).toEqual(
-      Array.from({ length: MAX_BUFFERED_LOG_RECORDS }, (_, index) => `log ${index}`),
-    );
+    expect(bodies).toEqual(Array.from({ length: 1_000 }, (_, index) => `log ${index}`));
   });
 
   it("truncates string bodies and attribute values at 2,048 characters on export, leaving apitally-scoped records intact", async () => {
