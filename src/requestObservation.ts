@@ -6,12 +6,7 @@ import {
   SpanStatusCode,
   trace,
 } from "@opentelemetry/api";
-import {
-  getRPCMetadata,
-  type RPCMetadata,
-  RPCType,
-  setRPCMetadata,
-} from "@opentelemetry/core";
+import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import { normalizeHeaders } from "./capture.js";
 import type { ApitallyConfig } from "./config.js";
 import {
@@ -44,9 +39,7 @@ export interface ServerSpanObservation {
   rpcMetadata?: RPCMetadata;
 }
 
-export function adoptOrStartServerSpan(
-  options: StartServerSpanOptions,
-): ServerSpanObservation {
+export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerSpanObservation {
   const {
     activeContext,
     extractedContext,
@@ -62,42 +55,20 @@ export function adoptOrStartServerSpan(
   let ownSpan: Span | undefined;
   // Span kind is not part of the OTel API surface, so read the SDK-level
   // property from whichever package copy produced the span.
-  if (
-    activeSpan?.isRecording() &&
-    (activeSpan as { kind?: unknown }).kind === SpanKind.SERVER
-  ) {
+  if (activeSpan?.isRecording() && (activeSpan as { kind?: unknown }).kind === SpanKind.SERVER) {
     // A SERVER span produced by the user's own instrumentation is adopted:
     // no second span, and the request runs under the user's context.
     spanHandle.span = activeSpan;
     record.serverSpanId = activeSpan.spanContext().spanId;
-    requestContext = withRequestHolders(
-      activeContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
+    requestContext = withRequestHolders(activeContext, spanHandle, record, consumerHolder);
   } else if (activeSpan && !activeSpan.isRecording()) {
     warnAboutNonRecordingServerSpan();
-    requestContext = withRequestHolders(
-      activeContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
+    requestContext = withRequestHolders(activeContext, spanHandle, record, consumerHolder);
   } else {
-    requestContext = withRequestHolders(
-      extractedContext,
-      spanHandle,
-      record,
-      consumerHolder,
-    );
+    requestContext = withRequestHolders(extractedContext, spanHandle, record, consumerHolder);
     ownSpan = trace
       .getTracer(tracerName)
-      .startSpan(
-        method,
-        { kind: SpanKind.SERVER, attributes: startAttributes },
-        requestContext,
-      );
+      .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
     if (!ownSpan.isRecording()) {
       warnAboutNonRecordingServerSpan();
       ownSpan = undefined;
@@ -128,46 +99,23 @@ export interface FinalizeRequestOptions {
   statusCode: number;
   route?: string;
   requestHeaders: Headers | Record<string, string | string[] | undefined>;
-  responseHeaders:
-    | Headers
-    | Record<string, string | number | string[] | undefined>;
+  responseHeaders: Headers | Record<string, string | number | string[] | undefined>;
   requestBodySize?: number;
   responseBodySize?: number;
   requestBody?: Buffer;
   responseBody?: Buffer;
 }
 
-export function finalizeRecordAndReleaseRequest(
-  options: FinalizeRequestOptions,
-): void {
-  const {
-    record,
-    spanHandle,
-    ownSpan,
-    rpcMetadata,
-    config,
-    method,
-    statusCode,
-    route,
-  } = options;
+export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions): void {
+  const { record, spanHandle, ownSpan, rpcMetadata, config, method, statusCode, route } = options;
   record.durationSeconds = options.durationSeconds;
   const span = spanHandle.span;
   writeRequestAttribute(span, record, "http.response.status_code", statusCode);
   if (options.requestBodySize !== undefined) {
-    writeRequestAttribute(
-      span,
-      record,
-      "http.request.body.size",
-      options.requestBodySize,
-    );
+    writeRequestAttribute(span, record, "http.request.body.size", options.requestBodySize);
   }
   if (options.responseBodySize !== undefined) {
-    writeRequestAttribute(
-      span,
-      record,
-      "http.response.body.size",
-      options.responseBodySize,
-    );
+    writeRequestAttribute(span, record, "http.response.body.size", options.responseBodySize);
   }
   if (route !== undefined) {
     writeRequestAttribute(span, record, "http.route", route);

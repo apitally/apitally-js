@@ -21,25 +21,15 @@ import {
   type SpanHandle,
 } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
-import {
-  adoptOrStartServerSpan,
-  finalizeRecordAndReleaseRequest,
-} from "../requestObservation.js";
-import {
-  captureException,
-  coerceToException,
-  getActiveSpanPipeline,
-} from "../spanProcessor.js";
+import { adoptOrStartServerSpan, finalizeRecordAndReleaseRequest } from "../requestObservation.js";
+import { captureException, coerceToException, getActiveSpanPipeline } from "../spanProcessor.js";
 import { type MatchedRouteResult, resolveMatchedRoute } from "./routes.js";
 
 const FETCH_WRAP_MARKER = Symbol.for("apitally.honoFetchWrap");
 const ERROR_HANDLER_WRAP_MARKER = Symbol.for("apitally.honoErrorHandlerWrap");
 const TRACER_NAME = "apitally.hono";
 
-type FetchFunction = (
-  request: Request,
-  ...rest: unknown[]
-) => Response | Promise<Response>;
+type FetchFunction = (request: Request, ...rest: unknown[]) => Response | Promise<Response>;
 
 interface RequestObservation {
   config: ApitallyConfig;
@@ -174,23 +164,14 @@ function observeRequest(
     contentLength: request.headers.get("content-length"),
     transferEncoding: request.headers.get("transfer-encoding"),
   });
-  const startAttributes = resolveStartAttributes(
-    request,
-    env,
-    method,
-    requestBodyCapture,
-  );
+  const startAttributes = resolveStartAttributes(request, env, method, requestBodyCapture);
   // Metrics and the exported span copy read from the record, so the start
   // attributes are mirrored into it on every path, span or no span.
   Object.assign(record.attributes, startAttributes);
 
   const { requestContext, ownSpan, rpcMetadata } = adoptOrStartServerSpan({
     activeContext,
-    extractedContext: propagation.extract(
-      ROOT_CONTEXT,
-      request.headers,
-      WEB_HEADERS_GETTER,
-    ),
+    extractedContext: propagation.extract(ROOT_CONTEXT, request.headers, WEB_HEADERS_GETTER),
     tracerName: TRACER_NAME,
     method,
     startAttributes,
@@ -216,19 +197,14 @@ function observeRequest(
 
 // A tee after compression observes bytes sent to the client. Finalization follows
 // tee completion, and bodiless responses complete immediately.
-function observeResponse(
-  response: Response,
-  observation: RequestObservation,
-): Response {
+function observeResponse(response: Response, observation: RequestObservation): Response {
   try {
     const [teedResponse, capturedBodyPromise] = captureResponse(
       response,
       observation.config.captureResponseBody,
     );
     capturedBodyPromise
-      .then((capturedBody) =>
-        finalizeRequestFromResponse(observation, response, capturedBody),
-      )
+      .then((capturedBody) => finalizeRequestFromResponse(observation, response, capturedBody))
       .catch((error: unknown) => {
         logWarning(`Error in the Apitally middleware: ${String(error)}`);
       });
@@ -277,10 +253,7 @@ async function finalizeRequestFromResponse(
 
 // A rejected dispatch has no response, so the record is finalized and the
 // rejection propagates unchanged.
-function releaseRequestOnFetchRejection(
-  observation: RequestObservation,
-  error: unknown,
-): void {
+function releaseRequestOnFetchRejection(observation: RequestObservation, error: unknown): void {
   try {
     const { record, spanHandle, ownSpan, startTimeMillis } = observation;
     record.durationSeconds = (performance.now() - startTimeMillis) / 1000;
@@ -300,12 +273,8 @@ function releaseRequestOnFetchRejection(
 
 // Only cache entries preserving the original request bytes are captured. If no
 // such entry exists, the SDK leaves the request stream untouched.
-async function captureRequestBodyFromCache(
-  observation: RequestObservation,
-): Promise<void> {
-  const bodyCache = observation.honoContext?.req.bodyCache as
-    | Record<string, unknown>
-    | undefined;
+async function captureRequestBodyFromCache(observation: RequestObservation): Promise<void> {
+  const bodyCache = observation.honoContext?.req.bodyCache as Record<string, unknown> | undefined;
   if (typeof bodyCache !== "object" || bodyCache === null) {
     return;
   }
@@ -353,23 +322,15 @@ function wrapErrorHandler(app: Hono): void {
     if (typeof originalHandler !== "function") {
       return;
     }
-    const markedHandler = originalHandler as unknown as Record<
-      symbol,
-      boolean | undefined
-    >;
+    const markedHandler = originalHandler as unknown as Record<symbol, boolean | undefined>;
     if (markedHandler[ERROR_HANDLER_WRAP_MARKER] === true) {
       return;
     }
     const wrappedHandler = function (this: unknown, ...args: unknown[]) {
       captureException(args[0]);
-      return (originalHandler as (...handlerArgs: unknown[]) => unknown).apply(
-        this,
-        args,
-      );
+      return (originalHandler as (...handlerArgs: unknown[]) => unknown).apply(this, args);
     };
-    (wrappedHandler as unknown as Record<symbol, boolean>)[
-      ERROR_HANDLER_WRAP_MARKER
-    ] = true;
+    (wrappedHandler as unknown as Record<symbol, boolean>)[ERROR_HANDLER_WRAP_MARKER] = true;
     appWithHandler.errorHandler = wrappedHandler;
   } catch (error) {
     logDebug(`Error wrapping the hono onError handler: ${String(error)}`);
@@ -418,8 +379,6 @@ function resolveStartAttributes(
 function resolveNodeServerClientAddress(env: unknown): string | undefined {
   const incoming = (env as { incoming?: unknown } | undefined | null)?.incoming;
   const socket = (incoming as { socket?: unknown } | undefined | null)?.socket;
-  const remoteAddress = (
-    socket as { remoteAddress?: unknown } | undefined | null
-  )?.remoteAddress;
+  const remoteAddress = (socket as { remoteAddress?: unknown } | undefined | null)?.remoteAddress;
   return typeof remoteAddress === "string" ? remoteAddress : undefined;
 }

@@ -80,11 +80,7 @@ describe("logCapture", () => {
       });
       const records = fixture.logExporter.getFinishedLogRecords();
       expect(
-        records.map((record) => [
-          record.body,
-          record.severityNumber,
-          record.severityText,
-        ]),
+        records.map((record) => [record.body, record.severityNumber, record.severityText]),
       ).toEqual([
         ["debug message", SeverityNumber.DEBUG, "debug"],
         ["count: 42", SeverityNumber.INFO, "log"],
@@ -92,9 +88,13 @@ describe("logCapture", () => {
         ["warn message", SeverityNumber.WARN, "warn"],
         ["error message", SeverityNumber.ERROR, "error"],
       ]);
-      expect(records.map((record) => record.instrumentationScope.name)).toEqual(
-        ["console", "console", "console", "console", "console"],
-      );
+      expect(records.map((record) => record.instrumentationScope.name)).toEqual([
+        "console",
+        "console",
+        "console",
+        "console",
+        "console",
+      ]);
       expect(spies.log).toHaveBeenCalledWith("count: %d", 42);
     });
 
@@ -119,9 +119,7 @@ describe("logCapture", () => {
       const userExporter = new InMemoryLogRecordExporter();
       logs.setGlobalLoggerProvider(
         new LoggerProvider({
-          processors: [
-            new SimpleLogRecordProcessor({ exporter: userExporter }),
-          ],
+          processors: [new SimpleLogRecordProcessor({ exporter: userExporter })],
         }),
       );
       installConsoleCapture(fixture.loggerProvider);
@@ -168,15 +166,9 @@ describe("logCapture", () => {
       });
       const records = fixture.logExporter.getFinishedLogRecords();
       expect(
-        records.map((record) => [
-          record.body,
-          record.severityNumber,
-          record.severityText,
-        ]),
+        records.map((record) => [record.body, record.severityNumber, record.severityText]),
       ).toEqual([["inside request", SeverityNumber.INFO, "info"]]);
-      expect(records.map((record) => record.instrumentationScope.name)).toEqual(
-        ["winston"],
-      );
+      expect(records.map((record) => record.instrumentationScope.name)).toEqual(["winston"]);
       expect(userLines).toHaveLength(2);
     });
 
@@ -202,11 +194,10 @@ describe("logCapture", () => {
         redactingLogger.info("password hunter2");
         await waitForWinstonDelivery();
       });
-      expect(
-        fixture.logExporter
-          .getFinishedLogRecords()
-          .map((record) => record.body),
-      ).toEqual(["at the level threshold", "password [hidden]"]);
+      expect(fixture.logExporter.getFinishedLogRecords().map((record) => record.body)).toEqual([
+        "at the level threshold",
+        "password [hidden]",
+      ]);
     });
 
     it("keeps capturing after clear() removes the transport", async () => {
@@ -220,11 +211,10 @@ describe("logCapture", () => {
         logger.info("after clear");
         await waitForWinstonDelivery();
       });
-      expect(
-        fixture.logExporter
-          .getFinishedLogRecords()
-          .map((record) => record.body),
-      ).toEqual(["before clear", "after clear"]);
+      expect(fixture.logExporter.getFinishedLogRecords().map((record) => record.body)).toEqual([
+        "before clear",
+        "after clear",
+      ]);
     });
 
     it("captures each entry once after a second install", async () => {
@@ -270,26 +260,22 @@ describe("logCapture", () => {
       );
       await runInsideRequest(fixture, () => {
         createdBefore.info("from the logger created before");
-        createdBefore
-          .child({ module: "billing" })
-          .warn("from the child logger");
+        createdBefore.child({ module: "billing" }).warn("from the child logger");
         createdAfter.error("from the logger created after");
       });
       const records = fixture.logExporter.getFinishedLogRecords();
       expect(
-        records.map((record) => [
-          record.body,
-          record.severityNumber,
-          record.severityText,
-        ]),
+        records.map((record) => [record.body, record.severityNumber, record.severityText]),
       ).toEqual([
         ["from the logger created before", SeverityNumber.INFO, "info"],
         ["from the child logger", SeverityNumber.WARN, "warn"],
         ["from the logger created after", SeverityNumber.ERROR, "error"],
       ]);
-      expect(records.map((record) => record.instrumentationScope.name)).toEqual(
-        ["pino", "pino", "pino"],
-      );
+      expect(records.map((record) => record.instrumentationScope.name)).toEqual([
+        "pino",
+        "pino",
+        "pino",
+      ]);
       expect(sink.lines).toHaveLength(3);
     });
 

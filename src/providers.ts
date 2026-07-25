@@ -16,15 +16,9 @@ import {
   type Resource,
   resourceFromAttributes,
 } from "@opentelemetry/resources";
-import {
-  LoggerProvider,
-  type LogRecordProcessor,
-} from "@opentelemetry/sdk-logs";
+import { LoggerProvider, type LogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { type IMetricReader, MeterProvider } from "@opentelemetry/sdk-metrics";
-import {
-  AlwaysOnSampler,
-  type SpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { AlwaysOnSampler, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { DEFAULT_ENV, getConfig } from "./config.js";
 import { logWarning } from "./logger.js";
@@ -39,14 +33,9 @@ export function hasUserTracerProvider(): boolean {
     getDelegate?: () => TracerProvider;
   };
   const delegate = (
-    typeof globalProvider.getDelegate === "function"
-      ? globalProvider.getDelegate()
-      : globalProvider
+    typeof globalProvider.getDelegate === "function" ? globalProvider.getDelegate() : globalProvider
   ) as TracerProvider & { forceFlush?: unknown; shutdown?: unknown };
-  return (
-    typeof delegate.forceFlush === "function" ||
-    typeof delegate.shutdown === "function"
-  );
+  return typeof delegate.forceFlush === "function" || typeof delegate.shutdown === "function";
 }
 
 // Apitally-Env and deployment.environment.name use the same resolution so they
@@ -57,17 +46,12 @@ export function resolveEnv(hasUserProvider: boolean): string {
   const configuredEnv = getConfig().env;
   const resourceAttributesEnv = readDeploymentEnvironmentNameFromEnv();
   if (!hasUserProvider) {
-    return configuredEnv !== DEFAULT_ENV
-      ? configuredEnv
-      : (resourceAttributesEnv ?? DEFAULT_ENV);
+    return configuredEnv !== DEFAULT_ENV ? configuredEnv : (resourceAttributesEnv ?? DEFAULT_ENV);
   }
   if (resourceAttributesEnv === undefined) {
     return configuredEnv;
   }
-  if (
-    configuredEnv !== DEFAULT_ENV &&
-    configuredEnv !== resourceAttributesEnv
-  ) {
+  if (configuredEnv !== DEFAULT_ENV && configuredEnv !== resourceAttributesEnv) {
     logWarning(
       `The configured Apitally env "${configuredEnv}" conflicts with the OTEL_RESOURCE_ATTRIBUTES entry deployment.environment.name=${resourceAttributesEnv} of the existing OpenTelemetry setup; using "${resourceAttributesEnv}". To resolve this, remove the env option from useApitally() or change the OTEL_RESOURCE_ATTRIBUTES entry to "${configuredEnv}".`,
     );
@@ -116,10 +100,7 @@ export function setupTracerProvider(
 
 // Meter and logger providers remain private because global registration could
 // replace or race a user's metrics or logs pipeline.
-export function createMeterProvider(
-  resource: Resource,
-  readers: IMetricReader[],
-): MeterProvider {
+export function createMeterProvider(resource: Resource, readers: IMetricReader[]): MeterProvider {
   return new MeterProvider({ resource, readers });
 }
 
@@ -133,9 +114,8 @@ export function createLoggerProvider(
 let distroVersion: string | undefined;
 
 export function getDistroVersion(): string {
-  distroVersion ??= (
-    createRequire(import.meta.url)("../package.json") as { version: string }
-  ).version;
+  distroVersion ??= (createRequire(import.meta.url)("../package.json") as { version: string })
+    .version;
   return distroVersion;
 }
 

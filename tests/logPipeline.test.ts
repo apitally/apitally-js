@@ -2,10 +2,7 @@ import { ROOT_CONTEXT, trace } from "@opentelemetry/api";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { describe, expect, it } from "vitest";
 import { setConfig } from "../src/config.js";
-import {
-  ApitallyLogRecordExporter,
-  MAX_BUFFERED_LOG_RECORDS,
-} from "../src/logPipeline.js";
+import { ApitallyLogRecordExporter, MAX_BUFFERED_LOG_RECORDS } from "../src/logPipeline.js";
 import {
   createBatchProcessorOptions,
   createInMemorySpool,
@@ -21,11 +18,7 @@ describe("logPipeline", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
-    const child = tracer.startSpan(
-      "child",
-      {},
-      trace.setSpan(request.context, span),
-    );
+    const child = tracer.startSpan("child", {}, trace.setSpan(request.context, span));
     loggerProvider.getLogger("myapp").emit({
       body: "inside child",
       context: trace.setSpan(request.context, child),
@@ -49,11 +42,7 @@ describe("logPipeline", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
-    const child = tracer.startSpan(
-      "child",
-      {},
-      trace.setSpan(request.context, span),
-    );
+    const child = tracer.startSpan("child", {}, trace.setSpan(request.context, span));
     child.end();
     loggerProvider.getLogger("myapp").emit({
       body: "after child end",
@@ -75,11 +64,7 @@ describe("logPipeline", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
-    const late = tracer.startSpan(
-      "late",
-      {},
-      trace.setSpan(request.context, span),
-    );
+    const late = tracer.startSpan("late", {}, trace.setSpan(request.context, span));
     span.end();
     pipeline.handleTransportCompletion(request.record);
     expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
@@ -163,14 +148,9 @@ describe("logPipeline", () => {
     }
     span.end();
     pipeline.handleTransportCompletion(request.record);
-    const bodies = logExporter
-      .getFinishedLogRecords()
-      .map((record) => record.body);
+    const bodies = logExporter.getFinishedLogRecords().map((record) => record.body);
     expect(bodies).toEqual(
-      Array.from(
-        { length: MAX_BUFFERED_LOG_RECORDS },
-        (_, index) => `log ${index}`,
-      ),
+      Array.from({ length: MAX_BUFFERED_LOG_RECORDS }, (_, index) => `log ${index}`),
     );
   });
 
@@ -205,9 +185,7 @@ describe("logPipeline", () => {
     expect(appRecord.spanContext?.traceId).toBe(span.spanContext().traceId);
     expect(appRecord.attributes.note).toBe("b".repeat(2_048));
     expect(appRecord.attributes.count).toBe(7);
-    expect(appRecord.attributes["apitally.request.server_span_id"]).toBe(
-      span.spanContext().spanId,
-    );
+    expect(appRecord.attributes["apitally.request.server_span_id"]).toBe(span.spanContext().spanId);
     expect(apitallyRecord.body).toBe("c".repeat(3_000));
   });
 });

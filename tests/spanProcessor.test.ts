@@ -43,10 +43,7 @@ describe("spanProcessor", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0);
 
     pipeline.handleTransportCompletion(request.record);
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
-      "child",
-      "GET /items",
-    ]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["child", "GET /items"]);
     pipeline.handleTransportCompletion(request.record);
     expect(exporter.getFinishedSpans()).toHaveLength(2);
   });
@@ -59,10 +56,7 @@ describe("spanProcessor", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0);
 
     span.end();
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
-      "child",
-      "GET /items",
-    ]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["child", "GET /items"]);
   });
 
   it("drops non-SERVER local roots with their children and spans with an unknown local parent", () => {
@@ -129,9 +123,7 @@ describe("spanProcessor", () => {
       span.end();
       pipeline.handleTransportCompletion(request.record);
     }
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
-      "GET /items",
-    ]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
   });
 
   it("derives path and query from the full URL attribute at span start when the instrumentation omits them", () => {
@@ -193,8 +185,7 @@ describe("spanProcessor", () => {
   it("keeps error responses and drops healthy ones through the response-stage sampling callback", () => {
     setConfig({
       writeToken: WRITE_TOKEN,
-      sampleOnResponse: (span) =>
-        span.attributes["http.response.status_code"] === 500 || 0.05,
+      sampleOnResponse: (span) => span.attributes["http.response.status_code"] === 500 || 0.05,
     });
     const { pipeline, tracer, exporter } = createTracePipeline();
     for (const statusCode of [200, 500]) {
@@ -207,10 +198,7 @@ describe("spanProcessor", () => {
       request.record.attributes["http.response.status_code"] = statusCode;
       pipeline.handleTransportCompletion(request.record);
     }
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
-      "child",
-      "GET /500",
-    ]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["child", "GET /500"]);
   });
 
   it("leaves the request-stage decision standing when the response-stage callback abstains", () => {
@@ -244,26 +232,23 @@ describe("spanProcessor", () => {
       failure: "returns a Promise",
       callback: (() => Promise.resolve(0.5)) as unknown as SamplingCallback,
     },
-  ])(
-    "keeps the request and warns when the sampling callback $failure",
-    ({ callback }) => {
-      const lines = captureStderr();
-      setConfig({
-        writeToken: WRITE_TOKEN,
-        sampleRate: 0,
-        sampleOnRequest: callback,
-      });
-      const { pipeline, tracer, exporter } = createTracePipeline();
-      const { span, request } = startServerSpan(tracer, {
-        traceId: TRACE_ID_DROPPED_BELOW_ONE,
-      });
-      span.end();
-      pipeline.handleTransportCompletion(request.record);
-      expect(exporter.getFinishedSpans()).toHaveLength(1);
-      expect(lines).toHaveLength(1);
-      expect(lines[0]).toContain("sampleOnRequest");
-    },
-  );
+  ])("keeps the request and warns when the sampling callback $failure", ({ callback }) => {
+    const lines = captureStderr();
+    setConfig({
+      writeToken: WRITE_TOKEN,
+      sampleRate: 0,
+      sampleOnRequest: callback,
+    });
+    const { pipeline, tracer, exporter } = createTracePipeline();
+    const { span, request } = startServerSpan(tracer, {
+      traceId: TRACE_ID_DROPPED_BELOW_ONE,
+    });
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+    expect(exporter.getFinishedSpans()).toHaveLength(1);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("sampleOnRequest");
+  });
 
   it("never invokes a sampling callback for an excluded request", () => {
     const calls: unknown[] = [];
@@ -295,10 +280,7 @@ describe("spanProcessor", () => {
     pipeline.handleTransportCompletion(request.record);
     const names = exporter.getFinishedSpans().map((span) => span.name);
     expect(names).toEqual([
-      ...Array.from(
-        { length: MAX_BUFFERED_SPANS },
-        (_, index) => `child-${index}`,
-      ),
+      ...Array.from({ length: MAX_BUFFERED_SPANS }, (_, index) => `child-${index}`),
       "GET /items",
     ]);
   });
@@ -306,8 +288,7 @@ describe("spanProcessor", () => {
   it("exports a late-ending descendant immediately after a kept release and discards it after a drop", () => {
     setConfig({
       writeToken: WRITE_TOKEN,
-      sampleOnResponse: (span) =>
-        span.attributes["http.response.status_code"] === 500,
+      sampleOnResponse: (span) => span.attributes["http.response.status_code"] === 500,
     });
     const { pipeline, tracer, exporter } = createTracePipeline();
     for (const { statusCode, expectedNames } of [
@@ -315,33 +296,23 @@ describe("spanProcessor", () => {
       { statusCode: 200, expectedNames: [] as string[] },
     ]) {
       const { span, request } = startServerSpan(tracer);
-      const late = tracer.startSpan(
-        "late",
-        {},
-        trace.setSpan(request.context, span),
-      );
+      const late = tracer.startSpan("late", {}, trace.setSpan(request.context, span));
       span.end();
       request.record.attributes["http.response.status_code"] = statusCode;
       pipeline.handleTransportCompletion(request.record);
       late.end();
-      expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(
-        expectedNames,
-      );
+      expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(expectedNames);
       exporter.reset();
     }
   });
 
   it("drops contrib per-message send and receive spans while keeping user socket spans", () => {
     const { pipeline, provider, tracer, exporter } = createTracePipeline();
-    const contribTracer = provider.getTracer(
-      "@opentelemetry/instrumentation-express",
-    );
+    const contribTracer = provider.getTracer("@opentelemetry/instrumentation-express");
     const userTracer = provider.getTracer("myapp");
     const { span, request } = startServerSpan(tracer);
     const requestContext = trace.setSpan(request.context, span);
-    contribTracer
-      .startSpan("GET /items http receive", {}, requestContext)
-      .end();
+    contribTracer.startSpan("GET /items http receive", {}, requestContext).end();
     contribTracer.startSpan("GET /items http send", {}, requestContext).end();
     userTracer.startSpan("my websocket send", {}, requestContext).end();
     span.end();
@@ -360,13 +331,9 @@ describe("spanProcessor", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const [exported] = exporter.getFinishedSpans();
-    expect(exported.attributes["apitally.consumer.identifier"]).toBe(
-      "tenant-1",
-    );
+    expect(exported.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
     expect(exported.attributes["apitally.consumer.name"]).toBe("Tenant One");
-    expect(request.record.attributes["apitally.consumer.identifier"]).toBe(
-      "tenant-1",
-    );
+    expect(request.record.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
   });
 
   it("writes setConsumer and setRequestAttribute through to the server span and records captureException events", () => {
@@ -382,18 +349,14 @@ describe("spanProcessor", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const [exported] = exporter.getFinishedSpans();
-    expect(exported.attributes["apitally.consumer.identifier"]).toBe(
-      "tenant-1",
-    );
+    expect(exported.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
     expect(exported.attributes["apitally.consumer.group"]).toBe("enterprise");
     expect(exported.attributes["custom.key"]).toBe("value");
     expect(request.record.attributes["custom.key"]).toBe("value");
     expect(exported.events).toHaveLength(2);
     expect(exported.events[0].name).toBe("exception");
     expect(exported.events[0].attributes?.["exception.type"]).toBe("Error");
-    expect(exported.events[0].attributes?.["exception.message"]).toBe(
-      "request failed",
-    );
+    expect(exported.events[0].attributes?.["exception.message"]).toBe("request failed");
     expect(exported.events[1].attributes?.["exception.message"]).toBe("42");
   });
 
@@ -410,8 +373,7 @@ describe("spanProcessor", () => {
   it("invokes the metrics recorder at transport completion with the reason a request was not exported", () => {
     setConfig({
       writeToken: WRITE_TOKEN,
-      sampleOnRequest: (span) =>
-        span.attributes["url.path"] === "/sampled" ? 0 : undefined,
+      sampleOnRequest: (span) => (span.attributes["url.path"] === "/sampled" ? 0 : undefined),
     });
     const { pipeline, tracer, exporter } = createTracePipeline();
     const records: RequestRecord[] = [];
@@ -434,9 +396,7 @@ describe("spanProcessor", () => {
       "sampled-out",
       undefined,
     ]);
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
-      "GET /items",
-    ]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
   });
 
   it("records metrics and exports nothing on transport completion without an in-flight request", () => {
@@ -473,33 +433,24 @@ describe("spanProcessor", () => {
     const second = startServerSpan(tracer, { name: "GET /second" });
     second.span.end();
     pipeline.handleTransportCompletion(second.request.record);
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
-      "GET /second",
-    ]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /second"]);
   });
 
   it("receives spans through a user-owned provider while the user's exporters keep receiving all spans", () => {
     const userExporter = new InMemorySpanExporter();
     const apitallyExporter = new InMemorySpanExporter();
-    const pipeline = new SpanPipeline(
-      new SimpleSpanProcessor(apitallyExporter),
-    );
+    const pipeline = new SpanPipeline(new SimpleSpanProcessor(apitallyExporter));
     setActiveSpanPipeline(pipeline);
     const provider = new NodeTracerProvider({
       sampler: new AlwaysOnSampler(),
-      spanProcessors: [
-        new SimpleSpanProcessor(userExporter),
-        new ApitallySpanProcessor(),
-      ],
+      spanProcessors: [new SimpleSpanProcessor(userExporter), new ApitallySpanProcessor()],
     });
     const tracer = provider.getTracer("test");
     tracer.startSpan("background job").end();
     const { span, request } = startServerSpan(tracer);
     span.end();
     pipeline.handleTransportCompletion(request.record);
-    expect(
-      apitallyExporter.getFinishedSpans().map((span) => span.name),
-    ).toEqual(["GET /items"]);
+    expect(apitallyExporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
     expect(userExporter.getFinishedSpans().map((span) => span.name)).toEqual([
       "background job",
       "GET /items",
@@ -508,10 +459,7 @@ describe("spanProcessor", () => {
 
   it("flushes released requests downstream on provider forceFlush and shutdown without tearing down the pipeline", async () => {
     const apitallyExporter = new InMemorySpanExporter();
-    const downstream = new BatchSpanProcessor(
-      apitallyExporter,
-      createBatchProcessorOptions(),
-    );
+    const downstream = new BatchSpanProcessor(apitallyExporter, createBatchProcessorOptions());
     const pipeline = new SpanPipeline(downstream);
     setActiveSpanPipeline(pipeline);
     const userProvider = new NodeTracerProvider({
@@ -525,17 +473,16 @@ describe("spanProcessor", () => {
     pipeline.handleTransportCompletion(first.request.record);
     expect(apitallyExporter.getFinishedSpans()).toHaveLength(0);
     await userProvider.forceFlush();
-    expect(
-      apitallyExporter.getFinishedSpans().map((span) => span.name),
-    ).toEqual(["GET /first"]);
+    expect(apitallyExporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /first"]);
 
     const second = startServerSpan(userTracer, { name: "GET /second" });
     second.span.end();
     pipeline.handleTransportCompletion(second.request.record);
     await userProvider.shutdown();
-    expect(
-      apitallyExporter.getFinishedSpans().map((span) => span.name),
-    ).toEqual(["GET /first", "GET /second"]);
+    expect(apitallyExporter.getFinishedSpans().map((span) => span.name)).toEqual([
+      "GET /first",
+      "GET /second",
+    ]);
 
     const sdkProvider = new NodeTracerProvider({
       sampler: new AlwaysOnSampler(),
@@ -547,9 +494,11 @@ describe("spanProcessor", () => {
     third.span.end();
     pipeline.handleTransportCompletion(third.request.record);
     await pipeline.forceFlush();
-    expect(
-      apitallyExporter.getFinishedSpans().map((span) => span.name),
-    ).toEqual(["GET /first", "GET /second", "GET /third"]);
+    expect(apitallyExporter.getFinishedSpans().map((span) => span.name)).toEqual([
+      "GET /first",
+      "GET /second",
+      "GET /third",
+    ]);
     await pipeline.shutdown();
   });
 
@@ -558,20 +507,12 @@ describe("spanProcessor", () => {
     const { pipeline, tracer } = createTracePipeline({ downstream });
     const completed = startServerSpan(tracer, { name: "GET /completed" });
     tracer
-      .startSpan(
-        "completed-child",
-        {},
-        trace.setSpan(completed.request.context, completed.span),
-      )
+      .startSpan("completed-child", {}, trace.setSpan(completed.request.context, completed.span))
       .end();
     pipeline.handleTransportCompletion(completed.request.record);
     const inFlight = startServerSpan(tracer, { name: "GET /in-flight" });
     tracer
-      .startSpan(
-        "in-flight-child",
-        {},
-        trace.setSpan(inFlight.request.context, inFlight.span),
-      )
+      .startSpan("in-flight-child", {}, trace.setSpan(inFlight.request.context, inFlight.span))
       .end();
     inFlight.span.end();
     expect(downstream.spans).toHaveLength(0);

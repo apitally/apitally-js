@@ -40,10 +40,7 @@ function resolveHonoVersion(): string | undefined {
       } catch {
         continue;
       }
-      if (
-        packageJson.name === "hono" &&
-        typeof packageJson.version === "string"
-      ) {
+      if (packageJson.name === "hono" && typeof packageJson.version === "string") {
         return packageJson.version;
       }
     }

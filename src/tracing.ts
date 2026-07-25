@@ -24,11 +24,8 @@ export function instrument(
   fnWhenNamed?: (...args: unknown[]) => unknown,
 ): (...args: unknown[]) => unknown {
   const fn =
-    typeof nameOrFn === "function"
-      ? nameOrFn
-      : (fnWhenNamed as (...args: unknown[]) => unknown);
-  const spanName =
-    typeof nameOrFn === "string" ? nameOrFn : fn.name || "anonymous";
+    typeof nameOrFn === "function" ? nameOrFn : (fnWhenNamed as (...args: unknown[]) => unknown);
+  const spanName = typeof nameOrFn === "string" ? nameOrFn : fn.name || "anonymous";
   const attributes: Attributes = {};
   if (fn.name) {
     attributes["code.function.name"] = fn.name;
@@ -85,18 +82,14 @@ function runInsideSpan<Result>(
 
 // The wrap-time call site, taken from a stack capture that starts at
 // instrument's caller. An unparseable stack yields no location attributes.
-function resolveWrapSite():
-  | { filePath: string; lineNumber: number }
-  | undefined {
+function resolveWrapSite(): { filePath: string; lineNumber: number } | undefined {
   const holder: { stack?: string } = {};
   Error.captureStackTrace(holder, instrument);
   for (const frame of (holder.stack ?? "").split("\n")) {
     const match = STACK_FRAME_PATTERN.exec(frame);
     if (match) {
       return {
-        filePath: match[1].startsWith("file://")
-          ? fileURLToPath(match[1])
-          : match[1],
+        filePath: match[1].startsWith("file://") ? fileURLToPath(match[1]) : match[1],
         lineNumber: Number(match[2]),
       };
     }

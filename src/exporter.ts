@@ -2,10 +2,7 @@ import type { Attributes } from "@opentelemetry/api";
 import { SpanKind } from "@opentelemetry/api";
 import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
-import {
-  type Resource,
-  resourceFromAttributes,
-} from "@opentelemetry/resources";
+import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
   BODY_TOO_LARGE,
@@ -19,12 +16,7 @@ import { REDACTED, type Redaction, URL_HEADER_NAMES } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";
 import type { Signal, Spool } from "./spool.js";
 
-const QUERY_ATTRIBUTES = new Set([
-  "url.query",
-  "url.full",
-  "http.target",
-  "http.url",
-]);
+const QUERY_ATTRIBUTES = new Set(["url.query", "url.full", "http.target", "http.url"]);
 const REQUEST_HEADER_ATTRIBUTE_PREFIX = "http.request.header.";
 const RESPONSE_HEADER_ATTRIBUTE_PREFIX = "http.response.header.";
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
@@ -55,10 +47,7 @@ export class ApitallySpanExporter implements SpanExporter {
     this.maskResponseBody = options.maskResponseBody;
   }
 
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
     // Rewritten resources are shared across the batch: the serializer groups
     // resourceSpans by object identity, never by attribute equality.
     const rewrittenResources = new Map<Resource, Resource>();
@@ -68,9 +57,7 @@ export class ApitallySpanExporter implements SpanExporter {
         exportCopies.push(this.buildExportCopy(span, rewrittenResources));
       } catch {
         // A span that failed redaction must never leave the process.
-        logWarning(
-          "Failed to prepare a span for export to Apitally, so the span was dropped",
-        );
+        logWarning("Failed to prepare a span for export to Apitally, so the span was dropped");
       }
     }
     serializeInChunksToSpool(
@@ -119,17 +106,11 @@ export class ApitallySpanExporter implements SpanExporter {
     }
     const copy = copySpan(span);
     copy.attributes = attributes as Attributes;
-    copy.resource = this.resolveExportResource(
-      span.resource,
-      rewrittenResources,
-    );
+    copy.resource = this.resolveExportResource(span.resource, rewrittenResources);
     if (data?.demoteToInternal) {
       copy.kind = SpanKind.INTERNAL;
     }
-    if (
-      stash &&
-      (stash.requestBody !== undefined || stash.responseBody !== undefined)
-    ) {
+    if (stash && (stash.requestBody !== undefined || stash.responseBody !== undefined)) {
       // Mask callbacks receive the redacted export copy with captured headers
       // attached, but without body attributes.
       const snapshot = copySpan(copy);
@@ -156,15 +137,10 @@ export class ApitallySpanExporter implements SpanExporter {
 
   // OpenTelemetry HTTP instrumentations leave query and header attributes raw.
   // Both legacy and stable HTTP attribute names are redacted before export.
-  private redactQueryAndHeaderAttributes(
-    attributes: Record<string, unknown>,
-  ): void {
+  private redactQueryAndHeaderAttributes(attributes: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(attributes)) {
       if (QUERY_ATTRIBUTES.has(key) && typeof value === "string") {
-        attributes[key] = this.redaction.redactQueryParams(
-          value,
-          key === "url.query",
-        );
+        attributes[key] = this.redaction.redactQueryParams(value, key === "url.query");
       } else if (
         key.startsWith(REQUEST_HEADER_ATTRIBUTE_PREFIX) ||
         key.startsWith(RESPONSE_HEADER_ATTRIBUTE_PREFIX)
@@ -182,9 +158,7 @@ export class ApitallySpanExporter implements SpanExporter {
             attributes[key] = this.redaction.redactQueryParams(value, false);
           } else if (Array.isArray(value)) {
             attributes[key] = value.map((item) =>
-              typeof item === "string"
-                ? this.redaction.redactQueryParams(item, false)
-                : item,
+              typeof item === "string" ? this.redaction.redactQueryParams(item, false) : item,
             );
           }
         }
@@ -238,8 +212,7 @@ export class ApitallySpanExporter implements SpanExporter {
     rewrittenResources: Map<Resource, Resource>,
   ): Resource {
     const resourceEnv = resource.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
-    const conflicts =
-      typeof resourceEnv === "string" && resourceEnv !== this.env;
+    const conflicts = typeof resourceEnv === "string" && resourceEnv !== this.env;
     const missing = resourceEnv === undefined && this.env !== DEFAULT_ENV;
     if (!conflicts && !missing) {
       return resource;
@@ -271,14 +244,8 @@ export function serializeInChunksToSpool<Item>(
 ): void {
   const appends: Promise<void>[] = [];
   try {
-    for (
-      let start = 0;
-      start < items.length;
-      start += SERIALIZATION_CHUNK_SIZE
-    ) {
-      const payload = serializeChunk(
-        items.slice(start, start + SERIALIZATION_CHUNK_SIZE),
-      );
+    for (let start = 0; start < items.length; start += SERIALIZATION_CHUNK_SIZE) {
+      const payload = serializeChunk(items.slice(start, start + SERIALIZATION_CHUNK_SIZE));
       if (payload) {
         appends.push(spool.append(signal, payload));
       }

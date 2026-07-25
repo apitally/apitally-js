@@ -55,26 +55,18 @@ export class Spool {
   append(signal: Signal, payload: Uint8Array): Promise<void> {
     return this.enqueue(signal, async () => {
       let file = this.current.get(signal);
-      if (
-        file &&
-        file.uncompressedSize + payload.length > MAX_UNCOMPRESSED_FILE_SIZE
-      ) {
+      if (file && file.uncompressedSize + payload.length > MAX_UNCOMPRESSED_FILE_SIZE) {
         await this.closeCurrentFile(signal);
         file = undefined;
       }
       try {
         if (!file) {
-          file = new SpoolFile(
-            signal,
-            this.inMemory ? undefined : this.tempDir,
-          );
+          file = new SpoolFile(signal, this.inMemory ? undefined : this.tempDir);
           this.current.set(signal, file);
         }
         await file.write(payload);
       } catch {
-        logWarning(
-          `Error writing telemetry to disk, dropping buffered ${signal}`,
-        );
+        logWarning(`Error writing telemetry to disk, dropping buffered ${signal}`);
         await this.discardCurrentFile(signal);
       }
       await this.evict();
@@ -86,10 +78,7 @@ export class Spool {
   async rotateForExport(): Promise<void> {
     for (const signal of SIGNALS) {
       await this.enqueue(signal, async () => {
-        if (
-          this.current.has(signal) &&
-          !this.closed.some((file) => file.signal === signal)
-        ) {
+        if (this.current.has(signal) && !this.closed.some((file) => file.signal === signal)) {
           await this.closeCurrentFile(signal);
         }
       });
@@ -124,18 +113,13 @@ export class Spool {
 
   async clear(): Promise<void> {
     await Promise.all(
-      SIGNALS.map((signal) =>
-        this.enqueue(signal, () => this.discardCurrentFile(signal)),
-      ),
+      SIGNALS.map((signal) => this.enqueue(signal, () => this.discardCurrentFile(signal))),
     );
     const files = this.closed.splice(0);
     await Promise.all(files.map((file) => file.delete()));
   }
 
-  private enqueue(
-    signal: Signal,
-    operation: () => Promise<void>,
-  ): Promise<void> {
+  private enqueue(signal: Signal, operation: () => Promise<void>): Promise<void> {
     const result = this.queues[signal].then(operation);
     this.queues[signal] = result.catch(() => undefined);
     return result;
@@ -151,9 +135,7 @@ export class Spool {
       await file.close();
       this.closed.push(file);
     } catch {
-      logWarning(
-        `Error writing telemetry to disk, dropping buffered ${signal}`,
-      );
+      logWarning(`Error writing telemetry to disk, dropping buffered ${signal}`);
       await file.delete();
     }
   }
@@ -169,22 +151,17 @@ export class Spool {
   private async evict(): Promise<void> {
     const deletions: Promise<void>[] = [];
     for (const file of this.closed.filter((file) => file.isExpired())) {
-      logWarning(
-        `Buffered ${file.signal} could not be delivered within an hour and were dropped`,
-      );
+      logWarning(`Buffered ${file.signal} could not be delivered within an hour and were dropped`);
       this.closed.splice(this.closed.indexOf(file), 1);
       deletions.push(file.delete());
     }
     while (this.totalSize() > this.maxSize) {
       // Prefer retaining metrics, but enforce the size limit when only metrics remain.
-      const oldest =
-        this.closed.find((file) => file.signal !== "metrics") ?? this.closed[0];
+      const oldest = this.closed.find((file) => file.signal !== "metrics") ?? this.closed[0];
       if (!oldest) {
         break;
       }
-      logWarning(
-        `Buffer size limit reached, dropping oldest buffered ${oldest.signal}`,
-      );
+      logWarning(`Buffer size limit reached, dropping oldest buffered ${oldest.signal}`);
       this.closed.splice(this.closed.indexOf(oldest), 1);
       deletions.push(oldest.delete());
     }
@@ -293,8 +270,7 @@ export class SpoolFile {
   isExpired(): boolean {
     return (
       this.firstAttemptAtMillis !== undefined &&
-      performance.now() - this.firstAttemptAtMillis >
-        MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS
+      performance.now() - this.firstAttemptAtMillis > MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS
     );
   }
 

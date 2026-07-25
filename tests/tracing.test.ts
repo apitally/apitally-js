@@ -37,9 +37,7 @@ function callSiteOfNextLine(): { filePath: string; lineNumber: number } {
     throw new Error(`Could not parse the call site from: ${frame}`);
   }
   return {
-    filePath: match[1].startsWith("file://")
-      ? fileURLToPath(match[1])
-      : match[1],
+    filePath: match[1].startsWith("file://") ? fileURLToPath(match[1]) : match[1],
     lineNumber: Number(match[2]) + 1,
   };
 }
@@ -60,9 +58,7 @@ describe("tracing", () => {
     const childSpan = getExportedSpan(fixture, "fetchItems");
     expect(childSpan.kind).toBe(SpanKind.INTERNAL);
     expect(childSpan.instrumentationScope.name).toBe("apitally.otel");
-    expect(childSpan.parentSpanContext?.spanId).toBe(
-      serverSpan.spanContext().spanId,
-    );
+    expect(childSpan.parentSpanContext?.spanId).toBe(serverSpan.spanContext().spanId);
     expect(childSpan.attributes).toEqual({
       "code.function.name": "fetchItems",
       "code.file.path": wrapSite.filePath,
@@ -97,9 +93,7 @@ describe("tracing", () => {
     const innerSpan = getExportedSpan(fixture, "process step");
     expect(innerSpan.kind).toBe(SpanKind.INTERNAL);
     expect(innerSpan.instrumentationScope.name).toBe("apitally.otel");
-    expect(innerSpan.parentSpanContext?.spanId).toBe(
-      outerSpan.spanContext().spanId,
-    );
+    expect(innerSpan.parentSpanContext?.spanId).toBe(outerSpan.spanContext().spanId);
     expect(innerSpan.attributes).toEqual({});
   });
 

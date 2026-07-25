@@ -58,9 +58,7 @@ export function resolveStartupPaths(app: Hono): RoutePath[] {
 function readMatchedRouteEntries(c: Context): MatchedRouteEntry[] | undefined {
   try {
     const entries = (c.req as { matchedRoutes?: unknown }).matchedRoutes;
-    return Array.isArray(entries)
-      ? (entries as MatchedRouteEntry[])
-      : undefined;
+    return Array.isArray(entries) ? (entries as MatchedRouteEntry[]) : undefined;
   } catch (error) {
     logDebug(`Error reading the matched hono routes: ${String(error)}`);
     return undefined;
@@ -70,9 +68,7 @@ function readMatchedRouteEntries(c: Context): MatchedRouteEntry[] | undefined {
 function isRouteHandler(handler: unknown): boolean {
   let target = handler;
   while (typeof target === "function") {
-    const composed = (target as unknown as Record<string, unknown>)[
-      COMPOSED_HANDLER_PROPERTY
-    ];
+    const composed = (target as unknown as Record<string, unknown>)[COMPOSED_HANDLER_PROPERTY];
     if (composed === undefined) {
       break;
     }

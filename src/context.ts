@@ -20,11 +20,7 @@ export interface ConsumerHolder {
 
 // Requests dropped for these reasons are still counted in request metrics,
 // except preflight and websocket requests, which are never recorded.
-export type RequestDropReason =
-  | "excluded"
-  | "options"
-  | "websocket"
-  | "sampled-out";
+export type RequestDropReason = "excluded" | "options" | "websocket" | "sampled-out";
 
 // Transport attributes are applied to exported spans last and used for metrics,
 // so transport values take precedence.
@@ -54,25 +50,18 @@ export function withRequestHolders(
     .setValue(CONSUMER_HOLDER_KEY, consumerHolder);
 }
 
-export function getServerSpan(
-  activeContext: Context = context.active(),
-): Span | undefined {
-  return (activeContext.getValue(SPAN_HANDLE_KEY) as SpanHandle | undefined)
-    ?.span;
+export function getServerSpan(activeContext: Context = context.active()): Span | undefined {
+  return (activeContext.getValue(SPAN_HANDLE_KEY) as SpanHandle | undefined)?.span;
 }
 
 export function getRequestRecord(
   activeContext: Context = context.active(),
 ): RequestRecord | undefined {
-  return activeContext.getValue(REQUEST_RECORD_KEY) as
-    | RequestRecord
-    | undefined;
+  return activeContext.getValue(REQUEST_RECORD_KEY) as RequestRecord | undefined;
 }
 
 export function getConsumerHolder(
   activeContext: Context = context.active(),
 ): ConsumerHolder | undefined {
-  return activeContext.getValue(CONSUMER_HOLDER_KEY) as
-    | ConsumerHolder
-    | undefined;
+  return activeContext.getValue(CONSUMER_HOLDER_KEY) as ConsumerHolder | undefined;
 }

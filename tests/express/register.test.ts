@@ -46,9 +46,7 @@ describe("express register", () => {
     const startupPayload = JSON.parse(String(logRecords[0].body)) as {
       paths: { method: string; path: string }[];
     };
-    expect(startupPayload.paths).toEqual([
-      { method: "GET", path: "/api/items/:id" },
-    ]);
+    expect(startupPayload.paths).toEqual([{ method: "GET", path: "/api/items/:id" }]);
     expect(lines).toEqual([]);
   });
 });

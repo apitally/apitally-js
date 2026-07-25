@@ -38,18 +38,9 @@ export class MetricsPipeline {
     this.reader = new OnDemandMetricReader();
     this.meterProvider = createMeterProvider(resource, [this.reader]);
     const meter = this.meterProvider.getMeter("apitally");
-    this.requestDuration = meter.createHistogram(
-      "http.server.request.duration",
-      { unit: "s" },
-    );
-    this.requestBodySize = meter.createHistogram(
-      "http.server.request.body.size",
-      { unit: "By" },
-    );
-    this.responseBodySize = meter.createHistogram(
-      "http.server.response.body.size",
-      { unit: "By" },
-    );
+    this.requestDuration = meter.createHistogram("http.server.request.duration", { unit: "s" });
+    this.requestBodySize = meter.createHistogram("http.server.request.body.size", { unit: "By" });
+    this.responseBodySize = meter.createHistogram("http.server.response.body.size", { unit: "By" });
     meter
       .createObservableGauge("process.cpu.utilization", { unit: "1" })
       .addCallback((result) => result.observe(this.observeCpuUtilization()));
@@ -85,8 +76,7 @@ export class MetricsPipeline {
     if (method !== undefined) {
       attributes["http.request.method"] = method;
     }
-    const statusCode =
-      source["http.response.status_code"] ?? source["http.status_code"];
+    const statusCode = source["http.response.status_code"] ?? source["http.status_code"];
     if (statusCode !== undefined) {
       attributes["http.response.status_code"] = statusCode;
     }
@@ -127,15 +117,11 @@ export class MetricsPipeline {
     const cpuUsage = process.cpuUsage();
     const nowMillis = performance.now();
     const cpuTimeMicros =
-      cpuUsage.user -
-      this.lastCpuUsage.user +
-      (cpuUsage.system - this.lastCpuUsage.system);
+      cpuUsage.user - this.lastCpuUsage.user + (cpuUsage.system - this.lastCpuUsage.system);
     const elapsedMicros = (nowMillis - this.lastCpuUsageTimeMillis) * 1000;
     this.lastCpuUsage = cpuUsage;
     this.lastCpuUsageTimeMillis = nowMillis;
-    return elapsedMicros > 0
-      ? cpuTimeMicros / elapsedMicros / availableParallelism()
-      : 0;
+    return elapsedMicros > 0 ? cpuTimeMicros / elapsedMicros / availableParallelism() : 0;
   }
 }
 
@@ -166,9 +152,7 @@ class OnDemandMetricReader extends MetricReader {
 
 // Downscaling operates on rewritten copies built for serialization only; the
 // collected data points are never mutated.
-function downscaleExponentialHistograms(
-  resourceMetrics: ResourceMetrics,
-): ResourceMetrics {
+function downscaleExponentialHistograms(resourceMetrics: ResourceMetrics): ResourceMetrics {
   return {
     resource: resourceMetrics.resource,
     scopeMetrics: resourceMetrics.scopeMetrics.map((scopeMetrics) => ({
@@ -194,9 +178,7 @@ function downscaleMetricData(metric: MetricData): MetricData {
 
 // Exponential buckets nest by powers of two, so index merging matches native
 // aggregation at the configured export scale.
-function downscaleDataPointValue(
-  value: ExponentialHistogram,
-): ExponentialHistogram {
+function downscaleDataPointValue(value: ExponentialHistogram): ExponentialHistogram {
   const scaleReduction = value.scale - MAX_EXPORTED_HISTOGRAM_SCALE;
   return {
     ...value,
@@ -216,13 +198,10 @@ function mergeBuckets(
   const factor = 2 ** scaleReduction;
   // Math.floor keeps negative indices in the lower bucket.
   const firstIndex = Math.floor(buckets.offset / factor);
-  const lastIndex = Math.floor(
-    (buckets.offset + buckets.bucketCounts.length - 1) / factor,
-  );
+  const lastIndex = Math.floor((buckets.offset + buckets.bucketCounts.length - 1) / factor);
   const bucketCounts = new Array<number>(lastIndex - firstIndex + 1).fill(0);
   for (let i = 0; i < buckets.bucketCounts.length; i++) {
-    bucketCounts[Math.floor((buckets.offset + i) / factor) - firstIndex] +=
-      buckets.bucketCounts[i];
+    bucketCounts[Math.floor((buckets.offset + i) / factor) - firstIndex] += buckets.bucketCounts[i];
   }
   return { offset: firstIndex, bucketCounts };
 }

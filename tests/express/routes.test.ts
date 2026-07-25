@@ -55,10 +55,7 @@ async function sendRequestsAndResolveRoutes(
     }
   });
   return requestPaths.map((requestPath, index) =>
-    finishRouteTracking(
-      fixture.requests[firstRequestIndex + index],
-      requestPath.split("?")[0],
-    ),
+    finishRouteTracking(fixture.requests[firstRequestIndex + index], requestPath.split("?")[0]),
   );
 }
 
@@ -138,10 +135,7 @@ describe("express routes", () => {
     child.get("/x/:id", respondOk);
     fixture.app.use(["/a", "/b/:v"], child);
 
-    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
-      "/a/x/1",
-      "/b/7/x/2",
-    ]);
+    const routeResults = await sendRequestsAndResolveRoutes(fixture, ["/a/x/1", "/b/7/x/2"]);
     expect(routeResults).toEqual([
       { route: "/a/x/:id", matchedUncapturedRegistration: false },
       { route: "/b/:v/x/:id", matchedUncapturedRegistration: false },
@@ -152,10 +146,7 @@ describe("express routes", () => {
     installRouteCaptureFromApp(preCaptureFixture.app);
     preCaptureFixture.mountedRouter.get("/items/:id", respondOk);
 
-    const [routeResult] = await sendRequestsAndResolveRoutes(
-      preCaptureFixture,
-      ["/api/items/42"],
-    );
+    const [routeResult] = await sendRequestsAndResolveRoutes(preCaptureFixture, ["/api/items/42"]);
     expect(routeResult).toEqual({ matchedUncapturedRegistration: true });
   });
 

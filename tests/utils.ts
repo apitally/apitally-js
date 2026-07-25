@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync } from "node:fs";
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -82,7 +77,9 @@ export const UNROUTABLE_ENDPOINT = "http://127.0.0.1:1";
 export function readPackageVersion(): string {
   const { version } = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-  ) as { version: string };
+  ) as {
+    version: string;
+  };
   return version;
 }
 
@@ -107,14 +104,11 @@ export function clearTestRunnerMarkers(): void {
 
 // First-request activation tests use an isolated spool and one-hour worker delay
 // after removing the test-runner guards.
-export function prepareFirstRequestActivation(
-  options: ApitallyOptions = {},
-): void {
+export function prepareFirstRequestActivation(options: ApitallyOptions = {}): void {
   clearTestRunnerMarkers();
   // A stray worker cycle must never reach the real ingest endpoint.
   process.env.APITALLY_OTLP_ENDPOINT ??= UNROUTABLE_ENDPOINT;
-  activationFactories.createSpool = () =>
-    new Spool(mkdtempSync(join(tmpdir(), "apitally-test-")));
+  activationFactories.createSpool = () => new Spool(mkdtempSync(join(tmpdir(), "apitally-test-")));
   activationFactories.createExportWorker = (workerOptions) =>
     new ExportWorker({
       ...workerOptions,
@@ -125,9 +119,7 @@ export function prepareFirstRequestActivation(
   configure({ writeToken: WRITE_TOKEN, ...options });
 }
 
-export function configureAndActivate(
-  options: ApitallyOptions = {},
-): ActivationHandles {
+export function configureAndActivate(options: ApitallyOptions = {}): ActivationHandles {
   prepareFirstRequestActivation(options);
   activate();
   const handles = getActivationHandles();
@@ -151,9 +143,7 @@ export function spyOnSuccessfulFetch() {
     .mockImplementation(async () => new Response(null, { status: 200 }));
 }
 
-export function readFetchPaths(
-  fetchSpy: ReturnType<typeof spyOnSuccessfulFetch>,
-): string[] {
+export function readFetchPaths(fetchSpy: ReturnType<typeof spyOnSuccessfulFetch>): string[] {
   return fetchSpy.mock.calls.map(([url]) => new URL(String(url)).pathname);
 }
 
@@ -177,9 +167,7 @@ export async function withServer(
 
 // Reading the body completes telemetry; one macrotask lets the response tee
 // settle before assertions.
-export async function readResponseAndSettleTransport(
-  response: Response,
-): Promise<Buffer> {
+export async function readResponseAndSettleTransport(response: Response): Promise<Buffer> {
   const body = Buffer.from(await response.arrayBuffer());
   await new Promise((resolve) => {
     setImmediate(resolve);
@@ -189,9 +177,7 @@ export async function readResponseAndSettleTransport(
 
 // Used when response completion is not client-observable, such as an aborted
 // request; composes with the log release hook.
-export function waitForNextRequestFinish(
-  pipeline: SpanPipeline,
-): Promise<void> {
+export function waitForNextRequestFinish(pipeline: SpanPipeline): Promise<void> {
   return new Promise((resolve) => {
     const previous = pipeline.onRequestFinished;
     pipeline.onRequestFinished = (serverSpanId, kept) => {
@@ -234,9 +220,7 @@ export function createTracePipeline(
   } = {},
 ): TracePipeline {
   const exporter = new InMemorySpanExporter();
-  const pipeline = new SpanPipeline(
-    options.downstream ?? new SimpleSpanProcessor(exporter),
-  );
+  const pipeline = new SpanPipeline(options.downstream ?? new SimpleSpanProcessor(exporter));
   const provider = new NodeTracerProvider({
     sampler: new AlwaysOnSampler(),
     resource: options.resource,
@@ -278,9 +262,7 @@ export interface RequestContext {
   consumerHolder: ConsumerHolder;
 }
 
-export function createRequestContext(
-  base: Context = ROOT_CONTEXT,
-): RequestContext {
+export function createRequestContext(base: Context = ROOT_CONTEXT): RequestContext {
   const record: RequestRecord = { attributes: {} };
   const spanHandle: SpanHandle = {};
   const consumerHolder: ConsumerHolder = {};
@@ -343,9 +325,7 @@ export function createInMemorySpool(): Spool {
 }
 
 export function readSerializedSpans(): ReadableSpan[] {
-  return vi
-    .mocked(ProtobufTraceSerializer.serializeRequest)
-    .mock.calls.flatMap(([spans]) => spans);
+  return vi.mocked(ProtobufTraceSerializer.serializeRequest).mock.calls.flatMap(([spans]) => spans);
 }
 
 export function readSerializedLogRecords(): ReadableLogRecord[] {
@@ -390,11 +370,9 @@ export class CollectOnlyMetricReader extends MetricReader {
 // Global teardown restores the stderr spy.
 export function captureStderr(): string[] {
   const written: string[] = [];
-  vi.spyOn(process.stderr, "write").mockImplementation(
-    (chunk: Uint8Array | string) => {
-      written.push(chunk.toString());
-      return true;
-    },
-  );
+  vi.spyOn(process.stderr, "write").mockImplementation((chunk: Uint8Array | string) => {
+    written.push(chunk.toString());
+    return true;
+  });
   return written;
 }

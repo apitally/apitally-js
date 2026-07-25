@@ -46,8 +46,7 @@ const capturedRoutes = new WeakSet<object>();
 // Express stores templates in path-to-regexp closures, so a probe from the user's
 // Express module locates and patches the shared router prototypes.
 export function installRouteCaptureFromExpress(expressModule: unknown): void {
-  const routerFactory = (expressModule as { Router?: unknown } | undefined)
-    ?.Router;
+  const routerFactory = (expressModule as { Router?: unknown } | undefined)?.Router;
   if (typeof routerFactory !== "function") {
     logDebug("The express module does not expose a Router factory");
     return;
@@ -81,13 +80,8 @@ export function beginRouteTracking(req: object): void {
 
 // A template that does not prefix-match the request path indicates an uncaptured
 // registration.
-export function finishRouteTracking(
-  req: object,
-  requestPath: string,
-): RouteTrackingResult {
-  const state = (req as Record<symbol, unknown>)[ROUTE_STATE_KEY] as
-    | RouteTrackingState
-    | undefined;
+export function finishRouteTracking(req: object, requestPath: string): RouteTrackingResult {
+  const state = (req as Record<symbol, unknown>)[ROUTE_STATE_KEY] as RouteTrackingState | undefined;
   const matchedExpressRoute = (req as { route?: unknown }).route !== undefined;
   if (!state) {
     return { matchedUncapturedRegistration: false };
@@ -192,16 +186,9 @@ function installRouteCapturePatches(routerInstance: object): void {
   }
 }
 
-function patchRouterPrototype(
-  routerPrototype: Record<PropertyKey, unknown>,
-): void {
-  const originalRoute = routerPrototype.route as (
-    ...args: unknown[]
-  ) => CapturedRoute;
-  routerPrototype.route = function (
-    this: object,
-    ...args: unknown[]
-  ): CapturedRoute {
+function patchRouterPrototype(routerPrototype: Record<PropertyKey, unknown>): void {
+  const originalRoute = routerPrototype.route as (...args: unknown[]) => CapturedRoute;
+  routerPrototype.route = function (this: object, ...args: unknown[]): CapturedRoute {
     const route = originalRoute.apply(this, args);
     try {
       tableFor(this).routes.push(route);
@@ -223,18 +210,14 @@ function patchRouterPrototype(
           return originalUse.call(
             this,
             args[0],
-            ...handlers.map((handler) =>
-              wrapMountHandler(handler, pathTemplates, table),
-            ),
+            ...handlers.map((handler) => wrapMountHandler(handler, pathTemplates, table)),
           );
         }
       } else if (isHandlerFirstArgument(args[0])) {
         // use() without a path mounts at "/"
         return originalUse.apply(
           this,
-          flattenHandlers(args).map((handler) =>
-            wrapMountHandler(handler, ["/"], table),
-          ),
+          flattenHandlers(args).map((handler) => wrapMountHandler(handler, ["/"], table)),
         );
       }
     } catch (error) {
@@ -245,16 +228,9 @@ function patchRouterPrototype(
   routerPrototype[ROUTER_PATCH_MARKER] = true;
 }
 
-function patchRoutePrototype(
-  routePrototype: Record<PropertyKey, unknown>,
-): void {
-  const originalDispatch = routePrototype.dispatch as (
-    ...args: unknown[]
-  ) => unknown;
-  routePrototype.dispatch = function (
-    this: { path?: unknown },
-    ...args: unknown[]
-  ): unknown {
+function patchRoutePrototype(routePrototype: Record<PropertyKey, unknown>): void {
+  const originalDispatch = routePrototype.dispatch as (...args: unknown[]) => unknown;
+  routePrototype.dispatch = function (this: { path?: unknown }, ...args: unknown[]): unknown {
     try {
       const req = args[0] as Record<symbol, unknown> & { url?: unknown };
       const state = req[ROUTE_STATE_KEY] as RouteTrackingState | undefined;
@@ -280,17 +256,12 @@ function patchApplicationUse(target: unknown): void {
   const originalUse = targetObject?.use;
   if (
     typeof originalUse !== "function" ||
-    (originalUse as unknown as Record<PropertyKey, unknown>)[
-      APP_USE_PATCH_MARKER
-    ] === true
+    (originalUse as unknown as Record<PropertyKey, unknown>)[APP_USE_PATCH_MARKER] === true
   ) {
     return;
   }
   const patchedUse = function (this: object, ...args: unknown[]): unknown {
-    const result = (originalUse as (...useArgs: unknown[]) => unknown).apply(
-      this,
-      args,
-    );
+    const result = (originalUse as (...useArgs: unknown[]) => unknown).apply(this, args);
     try {
       const subApps = flattenHandlers(args).filter(isExpressApp);
       if (subApps.length > 0) {
@@ -308,9 +279,7 @@ function patchApplicationUse(target: unknown): void {
     }
     return result;
   };
-  (patchedUse as unknown as Record<PropertyKey, unknown>)[
-    APP_USE_PATCH_MARKER
-  ] = true;
+  (patchedUse as unknown as Record<PropertyKey, unknown>)[APP_USE_PATCH_MARKER] = true;
   (targetObject as Record<PropertyKey, unknown>).use = patchedUse;
 }
 
@@ -326,11 +295,7 @@ function wrapMountHandler(
   }
   table.mounts.push({ pathTemplates, handler });
   const stack = (handler as { stack?: unknown }).stack;
-  if (
-    Array.isArray(stack) &&
-    stack.length > 0 &&
-    !captureTables.has(handler as object)
-  ) {
+  if (Array.isArray(stack) && stack.length > 0 && !captureTables.has(handler as object)) {
     logWarning(
       'The routes of a mounted router were registered before Apitally could capture them, so requests to that router are exported without route templates. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
@@ -355,14 +320,11 @@ function wrapMountHandler(
       return mountHandler.call(this, req, res, next);
     }
     const baseUrl = typeof req.baseUrl === "string" ? req.baseUrl : "";
-    const parentBaseUrl =
-      state.mountBaseUrls[state.mountBaseUrls.length - 1] ?? "";
+    const parentBaseUrl = state.mountBaseUrls[state.mountBaseUrls.length - 1] ?? "";
     const consumedPath = baseUrl.startsWith(parentBaseUrl)
       ? baseUrl.slice(parentBaseUrl.length)
       : baseUrl;
-    state.mountSegments.push(
-      selectMatchingTemplate(pathTemplates, consumedPath),
-    );
+    state.mountSegments.push(selectMatchingTemplate(pathTemplates, consumedPath));
     state.mountBaseUrls.push(baseUrl);
     let exited = false;
     return mountHandler.call(this, req, res, (error?: unknown) => {
@@ -387,18 +349,13 @@ function tableFor(router: object): RouterCaptureTable {
 
 // Calling route() on a minimal prototype object creates a Route for prototype
 // discovery without registering a layer.
-function createProbeRoute(
-  routerPrototype: Record<PropertyKey, unknown>,
-): object | undefined {
+function createProbeRoute(routerPrototype: Record<PropertyKey, unknown>): object | undefined {
   try {
     const stub = Object.create(routerPrototype) as Record<string, unknown>;
     stub.caseSensitive = false;
     stub.strict = false;
     stub.stack = [];
-    const route = (routerPrototype.route as (path: string) => unknown).call(
-      stub,
-      "/",
-    );
+    const route = (routerPrototype.route as (path: string) => unknown).call(stub, "/");
     return typeof route === "object" && route !== null ? route : undefined;
   } catch {
     return undefined;
@@ -438,9 +395,7 @@ function resolveAppRouter(app: unknown): object | undefined {
   }
   try {
     // Reading app.router throws on Express 4, where _router is used instead.
-    return typeof appObject.router === "function"
-      ? (appObject.router as object)
-      : undefined;
+    return typeof appObject.router === "function" ? (appObject.router as object) : undefined;
   } catch {
     return undefined;
   }
@@ -485,26 +440,19 @@ function flattenHandlers(args: unknown[]): unknown[] {
   return args.flat(Number.POSITIVE_INFINITY);
 }
 
-function selectMatchingTemplate(
-  pathTemplates: string[],
-  consumedPath: string,
-): string {
+function selectMatchingTemplate(pathTemplates: string[], consumedPath: string): string {
   if (pathTemplates.length === 1) {
     return pathTemplates[0];
   }
   return (
-    pathTemplates.find((template) =>
-      matchesTemplate(template, consumedPath, "full"),
-    ) ?? pathTemplates[0]
+    pathTemplates.find((template) => matchesTemplate(template, consumedPath, "full")) ??
+    pathTemplates[0]
   );
 }
 
 // The dispatched route's registered path: arrays resolve to the member
 // matching the request's remaining path, regular expressions have no template.
-function resolveDispatchedRoutePath(
-  routePath: unknown,
-  requestUrl: unknown,
-): string | undefined {
+function resolveDispatchedRoutePath(routePath: unknown, requestUrl: unknown): string | undefined {
   if (typeof routePath === "string") {
     return normalizeInlineRegexParams(routePath);
   }
@@ -512,12 +460,9 @@ function resolveDispatchedRoutePath(
     const templates = routePath
       .filter((path): path is string => typeof path === "string")
       .map(normalizeInlineRegexParams);
-    const remainingPath =
-      typeof requestUrl === "string" ? requestUrl.split("?")[0] : "";
+    const remainingPath = typeof requestUrl === "string" ? requestUrl.split("?")[0] : "";
     return (
-      templates.find((template) =>
-        matchesTemplate(template, remainingPath, "full"),
-      ) ?? templates[0]
+      templates.find((template) => matchesTemplate(template, remainingPath, "full")) ?? templates[0]
     );
   }
   return undefined;
@@ -575,11 +520,7 @@ const compiledTemplatePatterns = new Map<string, RegExp | undefined>();
 
 // Express template matching handles named parameters, wildcards, and optional
 // groups. Unknown syntax remains permissive so valid routes are not cleared.
-function matchesTemplate(
-  template: string,
-  path: string,
-  mode: "full" | "prefix",
-): boolean {
+function matchesTemplate(template: string, path: string, mode: "full" | "prefix"): boolean {
   if (template === "/") {
     return path === "/" || path === "";
   }

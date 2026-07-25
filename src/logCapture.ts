@@ -71,9 +71,10 @@ export function installConsoleCapture(loggerProvider: LoggerProvider): void {
   }
   const logger = loggerProvider.getLogger("console");
   const restoreSteps: (() => void)[] = [];
-  for (const [method, severityNumber] of Object.entries(
-    CONSOLE_METHOD_SEVERITIES,
-  ) as [keyof typeof CONSOLE_METHOD_SEVERITIES, SeverityNumber][]) {
+  for (const [method, severityNumber] of Object.entries(CONSOLE_METHOD_SEVERITIES) as [
+    keyof typeof CONSOLE_METHOD_SEVERITIES,
+    SeverityNumber,
+  ][]) {
     const original = console[method];
     console[method] = (...args: unknown[]) => {
       original.apply(console, args);
@@ -129,14 +130,10 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   class ApitallyTransport extends TransportBase {
     readonly [WINSTON_TRANSPORT_MARKER] = true;
 
-    log(
-      info: { level?: unknown; message?: unknown },
-      callback?: () => void,
-    ): void {
+    log(info: { level?: unknown; message?: unknown }, callback?: () => void): void {
       const severityText = typeof info.level === "string" ? info.level : "";
       emitCapturedLogRecord(logger, {
-        severityNumber:
-          WINSTON_LEVEL_SEVERITIES[severityText] ?? SeverityNumber.INFO,
+        severityNumber: WINSTON_LEVEL_SEVERITIES[severityText] ?? SeverityNumber.INFO,
         severityText,
         body: info.message as AnyValue,
       });
@@ -147,20 +144,13 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   // WeakRef prevents the registry from retaining logger instances.
   const attachedLoggers = new Set<WeakRef<WinstonLoggerInstance>>();
   const attachedTransports = new WeakMap<WinstonLoggerInstance, object>();
-  const originalWrite = loggerPrototype.write as (
-    ...args: unknown[]
-  ) => boolean;
+  const originalWrite = loggerPrototype.write as (...args: unknown[]) => boolean;
   // Attaching through add() before delegation covers existing loggers,
   // reattaches after clear(), and drains `winston`'s zero-transport buffer.
-  loggerPrototype.write = function (
-    this: WinstonLoggerInstance,
-    ...args: unknown[]
-  ): boolean {
+  loggerPrototype.write = function (this: WinstonLoggerInstance, ...args: unknown[]): boolean {
     try {
       if (
-        !this.transports.some((transport) =>
-          hasPatchMarker(transport, WINSTON_TRANSPORT_MARKER),
-        )
+        !this.transports.some((transport) => hasPatchMarker(transport, WINSTON_TRANSPORT_MARKER))
       ) {
         const transport = new ApitallyTransport();
         this.add(transport);
@@ -220,10 +210,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
   const logger = loggerProvider.getLogger("pino");
   // WeakRef prevents the registry from retaining hook objects.
   const captureInstalledHooks = new Set<WeakRef<PinoStreamWriteHooks>>();
-  const userStreamWrites = new WeakMap<
-    PinoStreamWriteHooks,
-    (line: string) => string
-  >();
+  const userStreamWrites = new WeakMap<PinoStreamWriteHooks, (line: string) => string>();
   // The level and messageKey of the write in progress; the streamWrite hook
   // call is strictly synchronous within the write.
   let writeContext: { level: number; messageKey: string } | undefined;
@@ -253,9 +240,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
 
   // Loggers without hooks share `pino`'s default hook object. Other hook objects
   // are wrapped on first write after the user's hook runs.
-  const ensureStreamWriteHook = (
-    hooks: PinoStreamWriteHooks | undefined,
-  ): void => {
+  const ensureStreamWriteHook = (hooks: PinoStreamWriteHooks | undefined): void => {
     if (!hooks || hasPatchMarker(hooks, PINO_HOOK_MARKER)) {
       return;
     }
@@ -272,20 +257,13 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
     }
   };
 
-  const originalWrite = writePrototype[writeSym] as (
-    ...args: unknown[]
-  ) => unknown;
-  writePrototype[writeSym] = function (
-    this: Record<symbol, unknown>,
-    ...args: unknown[]
-  ): unknown {
+  const originalWrite = writePrototype[writeSym] as (...args: unknown[]) => unknown;
+  writePrototype[writeSym] = function (this: Record<symbol, unknown>, ...args: unknown[]): unknown {
     try {
       ensureStreamWriteHook(this[hooksSym] as PinoStreamWriteHooks | undefined);
       const level = args[2];
       writeContext =
-        typeof level === "number"
-          ? { level, messageKey: String(this[messageKeySym]) }
-          : undefined;
+        typeof level === "number" ? { level, messageKey: String(this[messageKeySym]) } : undefined;
     } catch {
       writeContext = undefined;
     }
@@ -350,15 +328,9 @@ function findPrototypeOwning(
   instance: object,
   key: PropertyKey,
 ): Record<PropertyKey, unknown> | undefined {
-  let prototype = Object.getPrototypeOf(instance) as Record<
-    PropertyKey,
-    unknown
-  > | null;
+  let prototype = Object.getPrototypeOf(instance) as Record<PropertyKey, unknown> | null;
   while (prototype !== null && !Object.hasOwn(prototype, key)) {
-    prototype = Object.getPrototypeOf(prototype) as Record<
-      PropertyKey,
-      unknown
-    > | null;
+    prototype = Object.getPrototypeOf(prototype) as Record<PropertyKey, unknown> | null;
   }
   return prototype ?? undefined;
 }

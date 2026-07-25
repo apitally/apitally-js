@@ -19,18 +19,14 @@ interface SentryClient {
 // active SERVER spans. Calls outside a request are no-ops.
 export function installSentryEventIdRecording(): void {
   try {
-    const client =
-      getClientThroughPeerResolution() ?? getClientFromGlobalCarrier();
+    const client = getClientThroughPeerResolution() ?? getClientFromGlobalCarrier();
     if (!client) {
       logDebug("No Sentry client was detected");
       return;
     }
     client.on("beforeSendEvent", (event) => {
       try {
-        if (
-          typeof event.event_id !== "string" ||
-          !event.exception?.values?.length
-        ) {
+        if (typeof event.event_id !== "string" || !event.exception?.values?.length) {
           return;
         }
         writeRequestAttribute(
@@ -56,9 +52,7 @@ function getClientThroughPeerResolution(): SentryClient | undefined {
     const sentry = createRequire(entryPath)(entryPath) as {
       getClient?: () => unknown;
     };
-    return typeof sentry.getClient === "function"
-      ? asSentryClient(sentry.getClient())
-      : undefined;
+    return typeof sentry.getClient === "function" ? asSentryClient(sentry.getClient()) : undefined;
   } catch {
     return undefined;
   }
@@ -75,8 +69,7 @@ function getClientFromGlobalCarrier(): SentryClient | undefined {
   if (isRecord(hub) && typeof hub.getClient === "function") {
     return asSentryClient(hub.getClient());
   }
-  const versioned =
-    typeof carrier.version === "string" ? carrier[carrier.version] : undefined;
+  const versioned = typeof carrier.version === "string" ? carrier[carrier.version] : undefined;
   if (!isRecord(versioned)) {
     return undefined;
   }

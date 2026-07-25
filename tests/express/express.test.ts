@@ -4,13 +4,7 @@ import type { AddressInfo, Socket } from "node:net";
 import { connect } from "node:net";
 import { PassThrough } from "node:stream";
 import { gunzipSync } from "node:zlib";
-import {
-  type Attributes,
-  context,
-  SpanKind,
-  TraceFlags,
-  trace,
-} from "@opentelemetry/api";
+import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType } from "@opentelemetry/core";
 import compression from "compression";
 import express, { type Express } from "express";
@@ -91,9 +85,7 @@ describe("express adapter", () => {
       "client.address": "127.0.0.1",
       "http.route": "/items/:id",
       "http.response.status_code": 200,
-      "http.response.body.size": Buffer.byteLength(
-        JSON.stringify({ id: 42, name: "Widget" }),
-      ),
+      "http.response.body.size": Buffer.byteLength(JSON.stringify({ id: 42, name: "Widget" })),
     });
   });
 
@@ -137,9 +129,10 @@ describe("express adapter", () => {
     expect(unmatchedAttributes["http.route"]).toBe("");
     expect(unmatchedAttributes["http.response.status_code"]).toBe(404);
     const dataPoints = await readActivationDurationDataPoints();
-    expect(
-      dataPoints.map((dataPoint) => dataPoint.attributes["http.route"]),
-    ).toEqual(["/api/nested/:key", "/api/v2/deep"]);
+    expect(dataPoints.map((dataPoint) => dataPoint.attributes["http.route"])).toEqual([
+      "/api/nested/:key",
+      "/api/v2/deep",
+    ]);
     expect(lines).toEqual([]);
   });
 
@@ -160,9 +153,7 @@ describe("express adapter", () => {
     expect(spans[0].name).toBe("GET");
     expect(spans[0].attributes["http.route"]).toBe("");
     expect(await readActivationDurationDataPoints()).toEqual([]);
-    const registerWarnings = lines.filter((line) =>
-      line.includes("apitally/express/register"),
-    );
+    const registerWarnings = lines.filter((line) => line.includes("apitally/express/register"));
     expect(registerWarnings).toHaveLength(2);
   });
 
@@ -241,9 +232,7 @@ describe("express adapter", () => {
     const attributes = spans[0].attributes;
     expect(attributes["http.route"]).toBe("/items/:id");
     expect(attributes["http.response.status_code"]).toBe(200);
-    expect(attributes["apitally.response.body"]).toBe(
-      JSON.stringify({ id: 5, name: "Widget" }),
-    );
+    expect(attributes["apitally.response.body"]).toBe(JSON.stringify({ id: 5, name: "Widget" }));
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
     expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
@@ -283,9 +272,7 @@ describe("express adapter", () => {
       }
     });
 
-    expect(
-      lines.filter((line) => line.includes("did not sample")),
-    ).toHaveLength(1);
+    expect(lines.filter((line) => line.includes("did not sample"))).toHaveLength(1);
     expect(await readActivationSpans()).toEqual([]);
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
@@ -347,17 +334,13 @@ describe("express adapter", () => {
     prepareFirstRequestActivation({
       captureRequestBody: true,
       captureResponseBody: true,
-      maskRequestBody: (body) =>
-        Buffer.from(body.toString().replace("Widget", "Gadget")),
+      maskRequestBody: (body) => Buffer.from(body.toString().replace("Widget", "Gadget")),
       sampleOnResponse: (span) => {
         sampledAttributes = { ...span.attributes };
         return true;
       },
     });
-    await request(server)
-      .post("/items")
-      .send({ name: "Widget", password: "hunter2" })
-      .expect(201);
+    await request(server).post("/items").send({ name: "Widget", password: "hunter2" }).expect(201);
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
@@ -385,9 +368,7 @@ describe("express adapter", () => {
     expect(spans).toHaveLength(1);
     const attributes = spans[0].attributes;
     expect(attributes["http.response.body.size"]).toBe(24);
-    expect(attributes["apitally.response.body"]).toBe(
-      "chunk-1\nchunk-2\nchunk-3\n",
-    );
+    expect(attributes["apitally.response.body"]).toBe("chunk-1\nchunk-2\nchunk-3\n");
   });
 
   it("releases an aborted request through the close path with the partial response body suppressed", async () => {
@@ -508,10 +489,7 @@ describe("express adapter", () => {
     const joinedCycle = worker.runCycle();
     releaseFetch(new Response(null, { status: 200 }));
     await joinedCycle;
-    expect(readFetchPaths(fetchSpy).sort()).toEqual([
-      "/v1/metrics",
-      "/v1/traces",
-    ]);
+    expect(readFetchPaths(fetchSpy).sort()).toEqual(["/v1/metrics", "/v1/traces"]);
   });
 
   it("keeps exporting requests served by a second server after the first one closes", async () => {

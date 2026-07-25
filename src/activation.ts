@@ -1,8 +1,5 @@
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
-import {
-  BatchLogRecordProcessor,
-  type LoggerProvider,
-} from "@opentelemetry/sdk-logs";
+import { BatchLogRecordProcessor, type LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
@@ -14,11 +11,7 @@ import {
 } from "./config.js";
 import { ApitallySpanExporter } from "./exporter.js";
 import { ExportWorker, type ExportWorkerOptions } from "./exportWorker.js";
-import {
-  installConsoleCapture,
-  installPinoCapture,
-  installWinstonCapture,
-} from "./logCapture.js";
+import { installConsoleCapture, installPinoCapture, installWinstonCapture } from "./logCapture.js";
 import { logDebug, logError, logWarning } from "./logger.js";
 import { ApitallyLogRecordExporter, LogPipeline } from "./logPipeline.js";
 import { MetricsPipeline } from "./metrics.js";
@@ -127,8 +120,7 @@ export function shutdown(): Promise<void> {
 // Tests replace these factories to isolate spool files and worker timing.
 export const activationFactories = {
   createSpool: (): Spool => new Spool(),
-  createExportWorker: (options: ExportWorkerOptions): ExportWorker =>
-    new ExportWorker(options),
+  createExportWorker: (options: ExportWorkerOptions): ExportWorker => new ExportWorker(options),
 };
 const defaultFactories = { ...activationFactories };
 
@@ -162,10 +154,7 @@ function getActivationState(): ActivationState {
   const holder = globalThis as Record<symbol, ActivationState | undefined>;
   const existing = holder[ACTIVATION_STATE_KEY];
   if (existing) {
-    if (
-      !hasWarnedAboutVersionSkew &&
-      existing.sdkVersion !== getDistroVersion()
-    ) {
+    if (!hasWarnedAboutVersionSkew && existing.sdkVersion !== getDistroVersion()) {
       hasWarnedAboutVersionSkew = true;
       logWarning(
         `Two copies of the apitally package with different versions (${existing.sdkVersion} and ${getDistroVersion()}) are loaded in this process; version ${existing.sdkVersion} stays active. To resolve this, deduplicate the apitally installation.`,
@@ -192,9 +181,7 @@ function shouldSkipActivation(): boolean {
   );
 }
 
-function startPipelines(
-  startupEventInfo: StartupEventInfo | undefined,
-): ActivationHandles {
+function startPipelines(startupEventInfo: StartupEventInfo | undefined): ActivationHandles {
   const config = getConfig();
   const hasUserProvider = hasUserTracerProvider();
   const env = resolveEnv(hasUserProvider);
@@ -237,8 +224,7 @@ function startPipelines(
   const logPipeline = new LogPipeline(batchLogProcessor, spanPipeline);
   const loggerProvider = createLoggerProvider(resource, [logPipeline]);
   const metricsPipeline = new MetricsPipeline(resource, spool);
-  spanPipeline.metricsRecorder = (record) =>
-    metricsPipeline.recordFromRequest(record);
+  spanPipeline.metricsRecorder = (record) => metricsPipeline.recordFromRequest(record);
   const worker = activationFactories.createExportWorker({
     spool,
     otlpEndpoint: config.otlpEndpoint,
@@ -279,9 +265,7 @@ function startPipelines(
 
 // ignoreRequestHook prevents telemetry for export POSTs. The request origin can
 // be a string or URL at runtime despite its string type.
-function createUndiciInstrumentation(
-  otlpEndpoint: string,
-): UndiciInstrumentation {
+function createUndiciInstrumentation(otlpEndpoint: string): UndiciInstrumentation {
   const endpointOrigin = new URL(otlpEndpoint).origin;
   return new UndiciInstrumentation({
     ignoreRequestHook: (request) => {

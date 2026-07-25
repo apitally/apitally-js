@@ -6,11 +6,7 @@ import {
   SpanKind,
 } from "@opentelemetry/api";
 import { hrTime, hrTimeDuration } from "@opentelemetry/core";
-import type {
-  ReadableSpan,
-  Span,
-  SpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import {
   type ApitallyConfig,
   compilePatterns,
@@ -20,10 +16,7 @@ import {
   matchesAny,
   type SamplingCallback,
 } from "./config.js";
-import {
-  type ApitallyConsumer,
-  consumerFromStringOrObject,
-} from "./consumer.js";
+import { type ApitallyConsumer, consumerFromStringOrObject } from "./consumer.js";
 import {
   CONSUMER_HOLDER_KEY,
   type ConsumerHolder,
@@ -103,18 +96,12 @@ export class ApitallySpanProcessor implements SpanProcessor {
 // A Symbol.for key lets ESM and CJS builds share the active pipeline.
 const ACTIVE_SPAN_PIPELINE_KEY = Symbol.for("apitally.activeSpanPipeline");
 
-export function setActiveSpanPipeline(
-  pipeline: SpanPipeline | undefined,
-): void {
-  (globalThis as Record<symbol, SpanPipeline | undefined>)[
-    ACTIVE_SPAN_PIPELINE_KEY
-  ] = pipeline;
+export function setActiveSpanPipeline(pipeline: SpanPipeline | undefined): void {
+  (globalThis as Record<symbol, SpanPipeline | undefined>)[ACTIVE_SPAN_PIPELINE_KEY] = pipeline;
 }
 
 export function getActiveSpanPipeline(): SpanPipeline | undefined {
-  return (globalThis as Record<symbol, SpanPipeline | undefined>)[
-    ACTIVE_SPAN_PIPELINE_KEY
-  ];
+  return (globalThis as Record<symbol, SpanPipeline | undefined>)[ACTIVE_SPAN_PIPELINE_KEY];
 }
 
 export function setConsumer(consumer: ApitallyConsumer | string): void {
@@ -209,10 +196,7 @@ export class SpanPipeline implements SpanProcessor {
     this.downstream = downstream;
     this.config = getConfig();
     this.sampleRateBound = boundForSampleRate(this.config.sampleRate);
-    this.excludePathPatterns = compilePatterns(
-      DEFAULT_EXCLUDE_PATHS,
-      this.config.excludePaths,
-    );
+    this.excludePathPatterns = compilePatterns(DEFAULT_EXCLUDE_PATHS, this.config.excludePaths);
   }
 
   onStart(span: Span, parentContext: Context): void {
@@ -302,9 +286,7 @@ export class SpanPipeline implements SpanProcessor {
   handleTransportCompletion(record: RequestRecord): void {
     try {
       const entry =
-        record.serverSpanId !== undefined
-          ? this.requests.get(record.serverSpanId)
-          : undefined;
+        record.serverSpanId !== undefined ? this.requests.get(record.serverSpanId) : undefined;
       if (entry && !entry.transportCompleted && !entry.released) {
         // The user-produced SERVER span started before the request record existed;
         // attaching the record here carries transport attributes to the export copy.
@@ -338,9 +320,7 @@ export class SpanPipeline implements SpanProcessor {
           const oldestKey = this.stash.keys().next().value;
           if (oldestKey !== undefined) {
             this.stash.delete(oldestKey);
-            logDebug(
-              "Apitally payload stash cap reached, dropping the oldest entry",
-            );
+            logDebug("Apitally payload stash cap reached, dropping the oldest entry");
           }
         }
         entry = {};
@@ -366,10 +346,7 @@ export class SpanPipeline implements SpanProcessor {
   // Kept requests remain resolvable after release so late logs retain their
   // request association.
   resolveServerSpanId(spanId: string): string | undefined {
-    return (
-      this.requests.get(spanId)?.serverSpanId ??
-      this.keptSpanIds.get(spanId)?.serverSpanId
-    );
+    return this.requests.get(spanId)?.serverSpanId ?? this.keptSpanIds.get(spanId)?.serverSpanId;
   }
 
   isRequestInFlight(serverSpanId: string): boolean {
@@ -403,21 +380,15 @@ export class SpanPipeline implements SpanProcessor {
     const spanId = span.spanContext().spanId;
     // The handle is filled for every local-root SERVER span, independent of the
     // keep decision, so runtime writes always reach the current request's span.
-    const handle = parentContext.getValue(SPAN_HANDLE_KEY) as
-      | SpanHandle
-      | undefined;
+    const handle = parentContext.getValue(SPAN_HANDLE_KEY) as SpanHandle | undefined;
     if (handle) {
       handle.span = span;
     }
-    const record = parentContext.getValue(REQUEST_RECORD_KEY) as
-      | RequestRecord
-      | undefined;
+    const record = parentContext.getValue(REQUEST_RECORD_KEY) as RequestRecord | undefined;
     if (record) {
       record.serverSpanId = spanId;
     }
-    const holder = parentContext.getValue(CONSUMER_HOLDER_KEY) as
-      | ConsumerHolder
-      | undefined;
+    const holder = parentContext.getValue(CONSUMER_HOLDER_KEY) as ConsumerHolder | undefined;
     if (holder?.identifier) {
       const consumer = consumerFromStringOrObject({
         identifier: holder.identifier,
@@ -451,8 +422,7 @@ export class SpanPipeline implements SpanProcessor {
   // excluded request never invokes a user sampling callback.
   private resolveDropReasonAtStart(span: Span): RequestDropReason | undefined {
     const attributes = span.attributes;
-    const method =
-      attributes["http.request.method"] ?? attributes["http.method"];
+    const method = attributes["http.request.method"] ?? attributes["http.method"];
     if (method === "OPTIONS") {
       return "options";
     }
@@ -461,18 +431,11 @@ export class SpanPipeline implements SpanProcessor {
       return "websocket";
     }
     const path = attributes["url.path"] ?? attributes["http.target"];
-    if (
-      typeof path === "string" &&
-      matchesAny(this.excludePathPatterns, path.split("?")[0])
-    ) {
+    if (typeof path === "string" && matchesAny(this.excludePathPatterns, path.split("?")[0])) {
       return "excluded";
     }
-    const userAgent =
-      attributes["user_agent.original"] ?? attributes["http.user_agent"];
-    if (
-      typeof userAgent === "string" &&
-      matchesAny(EXCLUDE_USER_AGENT_PATTERNS, userAgent)
-    ) {
+    const userAgent = attributes["user_agent.original"] ?? attributes["http.user_agent"];
+    if (typeof userAgent === "string" && matchesAny(EXCLUDE_USER_AGENT_PATTERNS, userAgent)) {
       return "excluded";
     }
     return this.isRequestSampledIn(span) ? undefined : "sampled-out";
@@ -483,8 +446,7 @@ export class SpanPipeline implements SpanProcessor {
     const rate = callback
       ? resolveCallbackSampleRate(callback, span, "sampleOnRequest")
       : undefined;
-    const bound =
-      rate === undefined ? this.sampleRateBound : boundForSampleRate(rate);
+    const bound = rate === undefined ? this.sampleRateBound : boundForSampleRate(rate);
     return isTraceSampledIn(span.spanContext().traceId, bound);
   }
 
@@ -507,24 +469,14 @@ export class SpanPipeline implements SpanProcessor {
       };
       snapshot = copy;
     }
-    const rate = resolveCallbackSampleRate(
-      callback,
-      snapshot,
-      "sampleOnResponse",
-    );
+    const rate = resolveCallbackSampleRate(callback, snapshot, "sampleOnResponse");
     if (rate === undefined) {
       return true;
     }
-    return isTraceSampledIn(
-      serverSpan.spanContext().traceId,
-      boundForSampleRate(rate),
-    );
+    return isTraceSampledIn(serverSpan.spanContext().traceId, boundForSampleRate(rate));
   }
 
-  private dropRequestOnResponse(
-    entry: RequestEntry,
-    record: RequestRecord,
-  ): void {
+  private dropRequestOnResponse(entry: RequestEntry, record: RequestRecord): void {
     // Removing every span id sends the dropped request's late telemetry to the
     // lookup-miss rule, so it is discarded locally.
     entry.released = true;
@@ -624,27 +576,12 @@ function writeConsumerAttributes(
   record: RequestRecord | undefined,
   consumer: ApitallyConsumer,
 ): void {
-  writeRequestAttribute(
-    span,
-    record,
-    "apitally.consumer.identifier",
-    consumer.identifier,
-  );
+  writeRequestAttribute(span, record, "apitally.consumer.identifier", consumer.identifier);
   if (consumer.name) {
-    writeRequestAttribute(
-      span,
-      record,
-      "apitally.consumer.name",
-      consumer.name,
-    );
+    writeRequestAttribute(span, record, "apitally.consumer.name", consumer.name);
   }
   if (consumer.group) {
-    writeRequestAttribute(
-      span,
-      record,
-      "apitally.consumer.group",
-      consumer.group,
-    );
+    writeRequestAttribute(span, record, "apitally.consumer.group", consumer.group);
   }
 }
 
@@ -652,10 +589,7 @@ function writeConsumerAttributes(
 // because exclusion, display, and redaction require them.
 function writeUrlAttributesFromFullUrl(span: Span): void {
   const attributes = span.attributes;
-  if (
-    attributes["url.path"] !== undefined ||
-    attributes["http.target"] !== undefined
-  ) {
+  if (attributes["url.path"] !== undefined || attributes["http.target"] !== undefined) {
     return;
   }
   const url = attributes["url.full"] ?? attributes["http.url"];
@@ -673,10 +607,7 @@ function writeUrlAttributesFromFullUrl(span: Span): void {
   if (query) {
     span.setAttribute("url.query", query);
   }
-  span.setAttribute(
-    "http.target",
-    query ? `${parsed.pathname}?${query}` : parsed.pathname,
-  );
+  span.setAttribute("http.target", query ? `${parsed.pathname}?${query}` : parsed.pathname);
 }
 
 const TRACE_ID_LOW_64_BITS_MASK = (1n << 64n) - 1n;
@@ -702,9 +633,7 @@ function resolveCallbackSampleRate(
   try {
     result = callback(span);
   } catch {
-    logWarning(
-      `The Apitally ${optionName} callback threw an error, so the request was captured`,
-    );
+    logWarning(`The Apitally ${optionName} callback threw an error, so the request was captured`);
     return 1;
   }
   if (result === undefined || result === null) {
@@ -737,9 +666,7 @@ function isContribPerMessageSpan(span: Span): boolean {
   const scopeName = span.instrumentationScope?.name ?? "";
   return (
     span.kind === SpanKind.INTERNAL &&
-    PER_MESSAGE_SPAN_NAME_SUFFIXES.some((suffix) =>
-      span.name.endsWith(suffix),
-    ) &&
+    PER_MESSAGE_SPAN_NAME_SUFFIXES.some((suffix) => span.name.endsWith(suffix)) &&
     (scopeName.startsWith("@opentelemetry/instrumentation") ||
       scopeName.startsWith("opentelemetry.instrumentation."))
   );

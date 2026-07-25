@@ -110,8 +110,6 @@ describe("sentry", () => {
     expect(() => installSentryEventIdRecording()).not.toThrow();
     setGlobalCarrier({ version: "10.0.0" });
     expect(() => installSentryEventIdRecording()).not.toThrow();
-    expect(
-      lines.filter((line) => !line.startsWith("[Apitally DEBUG]")),
-    ).toEqual([]);
+    expect(lines.filter((line) => !line.startsWith("[Apitally DEBUG]"))).toEqual([]);
   });
 });

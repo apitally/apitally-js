@@ -79,9 +79,7 @@ describe("hono routes", () => {
     fixture.app.use("/things/*", async (_context, next) => {
       await next();
     });
-    fixture.app.use("/blocked/*", async (context, _next) =>
-      context.json({ denied: true }, 401),
-    );
+    fixture.app.use("/blocked/*", async (context, _next) => context.json({ denied: true }, 401));
     fixture.app.get("/things/:id", respondOk);
     fixture.app.get("/blocked/:id", respondOk);
 
@@ -90,10 +88,7 @@ describe("hono routes", () => {
     const blockedResponse = await fixture.app.request("/blocked/7");
     await blockedResponse.arrayBuffer();
     expect(blockedResponse.status).toBe(401);
-    expect(fixture.routeResults).toEqual([
-      { route: "/things/:id" },
-      { route: "/blocked/:id" },
-    ]);
+    expect(fixture.routeResults).toEqual([{ route: "/things/:id" }, { route: "/blocked/:id" }]);
   });
 
   it("reports no match for unmatched and middleware-only requests", async () => {

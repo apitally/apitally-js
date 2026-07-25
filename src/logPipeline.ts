@@ -62,9 +62,7 @@ export class LogPipeline implements LogRecordProcessor {
         logDebug("Apitally log buffer cap reached, dropping the log record");
       }
     } catch (error) {
-      logWarning(
-        `Error in the Apitally log record processor: ${String(error)}`,
-      );
+      logWarning(`Error in the Apitally log record processor: ${String(error)}`);
     }
   }
 
@@ -100,10 +98,7 @@ export class ApitallyLogRecordExporter implements LogRecordExporter {
     this.spool = spool;
   }
 
-  export(
-    logRecords: ReadableLogRecord[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
+  export(logRecords: ReadableLogRecord[], resultCallback: (result: ExportResult) => void): void {
     serializeInChunksToSpool(
       logRecords.map(truncateLogRecordStrings),
       (chunk) => ProtobufLogsSerializer.serializeRequest(chunk),
@@ -122,9 +117,7 @@ export class ApitallyLogRecordExporter implements LogRecordExporter {
   }
 }
 
-function truncateLogRecordStrings(
-  logRecord: ReadableLogRecord,
-): ReadableLogRecord {
+function truncateLogRecordStrings(logRecord: ReadableLogRecord): ReadableLogRecord {
   if (logRecord.instrumentationScope.name === APITALLY_SCOPE_NAME) {
     return logRecord;
   }

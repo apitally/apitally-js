@@ -1,0 +1,20 @@
+{
+  "languages": {
+    "TypeScript": {
+      "language_servers": ["biome", "typescript-language-server"],
+      "formatter": "language_server",
+      "format_on_save": "on"
+    },
+    "JavaScript": {
+      "language_servers": ["biome", "typescript-language-server"],
+      "formatter": "language_server",
+      "format_on_save": "on"
+    },
+    "JSON": {
+      "language_servers": ["biome", "json-language-server"],
+      "formatter": "language_server",
+      "format_on_save": "on"
+    }
+  },
+  "file_scan_exclusions": [".git/", "**/.DS_Store", "**/node_modules"]
+}

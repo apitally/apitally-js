@@ -12,10 +12,7 @@ import {
   type ExportWorkerOptions,
   MAX_SENDS_PER_CYCLE,
 } from "../src/exportWorker.js";
-import {
-  MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS,
-  Spool,
-} from "../src/spool.js";
+import { MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS, Spool } from "../src/spool.js";
 import {
   captureStderr,
   enableAsyncContextManager,
@@ -26,9 +23,7 @@ import {
   withServer,
 } from "./utils.js";
 
-const undici = createRequire(import.meta.url)(
-  "undici",
-) as typeof import("undici");
+const undici = createRequire(import.meta.url)("undici") as typeof import("undici");
 const TEST_ENDPOINT = "https://otlp.example";
 const TRACE_PAYLOAD_ITEMS = Buffer.from("trace-items");
 const TRACE_PAYLOAD_A = Buffer.from("trace-a");
@@ -65,9 +60,7 @@ describe("exportWorker", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  function createWorker(
-    overrides: Partial<ExportWorkerOptions> = {},
-  ): ExportWorker {
+  function createWorker(overrides: Partial<ExportWorkerOptions> = {}): ExportWorker {
     worker = new ExportWorker({
       spool,
       otlpEndpoint: TEST_ENDPOINT,
@@ -171,12 +164,10 @@ describe("exportWorker", () => {
     const heldResponse = new Promise<Response>((resolve) => {
       releaseFetch = resolve;
     });
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementationOnce(() => {
-        observeFetch();
-        return heldResponse;
-      });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementationOnce(() => {
+      observeFetch();
+      return heldResponse;
+    });
     const worker = createWorker({ initialExportDelayMillis: 0 });
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     worker.start();
@@ -212,9 +203,7 @@ describe("exportWorker", () => {
     let isFailing = true;
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockImplementation(
-        async () => new Response(null, { status: isFailing ? 503 : 200 }),
-      );
+      .mockImplementation(async () => new Response(null, { status: isFailing ? 503 : 200 }));
     const worker = createWorker();
     const payloads = [TRACE_PAYLOAD_A, TRACE_PAYLOAD_B, TRACE_PAYLOAD_C];
     for (const payload of payloads) {
@@ -223,22 +212,18 @@ describe("exportWorker", () => {
     }
     expect(fetchSpy).toHaveBeenCalledTimes(3);
     expect(spool.pendingFiles()).toHaveLength(1);
-    const probeBodies = fetchSpy.mock.calls.map(
-      ([, init]) => init?.body as Buffer,
-    );
+    const probeBodies = fetchSpy.mock.calls.map(([, init]) => init?.body as Buffer);
     expect(probeBodies[1].equals(probeBodies[0])).toBe(true);
     expect(probeBodies[2].equals(probeBodies[0])).toBe(true);
     isFailing = false;
     await worker.runCycle();
     await worker.runCycle();
     expect(spool.pendingFiles()).toEqual([]);
-    const deliveredBodies = fetchSpy.mock.calls
-      .slice(3)
-      .map(([, init]) => init?.body as Buffer);
+    const deliveredBodies = fetchSpy.mock.calls.slice(3).map(([, init]) => init?.body as Buffer);
     expect(deliveredBodies[0].equals(probeBodies[0])).toBe(true);
-    expect(
-      Buffer.concat(deliveredBodies.map((body) => gunzipSync(body))),
-    ).toEqual(Buffer.concat(payloads));
+    expect(Buffer.concat(deliveredBodies.map((body) => gunzipSync(body)))).toEqual(
+      Buffer.concat(payloads),
+    );
   });
 
   it("sends at most ten files per regular cycle", async () => {
@@ -334,9 +319,7 @@ describe("exportWorker", () => {
     process.env.HTTP_PROXY = "http://proxy.example:8080";
     const fetchSpy = vi
       .spyOn(undici, "fetch")
-      .mockImplementation(
-        async () => new undici.Response(null, { status: 200 }),
-      );
+      .mockImplementation(async () => new undici.Response(null, { status: 200 }));
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await worker.runCycle();
@@ -387,9 +370,7 @@ describe("exportWorker", () => {
   );
 
   it("retries a connection error once, keeps the queue, and ends the cycle", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockRejectedValue(new TypeError("fetch failed"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_A);
     await spool.rotateForExport();
@@ -438,9 +419,7 @@ describe("exportWorker", () => {
     await spool.append("traces", TRACE_PAYLOAD_OLD);
     await spool.append("logs", LOGS_PAYLOAD_FRESH);
     await spool.rotateForExport();
-    const [tracesFile] = spool
-      .pendingFiles()
-      .filter((file) => file.signal === "traces");
+    const [tracesFile] = spool.pendingFiles().filter((file) => file.signal === "traces");
     tracesFile.firstAttemptAtMillis =
       performance.now() - MAX_RETRY_TIME_AFTER_FIRST_ATTEMPT_MILLIS - 1;
     const lines = captureStderr();
@@ -454,18 +433,14 @@ describe("exportWorker", () => {
   it("delivers every pending and current file in one final drain", async () => {
     const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
-    const expectedPayloads = await appendClosedTraceFiles(
-      MAX_SENDS_PER_CYCLE + 2,
-    );
+    const expectedPayloads = await appendClosedTraceFiles(MAX_SENDS_PER_CYCLE + 2);
     await spool.append("traces", TRACE_PAYLOAD_LAST);
     expectedPayloads.push(TRACE_PAYLOAD_LAST);
     await worker.finalDrain();
-    expect(readFetchPaths(fetchSpy)).toEqual(
-      Array(expectedPayloads.length).fill("/v1/traces"),
-    );
+    expect(readFetchPaths(fetchSpy)).toEqual(Array(expectedPayloads.length).fill("/v1/traces"));
     expect(spool.pendingFiles()).toEqual([]);
-    expect(
-      fetchSpy.mock.calls.map(([, init]) => gunzipSync(init?.body as Buffer)),
-    ).toEqual(expectedPayloads);
+    expect(fetchSpy.mock.calls.map(([, init]) => gunzipSync(init?.body as Buffer))).toEqual(
+      expectedPayloads,
+    );
   });
 });

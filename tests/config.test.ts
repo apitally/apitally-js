@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  type ApitallyOptions,
-  isAllowedContentType,
-  setConfig,
-} from "../src/config.js";
+import { type ApitallyOptions, isAllowedContentType, setConfig } from "../src/config.js";
 import { captureStderr, WRITE_TOKEN } from "./utils.js";
 
 describe("config", () => {
@@ -62,14 +58,11 @@ describe("config", () => {
     { envVar: "OTEL_SDK_DISABLED", value: " TRUE ", disabled: true },
     { envVar: "OTEL_SDK_DISABLED", value: "0", disabled: false },
     { envVar: "OTEL_SDK_DISABLED", value: "false", disabled: false },
-  ])(
-    "resolves disabled to $disabled when $envVar is '$value'",
-    ({ envVar, value, disabled }) => {
-      process.env[envVar] = value;
-      const config = setConfig({ writeToken: WRITE_TOKEN });
-      expect(config.disabled).toBe(disabled);
-    },
-  );
+  ])("resolves disabled to $disabled when $envVar is '$value'", ({ envVar, value, disabled }) => {
+    process.env[envVar] = value;
+    const config = setConfig({ writeToken: WRITE_TOKEN });
+    expect(config.disabled).toBe(disabled);
+  });
 
   it("prefers an explicit disabled option over the disable environment variables", () => {
     process.env.APITALLY_DISABLED = "1";

@@ -38,28 +38,20 @@ describe("spool", () => {
   // directory selects the memory backend.
   function createSpool(backend: "disk" | "memory"): Spool {
     captureStderr();
-    spool =
-      backend === "memory"
-        ? new Spool(join(tempDir, "missing"))
-        : new Spool(tempDir);
+    spool = backend === "memory" ? new Spool(join(tempDir, "missing")) : new Spool(tempDir);
     return spool;
   }
 
-  it.each(backends)(
-    "preserves append order in one closed file ($backend)",
-    async ({ backend }) => {
-      const spool = createSpool(backend);
-      await spool.append("traces", TRACE_PAYLOAD_A);
-      await spool.append("traces", TRACE_PAYLOAD_B);
-      await spool.rotateForExport();
-      const files = spool.pendingFiles();
-      expect(files).toHaveLength(1);
-      const storedBytes = await files[0].readStoredBytes();
-      expect(gunzipSync(storedBytes)).toEqual(
-        Buffer.concat([TRACE_PAYLOAD_A, TRACE_PAYLOAD_B]),
-      );
-    },
-  );
+  it.each(backends)("preserves append order in one closed file ($backend)", async ({ backend }) => {
+    const spool = createSpool(backend);
+    await spool.append("traces", TRACE_PAYLOAD_A);
+    await spool.append("traces", TRACE_PAYLOAD_B);
+    await spool.rotateForExport();
+    const files = spool.pendingFiles();
+    expect(files).toHaveLength(1);
+    const storedBytes = await files[0].readStoredBytes();
+    expect(gunzipSync(storedBytes)).toEqual(Buffer.concat([TRACE_PAYLOAD_A, TRACE_PAYLOAD_B]));
+  });
 
   it("writes a closed file fully to disk with owner-only permissions", async () => {
     const spool = createSpool("disk");
@@ -71,9 +63,7 @@ describe("spool", () => {
     expect(stats.size).toBe(file.storedSize);
     expect(stats.size).toBeGreaterThan(0);
     expect(stats.mode & 0o777).toBe(0o600);
-    expect(gunzipSync(await readFile(file.path as string))).toEqual(
-      TRACE_PAYLOAD_C,
-    );
+    expect(gunzipSync(await readFile(file.path as string))).toEqual(TRACE_PAYLOAD_C);
   });
 
   it.each(backends)(
@@ -87,13 +77,9 @@ describe("spool", () => {
       const files = spool.pendingFiles();
       expect(files).toHaveLength(1);
       expect(files[0].uncompressedSize).toBe(3_000_000);
-      expect(files[0].uncompressedSize).toBeLessThanOrEqual(
-        MAX_UNCOMPRESSED_FILE_SIZE,
-      );
+      expect(files[0].uncompressedSize).toBeLessThanOrEqual(MAX_UNCOMPRESSED_FILE_SIZE);
       // Buffer.equals avoids slow element-wise comparison of megabyte buffers.
-      expect(gunzipSync(await files[0].readStoredBytes()).equals(first)).toBe(
-        true,
-      );
+      expect(gunzipSync(await files[0].readStoredBytes()).equals(first)).toBe(true);
       expect(spool.current.get("traces")?.uncompressedSize).toBe(2_000_000);
     },
   );
@@ -107,9 +93,7 @@ describe("spool", () => {
       await spool.closeCurrentFiles();
       const files = spool.pendingFiles();
       expect(files).toHaveLength(1);
-      expect(gunzipSync(await files[0].readStoredBytes()).equals(payload)).toBe(
-        true,
-      );
+      expect(gunzipSync(await files[0].readStoredBytes()).equals(payload)).toBe(true);
     },
   );
 
@@ -123,18 +107,10 @@ describe("spool", () => {
       await spool.append("logs", randomBytes(10_000));
       await spool.rotateForExport();
       const files = spool.pendingFiles();
-      expect(files.map((file) => file.signal)).toEqual([
-        "metrics",
-        "traces",
-        "logs",
-      ]);
-      spool.maxSize =
-        files.reduce((total, file) => total + file.storedSize, 0) - 1;
+      expect(files.map((file) => file.signal)).toEqual(["metrics", "traces", "logs"]);
+      spool.maxSize = files.reduce((total, file) => total + file.storedSize, 0) - 1;
       await spool.rotateForExport();
-      expect(spool.pendingFiles().map((file) => file.signal)).toEqual([
-        "metrics",
-        "logs",
-      ]);
+      expect(spool.pendingFiles().map((file) => file.signal)).toEqual(["metrics", "logs"]);
       spool.maxSize = 0;
       await spool.rotateForExport();
       expect(spool.pendingFiles()).toEqual([]);
@@ -231,9 +207,7 @@ describe("spool", () => {
       await spool.append("traces", Buffer.from("third"));
       await spool.rotateForExport();
       const [file] = spool.pendingFiles();
-      expect(gunzipSync(await file.readStoredBytes())).toEqual(
-        Buffer.from("third"),
-      );
+      expect(gunzipSync(await file.readStoredBytes())).toEqual(Buffer.from("third"));
     },
   );
 
@@ -250,8 +224,6 @@ describe("spool", () => {
     await spool.append("traces", Buffer.from("third"));
     await spool.rotateForExport();
     const [file] = spool.pendingFiles();
-    expect(gunzipSync(await file.readStoredBytes())).toEqual(
-      Buffer.from("third"),
-    );
+    expect(gunzipSync(await file.readStoredBytes())).toEqual(Buffer.from("third"));
   });
 });

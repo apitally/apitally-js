@@ -29,12 +29,11 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
   }
 }
 
-// Duck typing avoids runtime framework imports from the root entry. Express is
-// a handler with application methods; Hono exposes its routes and fetch handler.
-function isExpressApp(
-  app: unknown,
-): app is Parameters<typeof useApitallyExpress>[0] {
-  const candidate = app as { use?: unknown; handle?: unknown };
+function isExpressApp(app: unknown): app is Parameters<typeof useApitallyExpress>[0] {
+  const candidate = app as {
+    use?: unknown;
+    handle?: unknown;
+  };
   return (
     typeof app === "function" &&
     typeof candidate.use === "function" &&

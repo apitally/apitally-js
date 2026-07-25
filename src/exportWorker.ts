@@ -60,16 +60,11 @@ export class ExportWorker {
       "Content-Encoding": "gzip",
       "User-Agent": `apitally-js/${getDistroVersion()}`,
     };
-    this.initialExportDelayMillis =
-      options.initialExportDelayMillis ?? INITIAL_EXPORT_DELAY_MILLIS;
-    this.requestTimeoutMillis =
-      options.requestTimeoutMillis ?? REQUEST_TIMEOUT_MILLIS;
-    this.interSendPauseMillis =
-      options.interSendPauseMillis ?? (() => 100 + Math.random() * 400);
+    this.initialExportDelayMillis = options.initialExportDelayMillis ?? INITIAL_EXPORT_DELAY_MILLIS;
+    this.requestTimeoutMillis = options.requestTimeoutMillis ?? REQUEST_TIMEOUT_MILLIS;
+    this.interSendPauseMillis = options.interSendPauseMillis ?? (() => 100 + Math.random() * 400);
     const env = process.env;
-    this.useProxy = Boolean(
-      env.HTTP_PROXY || env.http_proxy || env.HTTPS_PROXY || env.https_proxy,
-    );
+    this.useProxy = Boolean(env.HTTP_PROXY || env.http_proxy || env.HTTPS_PROXY || env.https_proxy);
   }
 
   start(): void {
@@ -147,9 +142,7 @@ export class ExportWorker {
       if (!final && sent > 0) {
         const pauseMillis = this.interSendPauseMillis();
         if (pauseMillis > 0) {
-          await new Promise<void>((resolve) =>
-            setTimeout(resolve, pauseMillis).unref(),
-          );
+          await new Promise<void>((resolve) => setTimeout(resolve, pauseMillis).unref());
         }
       }
       if (file.isExpired()) {
@@ -193,9 +186,7 @@ export class ExportWorker {
         response = await this.postFile(url, body);
       }
     } catch (error) {
-      logDebug(
-        `Sending buffered ${file.signal} to Apitally failed (${String(error)}), will retry`,
-      );
+      logDebug(`Sending buffered ${file.signal} to Apitally failed (${String(error)}), will retry`);
       return false;
     }
     await response.arrayBuffer().catch(() => undefined);
@@ -263,24 +254,17 @@ export class ExportWorker {
       return;
     }
     this.intervalMillis =
-      Math.min(
-        Math.max(seconds, MIN_EXPORT_INTERVAL_SECONDS),
-        MAX_EXPORT_INTERVAL_SECONDS,
-      ) * 1000;
+      Math.min(Math.max(seconds, MIN_EXPORT_INTERVAL_SECONDS), MAX_EXPORT_INTERVAL_SECONDS) * 1000;
   }
 
   private scheduleNextExportCycle(delayMillis: number): void {
     this.timer = setTimeout(() => {
       void this.runCycle()
-        .catch((error) =>
-          logDebug(`Error in Apitally export cycle: ${String(error)}`),
-        )
+        .catch((error) => logDebug(`Error in Apitally export cycle: ${String(error)}`))
         .finally(() => {
           if (this.started) {
             // Jitter desynchronizes deployments whose processes started together.
-            this.scheduleNextExportCycle(
-              this.intervalMillis * (0.9 + Math.random() * 0.2),
-            );
+            this.scheduleNextExportCycle(this.intervalMillis * (0.9 + Math.random() * 0.2));
           }
         });
     }, delayMillis);

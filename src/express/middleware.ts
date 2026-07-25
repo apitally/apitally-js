@@ -19,10 +19,7 @@ import {
   type SpanHandle,
 } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
-import {
-  adoptOrStartServerSpan,
-  finalizeRecordAndReleaseRequest,
-} from "../requestObservation.js";
+import { adoptOrStartServerSpan, finalizeRecordAndReleaseRequest } from "../requestObservation.js";
 import { captureException } from "../spanProcessor.js";
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
 
@@ -57,12 +54,10 @@ export function wrapAppHandle(app: Express): void {
     errorMiddlewareAppended = true;
     // Appended on the first request so it sits below every handler the app
     // registered at setup; it records the exception and always passes it on.
-    app.use(
-      (error: unknown, _req: Request, _res: Response, next: NextFunction) => {
-        captureException(error);
-        next(error);
-      },
-    );
+    app.use((error: unknown, _req: Request, _res: Response, next: NextFunction) => {
+      captureException(error);
+      next(error);
+    });
   };
   (app as unknown as { handle: HandleFunction }).handle = function (
     this: unknown,
@@ -79,9 +74,7 @@ export function wrapAppHandle(app: Express): void {
     if (!requestContext) {
       return originalHandle.call(this, req, res, callback);
     }
-    return context.with(requestContext, () =>
-      originalHandle.call(this, req, res, callback),
-    );
+    return context.with(requestContext, () => originalHandle.call(this, req, res, callback));
   };
 }
 
@@ -120,12 +113,7 @@ function observeRequest(
   });
   observeRequestBody(req, requestBodyCapture);
   beginRouteTracking(req);
-  const startAttributes = resolveStartAttributes(
-    req,
-    method,
-    requestUrl,
-    requestBodyCapture,
-  );
+  const startAttributes = resolveStartAttributes(req, method, requestUrl, requestBodyCapture);
   // Metrics and the exported span copy read from the record, so the start
   // attributes are mirrored into it on every path, span or no span.
   Object.assign(record.attributes, startAttributes);
@@ -181,26 +169,15 @@ function installResponseObservation(options: ResponseObservationOptions): void {
     responseBodyCapture ??= new BodyCapture({
       captureBody: config.captureResponseBody,
       contentType: firstStringValue(res.getHeader("content-type")),
-      contentLength: res.getHeader("content-length") as
-        | string
-        | number
-        | string[]
-        | undefined,
-      transferEncoding: res.getHeader("transfer-encoding") as
-        | string
-        | string[]
-        | undefined,
+      contentLength: res.getHeader("content-length") as string | number | string[] | undefined,
+      transferEncoding: res.getHeader("transfer-encoding") as string | string[] | undefined,
     });
     return responseBodyCapture;
   };
   const recordResponseChunk = (args: unknown[]): void => {
     try {
       const chunk = args[0];
-      if (
-        typeof chunk === "string" ||
-        Buffer.isBuffer(chunk) ||
-        chunk instanceof Uint8Array
-      ) {
+      if (typeof chunk === "string" || Buffer.isBuffer(chunk) || chunk instanceof Uint8Array) {
         ensureResponseBodyCapture().addChunk(
           chunk,
           typeof args[1] === "string" ? (args[1] as BufferEncoding) : undefined,
@@ -216,10 +193,7 @@ function installResponseObservation(options: ResponseObservationOptions): void {
     return originalWrite.apply(this, args);
   } as typeof res.write;
   const originalEnd = res.end as (...args: unknown[]) => ServerResponse;
-  res.end = function (
-    this: ServerResponse,
-    ...args: unknown[]
-  ): ServerResponse {
+  res.end = function (this: ServerResponse, ...args: unknown[]): ServerResponse {
     recordResponseChunk(args);
     return originalEnd.apply(this, args);
   } as typeof res.end;
@@ -231,11 +205,7 @@ function installResponseObservation(options: ResponseObservationOptions): void {
     }
     finalized = true;
     try {
-      finalizeRequestFromResponse(
-        options,
-        ensureResponseBodyCapture(),
-        responseFinished,
-      );
+      finalizeRequestFromResponse(options, ensureResponseBodyCapture(), responseFinished);
     } catch (error) {
       logWarning(`Error in the Apitally middleware: ${String(error)}`);
     }
@@ -295,10 +265,7 @@ function finalizeRequestFromResponse(
 
 // Wrapping emit observes only bytes delivered to application consumers and does
 // not change the stream's flow state.
-function observeRequestBody(
-  req: IncomingMessage,
-  requestBodyCapture: BodyCapture,
-): void {
+function observeRequestBody(req: IncomingMessage, requestBodyCapture: BodyCapture): void {
   const originalEmit = req.emit as (...args: unknown[]) => boolean;
   (req as { emit: unknown }).emit = function (
     this: IncomingMessage,
@@ -308,11 +275,7 @@ function observeRequestBody(
     try {
       if (event === "data") {
         const chunk = args[0];
-        if (
-          typeof chunk === "string" ||
-          Buffer.isBuffer(chunk) ||
-          chunk instanceof Uint8Array
-        ) {
+        if (typeof chunk === "string" || Buffer.isBuffer(chunk) || chunk instanceof Uint8Array) {
           requestBodyCapture.addChunk(chunk);
         }
       } else if (event === "end") {
@@ -337,19 +300,14 @@ function attachServerCloseFlush(req: IncomingMessage): void {
     return;
   }
   flushOnCloseServers.add(server as object);
-  (server as { on: (event: string, listener: () => void) => void }).on(
-    "close",
-    () => {
-      const worker = getActivationHandles()?.worker;
-      if (worker) {
-        worker.runCycle().catch((error: unknown) => {
-          logDebug(
-            `Error flushing telemetry on server close: ${String(error)}`,
-          );
-        });
-      }
-    },
-  );
+  (server as { on: (event: string, listener: () => void) => void }).on("close", () => {
+    const worker = getActivationHandles()?.worker;
+    if (worker) {
+      worker.runCycle().catch((error: unknown) => {
+        logDebug(`Error flushing telemetry on server close: ${String(error)}`);
+      });
+    }
+  });
 }
 
 function resolveStartAttributes(
@@ -360,16 +318,12 @@ function resolveStartAttributes(
 ): Attributes {
   const attributes: Attributes = { "http.request.method": method };
   const queryIndex = requestUrl.indexOf("?");
-  attributes["url.path"] =
-    queryIndex === -1 ? requestUrl : requestUrl.slice(0, queryIndex);
-  const query =
-    queryIndex === -1 ? undefined : requestUrl.slice(queryIndex + 1);
+  attributes["url.path"] = queryIndex === -1 ? requestUrl : requestUrl.slice(0, queryIndex);
+  const query = queryIndex === -1 ? undefined : requestUrl.slice(queryIndex + 1);
   if (query) {
     attributes["url.query"] = query;
   }
-  const scheme = (req.socket as { encrypted?: boolean } | undefined)?.encrypted
-    ? "https"
-    : "http";
+  const scheme = (req.socket as { encrypted?: boolean } | undefined)?.encrypted ? "https" : "http";
   attributes["url.scheme"] = scheme;
   const host = req.headers.host;
   if (host) {
@@ -397,9 +351,7 @@ function resolveStartAttributes(
   return attributes;
 }
 
-function firstStringValue(
-  value: string | number | string[] | undefined,
-): string | undefined {
+function firstStringValue(value: string | number | string[] | undefined): string | undefined {
   if (typeof value === "string") {
     return value;
   }

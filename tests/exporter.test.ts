@@ -1,9 +1,6 @@
 import { gzipSync } from "node:zlib";
 import { SpanKind, trace } from "@opentelemetry/api";
-import {
-  type Resource,
-  resourceFromAttributes,
-} from "@opentelemetry/resources";
+import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import {
   BatchSpanProcessor,
   InMemorySpanExporter,
@@ -11,12 +8,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
-import {
-  type BodyMaskingCallback,
-  getConfig,
-  MAX_BODY_SIZE,
-  setConfig,
-} from "../src/config.js";
+import { type BodyMaskingCallback, getConfig, MAX_BODY_SIZE, setConfig } from "../src/config.js";
 import { ApitallySpanExporter } from "../src/exporter.js";
 import { Redaction } from "../src/redaction.js";
 import { MAX_STASHED_REQUESTS } from "../src/spanProcessor.js";
@@ -31,11 +23,7 @@ import {
 } from "./utils.js";
 
 function createExportPipeline(
-  options: {
-    resource?: Resource;
-    userExporter?: InMemorySpanExporter;
-    env?: string;
-  } = {},
+  options: { resource?: Resource; userExporter?: InMemorySpanExporter; env?: string } = {},
 ) {
   const spool = createInMemorySpool();
   const config = getConfig();
@@ -46,10 +34,7 @@ function createExportPipeline(
     maskRequestBody: config.maskRequestBody,
     maskResponseBody: config.maskResponseBody,
   });
-  const downstream = new BatchSpanProcessor(
-    spanExporter,
-    createBatchProcessorOptions(),
-  );
+  const downstream = new BatchSpanProcessor(spanExporter, createBatchProcessorOptions());
   const { pipeline, provider, tracer } = createTracePipeline({
     downstream,
     extraSpanProcessors: options.userExporter
@@ -60,10 +45,7 @@ function createExportPipeline(
   return { pipeline, provider, tracer };
 }
 
-function attributesOfSpan(
-  spans: ReadableSpan[],
-  name: string,
-): Record<string, unknown> {
+function attributesOfSpan(spans: ReadableSpan[], name: string): Record<string, unknown> {
   const span = spans.find((candidate) => candidate.name === name);
   if (!span) {
     throw new Error(`No exported span named ${name}`);
@@ -104,33 +86,21 @@ describe("exporter", () => {
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
     const clientAttributes = attributesOfSpan(spans, "GET");
-    expect(clientAttributes["url.full"]).toBe(
-      "https://x.example/v1?api-key=%5BREDACTED%5D&ok=1",
-    );
+    expect(clientAttributes["url.full"]).toBe("https://x.example/v1?api-key=%5BREDACTED%5D&ok=1");
     const serverAttributes = attributesOfSpan(spans, "GET /items");
     expect(serverAttributes["url.query"]).toBe("token=%5BREDACTED%5D&page=2");
-    expect(serverAttributes["http.target"]).toBe(
-      "/items?token=%5BREDACTED%5D&page=2",
-    );
+    expect(serverAttributes["http.target"]).toBe("/items?token=%5BREDACTED%5D&page=2");
     expect(serverAttributes["http.url"]).toBe(
       "https://example.com/items?token=%5BREDACTED%5D&page=2",
     );
-    expect(serverAttributes["http.request.header.authorization"]).toEqual([
-      "[REDACTED]",
-    ]);
-    expect(serverAttributes["http.response.header.set-cookie"]).toEqual([
-      "[REDACTED]",
-    ]);
-    expect(serverAttributes["http.response.header.content-type"]).toEqual([
-      "application/json",
-    ]);
+    expect(serverAttributes["http.request.header.authorization"]).toEqual(["[REDACTED]"]);
+    expect(serverAttributes["http.response.header.set-cookie"]).toEqual(["[REDACTED]"]);
+    expect(serverAttributes["http.response.header.content-type"]).toEqual(["application/json"]);
     expect(serverAttributes["http.response.header.location"]).toEqual([
       "/next?token=%5BREDACTED%5D&page=2",
     ]);
     expect(span.attributes["url.query"]).toBe("token=secret123&page=2");
-    expect(span.attributes["http.request.header.authorization"]).toEqual([
-      "Bearer secret123",
-    ]);
+    expect(span.attributes["http.request.header.authorization"]).toEqual(["Bearer secret123"]);
   });
 
   it("applies the request record onto the export copy last, so late-learned transport values win", async () => {
@@ -176,24 +146,12 @@ describe("exporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     const attributes = attributesOfSpan(spans, "POST /items");
-    expect(attributes["apitally.request.body"]).toBe(
-      '{"password":"[REDACTED]"}',
-    );
-    expect(attributes["apitally.response.body"]).toBe(
-      '{"token":"[REDACTED]","id":7}',
-    );
-    expect(attributes["http.request.header.authorization"]).toEqual([
-      "[REDACTED]",
-    ]);
-    expect(attributes["http.request.header.accept"]).toEqual([
-      "application/json",
-    ]);
-    expect(attributes["http.response.header.set-cookie"]).toEqual([
-      "[REDACTED]",
-    ]);
-    expect(attributes["http.response.header.content-type"]).toEqual([
-      "application/json",
-    ]);
+    expect(attributes["apitally.request.body"]).toBe('{"password":"[REDACTED]"}');
+    expect(attributes["apitally.response.body"]).toBe('{"token":"[REDACTED]","id":7}');
+    expect(attributes["http.request.header.authorization"]).toEqual(["[REDACTED]"]);
+    expect(attributes["http.request.header.accept"]).toEqual(["application/json"]);
+    expect(attributes["http.response.header.set-cookie"]).toEqual(["[REDACTED]"]);
+    expect(attributes["http.response.header.content-type"]).toEqual(["application/json"]);
     expect(span.attributes).toEqual({});
     const [userSpan] = userExporter.getFinishedSpans();
     expect(userSpan.attributes).toEqual({});
@@ -225,12 +183,8 @@ describe("exporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(4);
-    expect(spans.find((span) => span.name === "duplicate 1")?.kind).toBe(
-      SpanKind.INTERNAL,
-    );
-    expect(spans.find((span) => span.name === "GET /items 1")?.kind).toBe(
-      SpanKind.SERVER,
-    );
+    expect(spans.find((span) => span.name === "duplicate 1")?.kind).toBe(SpanKind.INTERNAL);
+    expect(spans.find((span) => span.name === "GET /items 1")?.kind).toBe(SpanKind.SERVER);
     const userDuplicate = userExporter
       .getFinishedSpans()
       .find((span) => span.name === "duplicate 1");
@@ -259,15 +213,9 @@ describe("exporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
-    expect(spans.find((span) => span.name === "duplicate")?.kind).toBe(
-      SpanKind.INTERNAL,
-    );
-    expect(spans.find((span) => span.name === "GET /items")?.kind).toBe(
-      SpanKind.SERVER,
-    );
-    const userDuplicate = userExporter
-      .getFinishedSpans()
-      .find((span) => span.name === "duplicate");
+    expect(spans.find((span) => span.name === "duplicate")?.kind).toBe(SpanKind.INTERNAL);
+    expect(spans.find((span) => span.name === "GET /items")?.kind).toBe(SpanKind.SERVER);
+    const userDuplicate = userExporter.getFinishedSpans().find((span) => span.name === "duplicate");
     expect(userDuplicate?.kind).toBe(SpanKind.SERVER);
   });
 
@@ -292,20 +240,14 @@ describe("exporter", () => {
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
     expect(spans[0].resource).toBe(spans[1].resource);
-    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe(
-      "prod",
-    );
+    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe("prod");
     expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
-    expect(spans[1].resource.attributes["deployment.environment.name"]).toBe(
-      "prod",
-    );
+    expect(spans[1].resource.attributes["deployment.environment.name"]).toBe("prod");
     expect(spans[1].resource.attributes["service.name"]).toBe("user-service");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("staging");
     const [userSpan] = userExporter.getFinishedSpans();
-    expect(userSpan.resource.attributes["deployment.environment.name"]).toBe(
-      "staging",
-    );
+    expect(userSpan.resource.attributes["deployment.environment.name"]).toBe("staging");
   });
 
   it("fills in the deployment environment resource attribute on Apitally's copies when the tracer provider's resource omits it", async () => {
@@ -326,15 +268,11 @@ describe("exporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe(
-      "staging",
-    );
+    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe("staging");
     expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
     expect(lines).toEqual([]);
     const [userSpan] = userExporter.getFinishedSpans();
-    expect(
-      userSpan.resource.attributes["deployment.environment.name"],
-    ).toBeUndefined();
+    expect(userSpan.resource.attributes["deployment.environment.name"]).toBeUndefined();
   });
 
   it("replaces the body with [REDACTED] without a warning when the mask callback returns null or undefined", async () => {
@@ -381,12 +319,8 @@ describe("exporter", () => {
 
     await provider.forceFlush();
     const spans = readSerializedSpans();
-    expect(
-      attributesOfSpan(spans, "POST /first")["apitally.request.body"],
-    ).toBe("[REDACTED]");
-    expect(
-      attributesOfSpan(spans, "POST /second")["apitally.request.body"],
-    ).toBe("[REDACTED]");
+    expect(attributesOfSpan(spans, "POST /first")["apitally.request.body"]).toBe("[REDACTED]");
+    expect(attributesOfSpan(spans, "POST /second")["apitally.request.body"]).toBe("[REDACTED]");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("maskRequestBody");
   });
@@ -394,8 +328,7 @@ describe("exporter", () => {
   it("replaces the body with [REDACTED] and warns when the mask callback returns a Promise", async () => {
     setConfig({
       writeToken: WRITE_TOKEN,
-      maskResponseBody: (async (body: Buffer) =>
-        body) as unknown as BodyMaskingCallback,
+      maskResponseBody: (async (body: Buffer) => body) as unknown as BodyMaskingCallback,
     });
     const { pipeline, provider, tracer } = createExportPipeline();
     const lines = captureStderr();
@@ -408,9 +341,7 @@ describe("exporter", () => {
 
     await provider.forceFlush();
     const spans = readSerializedSpans();
-    expect(
-      attributesOfSpan(spans, "GET /items")["apitally.response.body"],
-    ).toBe("[REDACTED]");
+    expect(attributesOfSpan(spans, "GET /items")["apitally.response.body"]).toBe("[REDACTED]");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("maskResponseBody");
   });
@@ -430,9 +361,7 @@ describe("exporter", () => {
 
     await provider.forceFlush();
     const spans = readSerializedSpans();
-    expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe(
-      "[BODY_TOO_LARGE]",
-    );
+    expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe("[BODY_TOO_LARGE]");
   });
 
   it("runs the mask callback on the raw body before parsing, field redaction, and serialization", async () => {
@@ -490,9 +419,7 @@ describe("exporter", () => {
 
     await provider.forceFlush();
     const spans = readSerializedSpans();
-    expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe(
-      "[BODY_TOO_LARGE]",
-    );
+    expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe("[BODY_TOO_LARGE]");
     expect(maskCalls).toHaveLength(0);
   });
 
@@ -508,9 +435,7 @@ describe("exporter", () => {
 
     await provider.forceFlush();
     const spans = readSerializedSpans();
-    const body = attributesOfSpan(spans, "GET /items")[
-      "apitally.response.body"
-    ];
+    const body = attributesOfSpan(spans, "GET /items")["apitally.response.body"];
     expect(Buffer.from(body as Uint8Array).equals(compressed)).toBe(true);
   });
 
@@ -565,11 +490,7 @@ describe("exporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
-    expect(
-      attributesOfSpan(spans, "GET /first")["apitally.request.body"],
-    ).toBeUndefined();
-    expect(attributesOfSpan(spans, "GET /last")["apitally.request.body"]).toBe(
-      '{"n":2}',
-    );
+    expect(attributesOfSpan(spans, "GET /first")["apitally.request.body"]).toBeUndefined();
+    expect(attributesOfSpan(spans, "GET /last")["apitally.request.body"]).toBe('{"n":2}');
   });
 });

@@ -78,13 +78,10 @@ describe("activation", () => {
     await withServer(
       (_request, response) => response.end(),
       async (_server, baseUrl) => {
-        await runInsideRequest(
-          { pipeline: handles.spanPipeline, tracer },
-          async () => {
-            const response = await fetch(`${baseUrl}/external`);
-            await response.arrayBuffer();
-          },
-        );
+        await runInsideRequest({ pipeline: handles.spanPipeline, tracer }, async () => {
+          const response = await fetch(`${baseUrl}/external`);
+          await response.arrayBuffer();
+        });
       },
     );
 
@@ -160,23 +157,20 @@ describe("activation", () => {
     },
   ];
 
-  it.each(guardCases)(
-    "skips activation permanently for $guard",
-    ({ prepare, options }) => {
-      clearTestRunnerMarkers();
-      process.env.APITALLY_OTLP_ENDPOINT = UNROUTABLE_ENDPOINT;
-      prepare();
-      configure({ writeToken: WRITE_TOKEN, ...options });
-      activate();
-      expect(isActivated()).toBe(false);
-      expect(getActivationHandles()).toBeUndefined();
+  it.each(guardCases)("skips activation permanently for $guard", ({ prepare, options }) => {
+    clearTestRunnerMarkers();
+    process.env.APITALLY_OTLP_ENDPOINT = UNROUTABLE_ENDPOINT;
+    prepare();
+    configure({ writeToken: WRITE_TOKEN, ...options });
+    activate();
+    expect(isActivated()).toBe(false);
+    expect(getActivationHandles()).toBeUndefined();
 
-      clearTestRunnerMarkers();
-      delete process.env.APITALLY_DISABLED;
-      activate();
-      expect(isActivated()).toBe(false);
-    },
-  );
+    clearTestRunnerMarkers();
+    delete process.env.APITALLY_DISABLED;
+    activate();
+    expect(isActivated()).toBe(false);
+  });
 
   it("logs an error and keeps serving untelemetered when activation fails", () => {
     const lines = captureStderr();
@@ -209,9 +203,7 @@ describe("activation", () => {
     secondCopy.activate();
 
     expect(secondCopy.isActivated()).toBe(true);
-    expect(secondCopy.getActivationHandles()?.spanPipeline).toBe(
-      handles.spanPipeline,
-    );
+    expect(secondCopy.getActivationHandles()?.spanPipeline).toBe(handles.spanPipeline);
     await handles.loggerProvider.forceFlush();
     const records = readSerializedLogRecords();
     expect(records).toHaveLength(1);
@@ -243,9 +235,9 @@ describe("activation", () => {
   it("warns once when a second module copy has a different version", async () => {
     const lines = captureStderr();
     configureAndActivate();
-    const activationState = (
-      globalThis as Record<symbol, { sdkVersion: string }>
-    )[Symbol.for("apitally.activation")];
+    const activationState = (globalThis as Record<symbol, { sdkVersion: string }>)[
+      Symbol.for("apitally.activation")
+    ];
     activationState.sdkVersion = "0.9.0";
 
     vi.resetModules();
@@ -267,32 +259,17 @@ describe("activation", () => {
     registerStartupEventInfo({ framework: "express", resolvePaths: () => [] });
     const handles = configureAndActivate();
     const tracer = trace.getTracer("test");
-    await runInsideRequest(
-      { pipeline: handles.spanPipeline, tracer },
-      () => {},
-    );
+    await runInsideRequest({ pipeline: handles.spanPipeline, tracer }, () => {});
 
     const drain = shutdown();
     expect(shutdown()).toBe(drain);
     await drain;
-    expect(readFetchPaths(fetchSpy)).toEqual([
-      "/v1/traces",
-      "/v1/logs",
-      "/v1/metrics",
-    ]);
+    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/logs", "/v1/metrics"]);
 
-    expect(
-      vi.mocked(ProtobufTraceSerializer.serializeRequest),
-    ).toHaveBeenCalled();
-    expect(
-      vi.mocked(ProtobufLogsSerializer.serializeRequest),
-    ).toHaveBeenCalled();
-    expect(
-      vi.mocked(ProtobufMetricsSerializer.serializeRequest),
-    ).toHaveBeenCalled();
-    expect(readSerializedSpans().map((span) => span.name)).toEqual([
-      "GET /items",
-    ]);
+    expect(vi.mocked(ProtobufTraceSerializer.serializeRequest)).toHaveBeenCalled();
+    expect(vi.mocked(ProtobufLogsSerializer.serializeRequest)).toHaveBeenCalled();
+    expect(vi.mocked(ProtobufMetricsSerializer.serializeRequest)).toHaveBeenCalled();
+    expect(readSerializedSpans().map((span) => span.name)).toEqual(["GET /items"]);
 
     await shutdown();
     expect(fetchSpy).toHaveBeenCalledTimes(3);

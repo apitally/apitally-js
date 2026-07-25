@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  BodyCapture,
-  captureResponse,
-  normalizeHeaders,
-} from "../src/capture.js";
+import { BodyCapture, captureResponse, normalizeHeaders } from "../src/capture.js";
 
 function createChunkedResponse(): {
   response: Response;
@@ -22,25 +18,20 @@ function createChunkedResponse(): {
       status: 200,
       headers: { "content-type": "application/json" },
     }),
-    pushChunk: (text) =>
-      streamController.enqueue(new TextEncoder().encode(text)),
+    pushChunk: (text) => streamController.enqueue(new TextEncoder().encode(text)),
     closeStream: () => streamController.close(),
     errorStream: (error) => streamController.error(error),
   };
 }
 
-function readerFrom(
-  response: Response,
-): ReadableStreamDefaultReader<Uint8Array> {
+function readerFrom(response: Response): ReadableStreamDefaultReader<Uint8Array> {
   if (!response.body) {
     throw new Error("The response has no body stream");
   }
   return response.body.getReader();
 }
 
-async function readText(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-): Promise<string> {
+async function readText(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<string> {
   const { value } = await reader.read();
   return Buffer.from(value ?? []).toString();
 }

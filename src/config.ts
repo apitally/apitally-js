@@ -1,13 +1,8 @@
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { logError, logWarning } from "./logger.js";
 
-export type BodyMaskingCallback = (
-  body: Buffer,
-  span: ReadableSpan,
-) => Buffer | null;
-export type SamplingCallback = (
-  span: ReadableSpan,
-) => number | boolean | undefined;
+export type BodyMaskingCallback = (body: Buffer, span: ReadableSpan) => Buffer | null;
+export type SamplingCallback = (span: ReadableSpan) => number | boolean | undefined;
 
 export interface ApitallyOptions {
   writeToken?: string;
@@ -37,9 +32,7 @@ type OptionalConfigKeys =
   | "sampleOnRequest"
   | "sampleOnResponse";
 
-export type ApitallyConfig = Required<
-  Omit<ApitallyOptions, OptionalConfigKeys>
-> &
+export type ApitallyConfig = Required<Omit<ApitallyOptions, OptionalConfigKeys>> &
   Pick<ApitallyOptions, OptionalConfigKeys> & { otlpEndpoint: string };
 
 const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
@@ -62,21 +55,8 @@ const ALLOWED_CONTENT_TYPES = [
 ];
 
 // User-supplied patterns extend these defaults, never replace them.
-export const DEFAULT_MASK_QUERY_PARAMS = [
-  "auth",
-  "api-?key",
-  "secret",
-  "token",
-  "password",
-  "pwd",
-];
-export const DEFAULT_MASK_HEADERS = [
-  "auth",
-  "api-?key",
-  "secret",
-  "token",
-  "cookie",
-];
+export const DEFAULT_MASK_QUERY_PARAMS = ["auth", "api-?key", "secret", "token", "password", "pwd"];
+export const DEFAULT_MASK_HEADERS = ["auth", "api-?key", "secret", "token", "cookie"];
 export const DEFAULT_MASK_BODY_FIELDS = [
   "password",
   "pwd",
@@ -151,29 +131,20 @@ export function isApitallyDisabledViaEnv(): boolean {
   return isTruthyEnvValue(process.env.APITALLY_DISABLED);
 }
 
-export function isAllowedContentType(
-  contentType: string | null | undefined,
-): boolean {
+export function isAllowedContentType(contentType: string | null | undefined): boolean {
   if (!contentType) {
     return false;
   }
   const normalized = contentType.trim().toLowerCase();
-  return ALLOWED_CONTENT_TYPES.some((allowed) =>
-    normalized.startsWith(allowed),
-  );
+  return ALLOWED_CONTENT_TYPES.some((allowed) => normalized.startsWith(allowed));
 }
 
 export function matchesAny(patterns: RegExp[], value: string): boolean {
   return patterns.some((pattern) => pattern.test(value));
 }
 
-export function compilePatterns(
-  defaults: string[],
-  userPatterns: string[] = [],
-): RegExp[] {
-  return [...defaults, ...userPatterns].map(
-    (pattern) => new RegExp(pattern, "i"),
-  );
+export function compilePatterns(defaults: string[], userPatterns: string[] = []): RegExp[] {
+  return [...defaults, ...userPatterns].map((pattern) => new RegExp(pattern, "i"));
 }
 
 function resolveConfig(options: ApitallyOptions): {
@@ -181,43 +152,31 @@ function resolveConfig(options: ApitallyOptions): {
   error?: string;
 } {
   const config: ApitallyConfig = {
-    writeToken:
-      options.writeToken ?? nonEmptyEnvVar("APITALLY_WRITE_TOKEN") ?? "",
+    writeToken: options.writeToken ?? nonEmptyEnvVar("APITALLY_WRITE_TOKEN") ?? "",
     env: options.env ?? nonEmptyEnvVar("APITALLY_ENV") ?? DEFAULT_ENV,
     appVersion: options.appVersion,
     disabled:
       options.disabled ??
-      isTruthyEnvValue(
-        process.env.APITALLY_DISABLED || process.env.OTEL_SDK_DISABLED,
-      ),
+      isTruthyEnvValue(process.env.APITALLY_DISABLED || process.env.OTEL_SDK_DISABLED),
     captureLogs: options.captureLogs ?? true,
     captureRequestHeaders: options.captureRequestHeaders ?? false,
     captureRequestBody: options.captureRequestBody ?? false,
     captureResponseHeaders: options.captureResponseHeaders ?? true,
     captureResponseBody: options.captureResponseBody ?? false,
-    maskQueryParams: dropInvalidPatterns(
-      "maskQueryParams",
-      options.maskQueryParams,
-    ),
+    maskQueryParams: dropInvalidPatterns("maskQueryParams", options.maskQueryParams),
     maskHeaders: dropInvalidPatterns("maskHeaders", options.maskHeaders),
-    maskBodyFields: dropInvalidPatterns(
-      "maskBodyFields",
-      options.maskBodyFields,
-    ),
+    maskBodyFields: dropInvalidPatterns("maskBodyFields", options.maskBodyFields),
     maskRequestBody: options.maskRequestBody,
     maskResponseBody: options.maskResponseBody,
     excludePaths: dropInvalidPatterns("excludePaths", options.excludePaths),
     // An invalid sampleRate resolves to capturing everything: no data is lost, so no warning.
     sampleRate:
-      typeof options.sampleRate === "number" &&
-      options.sampleRate >= 0 &&
-      options.sampleRate <= 1
+      typeof options.sampleRate === "number" && options.sampleRate >= 0 && options.sampleRate <= 1
         ? options.sampleRate
         : 1,
     sampleOnRequest: options.sampleOnRequest,
     sampleOnResponse: options.sampleOnResponse,
-    otlpEndpoint:
-      nonEmptyEnvVar("APITALLY_OTLP_ENDPOINT") ?? DEFAULT_OTLP_ENDPOINT,
+    otlpEndpoint: nonEmptyEnvVar("APITALLY_OTLP_ENDPOINT") ?? DEFAULT_OTLP_ENDPOINT,
   };
   if (config.disabled) {
     return { config };
@@ -260,18 +219,13 @@ function isHttpUrl(value: string): boolean {
 
 // An invalid pattern without an error could leave data unredacted, so invalid
 // patterns are logged and omitted.
-function dropInvalidPatterns(
-  optionName: string,
-  patterns: string[] = [],
-): string[] {
+function dropInvalidPatterns(optionName: string, patterns: string[] = []): string[] {
   return patterns.filter((pattern) => {
     try {
       new RegExp(pattern);
       return true;
     } catch {
-      logError(
-        `Invalid regular expression pattern in ${optionName} ignored: ${pattern}`,
-      );
+      logError(`Invalid regular expression pattern in ${optionName} ignored: ${pattern}`);
       return false;
     }
   });
@@ -282,10 +236,7 @@ function isSameConfig(a: ApitallyConfig, b: ApitallyConfig): boolean {
     const left = a[key];
     const right = b[key];
     if (Array.isArray(left) && Array.isArray(right)) {
-      return (
-        left.length === right.length &&
-        left.every((item, index) => item === right[index])
-      );
+      return left.length === right.length && left.every((item, index) => item === right[index]);
     }
     return left === right;
   });

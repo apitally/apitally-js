@@ -9,9 +9,7 @@ export function buildAppFixture(options: ApitallyOptions = {}): Hono {
   const app = new Hono();
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });
 
-  app.get("/items/:id", (c) =>
-    c.json({ id: Number(c.req.param("id")), name: "Widget" }),
-  );
+  app.get("/items/:id", (c) => c.json({ id: Number(c.req.param("id")), name: "Widget" }));
   app.post("/items", async (c) => {
     const body: unknown = await c.req.json();
     return c.json({ received: body }, 201);

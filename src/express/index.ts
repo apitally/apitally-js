@@ -31,9 +31,7 @@ function resolveExpressVersion(): string | undefined {
     const packageJson = createRequire(entryPath)("./package.json") as {
       version?: unknown;
     };
-    return typeof packageJson.version === "string"
-      ? packageJson.version
-      : undefined;
+    return typeof packageJson.version === "string" ? packageJson.version : undefined;
   } catch {
     return undefined;
   }

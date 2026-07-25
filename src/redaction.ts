@@ -15,13 +15,7 @@ export const URL_HEADER_NAMES = new Set(["location", "content-location"]);
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
-type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export class Redaction {
   private queryParamPatterns: RegExp[];
@@ -30,18 +24,9 @@ export class Redaction {
 
   constructor() {
     const config = getConfig();
-    this.queryParamPatterns = compilePatterns(
-      DEFAULT_MASK_QUERY_PARAMS,
-      config.maskQueryParams,
-    );
-    this.headerPatterns = compilePatterns(
-      DEFAULT_MASK_HEADERS,
-      config.maskHeaders,
-    );
-    this.bodyFieldPatterns = compilePatterns(
-      DEFAULT_MASK_BODY_FIELDS,
-      config.maskBodyFields,
-    );
+    this.queryParamPatterns = compilePatterns(DEFAULT_MASK_QUERY_PARAMS, config.maskQueryParams);
+    this.headerPatterns = compilePatterns(DEFAULT_MASK_HEADERS, config.maskHeaders);
+    this.bodyFieldPatterns = compilePatterns(DEFAULT_MASK_BODY_FIELDS, config.maskBodyFields);
   }
 
   // Redacts matching parameter names in a path with a query, a full URL, or a
@@ -52,23 +37,17 @@ export class Redaction {
       return value;
     }
     const base = separatorIndex === -1 ? "" : value.slice(0, separatorIndex);
-    const query =
-      separatorIndex === -1 ? value : value.slice(separatorIndex + 1);
+    const query = separatorIndex === -1 ? value : value.slice(separatorIndex + 1);
     const redactedParams = new URLSearchParams();
     for (const [name, paramValue] of new URLSearchParams(query)) {
-      redactedParams.append(
-        name,
-        this.shouldRedactQueryParam(name) ? REDACTED : paramValue,
-      );
+      redactedParams.append(name, this.shouldRedactQueryParam(name) ? REDACTED : paramValue);
     }
     return separatorIndex === -1
       ? redactedParams.toString()
       : `${base}?${redactedParams.toString()}`;
   }
 
-  redactHeaders(
-    headers: Record<string, string | string[]>,
-  ): Record<string, string | string[]> {
+  redactHeaders(headers: Record<string, string | string[]>): Record<string, string | string[]> {
     const result: Record<string, string | string[]> = {};
     for (const [name, value] of Object.entries(headers)) {
       if (this.shouldRedactHeader(name)) {

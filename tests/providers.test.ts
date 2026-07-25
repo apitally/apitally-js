@@ -12,10 +12,7 @@ import {
 import { logs } from "@opentelemetry/api-logs";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { W3CBaggagePropagator } from "@opentelemetry/core";
-import {
-  InMemoryLogRecordExporter,
-  SimpleLogRecordProcessor,
-} from "@opentelemetry/sdk-logs";
+import { InMemoryLogRecordExporter, SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -38,8 +35,7 @@ import {
   WRITE_TOKEN,
 } from "./utils.js";
 
-const UUID_V4_FORMAT =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const UUID_V4_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 // Mimics a context manager that lost its backing registration, e.g. through
 // conflicting @opentelemetry/api copies: context.with() runs but propagates nothing.
@@ -69,26 +65,19 @@ class NonPropagatingContextManager implements ContextManager {
 describe("providers", () => {
   it("registers its tracer provider globally and records a server span under an unsampled remote parent", () => {
     const exporter = new InMemorySpanExporter();
-    setupTracerProvider(createResource("prod"), [
-      new SimpleSpanProcessor(exporter),
-    ]);
+    setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
 
     trace.getTracer("test").startSpan("local root").end();
     const remoteParent = propagation.extract(context.active(), {
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
     });
-    trace
-      .getTracer("test")
-      .startSpan("GET /items", { kind: SpanKind.SERVER }, remoteParent)
-      .end();
+    trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER }, remoteParent).end();
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(2);
     expect(spans[0].name).toBe("local root");
     expect(spans[1].name).toBe("GET /items");
-    expect(spans[1].spanContext().traceId).toBe(
-      "0af7651916cd43dd8448eb211c80319c",
-    );
+    expect(spans[1].spanContext().traceId).toBe("0af7651916cd43dd8448eb211c80319c");
     expect(spans[1].parentSpanContext?.spanId).toBe("b7ad6b7169203331");
   });
 
@@ -109,23 +98,20 @@ describe("providers", () => {
   });
 
   it("prefers the configured env over the OTEL_RESOURCE_ATTRIBUTES entry when the SDK sets up the tracer provider", () => {
-    process.env.OTEL_RESOURCE_ATTRIBUTES =
-      "deployment.environment.name=production";
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production";
     setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
     expect(resolveEnv(false)).toBe("staging");
   });
 
   it("falls back to the OTEL_RESOURCE_ATTRIBUTES entry when no env is configured", () => {
-    process.env.OTEL_RESOURCE_ATTRIBUTES =
-      "deployment.environment.name=production%20eu";
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production%20eu";
     setConfig({ writeToken: WRITE_TOKEN });
     expect(resolveEnv(false)).toBe("production eu");
   });
 
   it("prefers the OTEL_RESOURCE_ATTRIBUTES entry with a user tracer provider and warns when a differing configured env loses", () => {
     const lines = captureStderr();
-    process.env.OTEL_RESOURCE_ATTRIBUTES =
-      "deployment.environment.name=production";
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production";
     setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
     expect(resolveEnv(true)).toBe("production");
     expect(lines).toHaveLength(1);
@@ -135,8 +121,7 @@ describe("providers", () => {
 
   it("uses the OTEL_RESOURCE_ATTRIBUTES entry without a warning when no differing env is configured", () => {
     const lines = captureStderr();
-    process.env.OTEL_RESOURCE_ATTRIBUTES =
-      "deployment.environment.name=production";
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production";
     setConfig({ writeToken: WRITE_TOKEN });
     expect(resolveEnv(true)).toBe("production");
     expect(lines).toHaveLength(0);
@@ -166,15 +151,11 @@ describe("providers", () => {
 
     const { resourceMetrics } = await metricReader.collect();
     expect(resourceMetrics.scopeMetrics).toHaveLength(1);
-    expect(resourceMetrics.resource.attributes["service.instance.id"]).toMatch(
-      UUID_V4_FORMAT,
-    );
+    expect(resourceMetrics.resource.attributes["service.instance.id"]).toMatch(UUID_V4_FORMAT);
     const logRecords = logExporter.getFinishedLogRecords();
     expect(logRecords).toHaveLength(1);
     expect(logRecords[0].body).toBe("hello");
-    expect(logRecords[0].resource.attributes["service.instance.id"]).toMatch(
-      UUID_V4_FORMAT,
-    );
+    expect(logRecords[0].resource.attributes["service.instance.id"]).toMatch(UUID_V4_FORMAT);
 
     expect(metrics.getMeterProvider()).not.toBe(meterProvider);
     expect(logs.getLoggerProvider()).not.toBe(loggerProvider);
@@ -184,9 +165,7 @@ describe("providers", () => {
     process.env.OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT = "100";
     process.env.OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT = "100";
     const exporter = new InMemorySpanExporter();
-    setupTracerProvider(createResource("prod"), [
-      new SimpleSpanProcessor(exporter),
-    ]);
+    setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
 
     const longUrl = `https://example.com/items?q=${"x".repeat(10_000)}`;
     const span = trace.getTracer("test").startSpan("GET /items");
@@ -207,9 +186,8 @@ describe("providers", () => {
     setupTracerProvider(createResource("prod"), []);
 
     const probeKey = createContextKey("test-probe");
-    const seenValue = context.with(
-      context.active().setValue(probeKey, "value"),
-      () => userContextManager.active().getValue(probeKey),
+    const seenValue = context.with(context.active().setValue(probeKey, "value"), () =>
+      userContextManager.active().getValue(probeKey),
     );
     expect(seenValue).toBe("value");
     expect(propagation.fields()).toEqual(["baggage"]);

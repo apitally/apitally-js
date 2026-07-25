@@ -83,9 +83,7 @@ describe("root entry", () => {
     });
 
     const spans = await readActivationSpans();
-    expect(
-      spans.map((exportedSpan) => [exportedSpan.name, exportedSpan.kind]),
-    ).toEqual([
+    expect(spans.map((exportedSpan) => [exportedSpan.name, exportedSpan.kind])).toEqual([
       ["fetchItems", SpanKind.INTERNAL],
       ["double count", SpanKind.INTERNAL],
       ["GET /things/:id", SpanKind.SERVER],
@@ -99,9 +97,7 @@ describe("root entry", () => {
     expect(serverSpan.attributes["tenant.plan"]).toBe("enterprise");
     expect(serverSpan.events).toHaveLength(1);
     expect(serverSpan.events[0].name).toBe("exception");
-    expect(serverSpan.events[0].attributes?.["exception.message"]).toBe(
-      "observed failure",
-    );
+    expect(serverSpan.events[0].attributes?.["exception.message"]).toBe("observed failure");
 
     await expect(shutdown()).resolves.toBeUndefined();
   });

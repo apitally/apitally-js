@@ -19,10 +19,7 @@ let startupEventEmitted = false;
 
 // The startup event emits at most once. Route resolution or serialization
 // failures emit the remaining valid data and never reach the application.
-export function emitStartupEvent(
-  loggerProvider: LoggerProvider,
-  info: StartupEventInfo,
-): void {
+export function emitStartupEvent(loggerProvider: LoggerProvider, info: StartupEventInfo): void {
   if (startupEventEmitted) {
     return;
   }
@@ -39,15 +36,11 @@ export function emitStartupEvent(
   try {
     paths = info.resolvePaths();
   } catch (error) {
-    logDebug(
-      `Error resolving the app's routes for the startup event: ${String(error)}`,
-    );
+    logDebug(`Error resolving the app's routes for the startup event: ${String(error)}`);
   }
   const body =
     serializePayload({ framework: info.framework, versions, paths }) ??
-    (paths !== undefined
-      ? serializePayload({ framework: info.framework, versions })
-      : undefined);
+    (paths !== undefined ? serializePayload({ framework: info.framework, versions }) : undefined);
   if (body === undefined) {
     return;
   }

@@ -8,33 +8,25 @@ describe("redaction", () => {
     setConfig({ writeToken: WRITE_TOKEN, maskQueryParams: ["custom"] });
     const redaction = new Redaction();
     expect(
-      redaction.redactQueryParams(
-        "user=alice&apiKey=abc123&PASSWORD=hunter2&custom_id=7",
-      ),
-    ).toBe(
-      "user=alice&apiKey=%5BREDACTED%5D&PASSWORD=%5BREDACTED%5D&custom_id=%5BREDACTED%5D",
-    );
+      redaction.redactQueryParams("user=alice&apiKey=abc123&PASSWORD=hunter2&custom_id=7"),
+    ).toBe("user=alice&apiKey=%5BREDACTED%5D&PASSWORD=%5BREDACTED%5D&custom_id=%5BREDACTED%5D");
     expect(redaction.redactQueryParams("/items?secret=1&q=2", false)).toBe(
       "/items?secret=%5BREDACTED%5D&q=2",
     );
-    expect(
-      redaction.redactQueryParams("https://example.com/items?token=x", false),
-    ).toBe("https://example.com/items?token=%5BREDACTED%5D");
+    expect(redaction.redactQueryParams("https://example.com/items?token=x", false)).toBe(
+      "https://example.com/items?token=%5BREDACTED%5D",
+    );
   });
 
   it("preserves query params without a value", () => {
     const redaction = new Redaction();
-    expect(redaction.redactQueryParams("/items?debug&x=1", false)).toBe(
-      "/items?debug=&x=1",
-    );
+    expect(redaction.redactQueryParams("/items?debug&x=1", false)).toBe("/items?debug=&x=1");
   });
 
   it("leaves request targets without a query string unchanged", () => {
     const redaction = new Redaction();
     expect(redaction.redactQueryParams("/items", false)).toBe("/items");
-    expect(redaction.redactQueryParams("/items/key=value", false)).toBe(
-      "/items/key=value",
-    );
+    expect(redaction.redactQueryParams("/items/key=value", false)).toBe("/items/key=value");
   });
 
   it("redacts headers matching default and user-configured patterns to a single [REDACTED] element", () => {
@@ -104,9 +96,7 @@ describe("redaction", () => {
 
   it("returns a non-JSON text body as text without field redaction", () => {
     const redaction = new Redaction();
-    expect(redaction.redactBody(Buffer.from("password=hunter2"))).toBe(
-      "password=hunter2",
-    );
+    expect(redaction.redactBody(Buffer.from("password=hunter2"))).toBe("password=hunter2");
   });
 
   it("passes a non-UTF-8 body through as bytes without field redaction", () => {

@@ -1,8 +1,4 @@
-import {
-  BODY_TOO_LARGE_BUFFER,
-  isAllowedContentType,
-  MAX_BODY_SIZE,
-} from "./config.js";
+import { BODY_TOO_LARGE_BUFFER, isAllowedContentType, MAX_BODY_SIZE } from "./config.js";
 
 const READ_TIMEOUT_MILLIS = 5_000;
 
@@ -25,31 +21,23 @@ export class BodyCapture {
   private completed = false;
 
   constructor(options: BodyCaptureOptions) {
-    this.shouldCapture =
-      options.captureBody && isAllowedContentType(options.contentType);
+    this.shouldCapture = options.captureBody && isAllowedContentType(options.contentType);
     // Transfer-Encoding: chunked makes Content-Length unusable, so observed
     // decoded bytes determine size.
     const transferEncoding = Array.isArray(options.transferEncoding)
       ? options.transferEncoding.join(",")
       : options.transferEncoding;
     const isChunkedTransferEncoding =
-      typeof transferEncoding === "string" &&
-      transferEncoding.toLowerCase().includes("chunked");
+      typeof transferEncoding === "string" && transferEncoding.toLowerCase().includes("chunked");
     this.declaredSize = isChunkedTransferEncoding
       ? undefined
       : parseContentLength(options.contentLength);
     this.tooLarge =
-      this.shouldCapture &&
-      this.declaredSize !== undefined &&
-      this.declaredSize > MAX_BODY_SIZE;
+      this.shouldCapture && this.declaredSize !== undefined && this.declaredSize > MAX_BODY_SIZE;
   }
 
-  addChunk(
-    chunk: Buffer | Uint8Array | string,
-    encoding?: BufferEncoding,
-  ): void {
-    const bytes =
-      typeof chunk === "string" ? Buffer.from(chunk, encoding) : chunk;
+  addChunk(chunk: Buffer | Uint8Array | string, encoding?: BufferEncoding): void {
+    const bytes = typeof chunk === "string" ? Buffer.from(chunk, encoding) : chunk;
     this.observedLength += bytes.byteLength;
     if (!this.shouldCapture || this.tooLarge) {
       return;
@@ -111,10 +99,7 @@ export function captureResponse(
   });
   if (!response.body) {
     bodyCapture.markComplete();
-    return [
-      response,
-      Promise.resolve({ body: bodyCapture.body, size: bodyCapture.size }),
-    ];
+    return [response, Promise.resolve({ body: bodyCapture.body, size: bodyCapture.size })];
   }
   let readStarted = false;
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
@@ -146,10 +131,9 @@ export function captureResponse(
     statusText: response.statusText,
     headers: response.headers,
   });
-  const capturedBodyPromise = Promise.race([
-    pipePromise,
-    timeoutPromise,
-  ]).finally(() => clearTimeout(readTimeout));
+  const capturedBodyPromise = Promise.race([pipePromise, timeoutPromise]).finally(() =>
+    clearTimeout(readTimeout),
+  );
   return [teedResponse, capturedBodyPromise];
 }
 
@@ -174,9 +158,7 @@ export function normalizeHeaders(
   }
   for (const [name, value] of Object.entries(headers)) {
     if (value !== undefined) {
-      normalized[name.toLowerCase()] = Array.isArray(value)
-        ? value
-        : String(value);
+      normalized[name.toLowerCase()] = Array.isArray(value) ? value : String(value);
     }
   }
   return normalized;
