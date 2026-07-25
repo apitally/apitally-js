@@ -1,5 +1,3 @@
-import type { Express } from "express";
-import type { Hono } from "hono";
 import type { ApitallyOptions } from "./config.js";
 import { useApitally as useApitallyExpress } from "./express/index.js";
 import { useApitally as useApitallyHono } from "./hono/index.js";
@@ -19,8 +17,6 @@ export {
 } from "./spanProcessor.js";
 export { instrument, span } from "./tracing.js";
 
-export function useApitally(app: Express, options?: ApitallyOptions): void;
-export function useApitally(app: Hono, options?: ApitallyOptions): void;
 export function useApitally(app: unknown, options?: ApitallyOptions): void {
   if (isExpressApp(app)) {
     useApitallyExpress(app, options);
@@ -35,7 +31,9 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
 
 // Duck typing avoids runtime framework imports from the root entry. Express is
 // a handler with application methods; Hono exposes its routes and fetch handler.
-function isExpressApp(app: unknown): app is Express {
+function isExpressApp(
+  app: unknown,
+): app is Parameters<typeof useApitallyExpress>[0] {
   const candidate = app as { use?: unknown; handle?: unknown };
   return (
     typeof app === "function" &&
@@ -44,7 +42,7 @@ function isExpressApp(app: unknown): app is Express {
   );
 }
 
-function isHonoApp(app: unknown): app is Hono {
+function isHonoApp(app: unknown): app is Parameters<typeof useApitallyHono>[0] {
   const candidate = app as {
     routes?: unknown;
     fetch?: unknown;
