@@ -33,10 +33,8 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
   }
 }
 
-// Duck-typed detection keeps the framework packages out of the root entry's
-// runtime imports: an Express app is the request handler function carrying the
-// application methods, a Hono app is an object exposing its route table and
-// fetch handler.
+// Duck typing avoids runtime framework imports from the root entry. Express is
+// a handler with application methods; Hono exposes its routes and fetch handler.
 function isExpressApp(app: unknown): app is Express {
   const candidate = app as { use?: unknown; handle?: unknown };
   return (

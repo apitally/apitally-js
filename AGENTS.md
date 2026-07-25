@@ -1,6 +1,6 @@
 # Agent guidance
 
-Status: This is a new agent-generated codebase, largely untested and unreviewed. We're in the process of cleaning it up.
+Status: This branch (v1) is a new agent-generated codebase, largely untested and unreviewed. We're in the process of cleaning it up. The v1 SDK in this branch will supersede the v0 SDK in the main branch eventually.
 
 ## Checks
 

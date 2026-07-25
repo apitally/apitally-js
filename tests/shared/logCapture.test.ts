@@ -95,7 +95,6 @@ describe("logCapture", () => {
       expect(records.map((record) => record.instrumentationScope.name)).toEqual(
         ["console", "console", "console", "console", "console"],
       );
-      // The wraps still call the original console methods
       expect(spies.log).toHaveBeenCalledWith("count: %d", 42);
     });
 

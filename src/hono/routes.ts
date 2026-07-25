@@ -2,10 +2,6 @@ import type { Context, Hono } from "hono";
 import { logDebug } from "../logger.js";
 import type { RoutePath } from "../startup.js";
 
-// Route templates come from Hono's match result: app.route() re-registers a
-// sub-app's routes on the parent at mount time with the mount prefix included
-// in the registered path, so matched templates carry mount prefixes by construction.
-
 export interface MatchedRouteResult {
   route?: string;
 }
@@ -20,17 +16,15 @@ interface MatchedRouteEntry {
 // property (Hono's own convention).
 const COMPOSED_HANDLER_PROPERTY = "__COMPOSED_HANDLER";
 
-// Resolves the request's route template after the middleware chain unwound.
-// Real route handlers are discriminated from middleware entries by handler
-// arity, Hono's own convention: route handlers take one argument.
+// Hono match entries include app.route() mount prefixes. Handler arity
+// distinguishes route handlers from middleware.
 export function resolveMatchedRoute(c: Context): MatchedRouteResult {
   const entries = readMatchedRouteEntries(c);
   if (!entries) {
     return {};
   }
-  // routeIndex points at the handler the response came from; a middleware that
-  // responded without calling next() leaves the route handler it preempted at
-  // a later index in the match result.
+  // Scanning from `routeIndex` finds the matched route when middleware responds
+  // before its handler.
   for (let index = c.req.routeIndex; index < entries.length; index++) {
     const entry = entries[index];
     if (entry && isRouteHandler(entry.handler)) {
@@ -42,8 +36,6 @@ export function resolveMatchedRoute(c: Context): MatchedRouteResult {
   return {};
 }
 
-// Enumerates the app's registered routes for the startup event, filtering
-// middleware entries by the arity convention and deduplicating method-path pairs.
 export function resolveStartupPaths(app: Hono): RoutePath[] {
   const paths: RoutePath[] = [];
   const seen = new Set<string>();
@@ -61,11 +53,8 @@ export function resolveStartupPaths(app: Hono): RoutePath[] {
   return paths;
 }
 
-// The hono/route helpers read the match result through a getter keyed by a
-// Symbol private to the hono build variant (ESM or CJS) that constructed the
-// request, so a helper the SDK resolves via createRequire cannot read requests
-// created by an app loaded through the other build. The equivalent getter on
-// the HonoRequest instance is variant-safe by construction.
+// Hono route helpers use build-private Symbols, so ESM helpers cannot read CJS
+// requests. The request instance getter always uses the matching build.
 function readMatchedRouteEntries(c: Context): MatchedRouteEntry[] | undefined {
   try {
     const entries = (c.req as { matchedRoutes?: unknown }).matchedRoutes;

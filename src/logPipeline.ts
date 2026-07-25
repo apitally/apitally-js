@@ -19,10 +19,8 @@ const SERVER_SPAN_ID_ATTRIBUTE = "apitally.request.server_span_id";
 const APITALLY_SCOPE_NAME = "apitally";
 const MAX_STRING_LENGTH = 2_048;
 
-// The keep/drop decision point in front of Apitally's logs export path. Request
-// linkage resolves by looking the record's emitting-span id up in the span
-// pipeline's in-flight request map; records that resolve no SERVER span id are
-// dropped, except records under the "apitally" scope (the startup event).
+// Records resolve request linkage through the span pipeline's in-flight map.
+// Unlinked records are dropped except the `apitally` startup event.
 export class LogPipeline implements LogRecordProcessor {
   private readonly downstream: LogRecordProcessor;
   private readonly spanPipeline: SpanPipeline;
@@ -50,7 +48,6 @@ export class LogPipeline implements LogRecordProcessor {
         return;
       }
       logRecord.setAttribute(SERVER_SPAN_ID_ATTRIBUTE, serverSpanId);
-      // After a kept release, late records pass through immediately.
       if (!this.spanPipeline.isRequestInFlight(serverSpanId)) {
         this.downstream.onEmit(logRecord, context);
         return;
@@ -93,10 +90,8 @@ export class LogPipeline implements LogRecordProcessor {
   }
 }
 
-// Serializes released log records into the spool at batch-drain time,
-// truncating long string bodies and attribute values on copies; the originals
-// are never mutated, and "apitally"-scoped records are exempt so the startup
-// event survives intact.
+// Released records are truncated on copies before serialization; `apitally`
+// startup records remain unchanged.
 export class ApitallyLogRecordExporter implements LogRecordExporter {
   private readonly spool: Spool;
 
@@ -151,7 +146,7 @@ function truncateLogRecordStrings(
     severityNumber: logRecord.severityNumber,
     body,
     eventName: logRecord.eventName,
-    // Shared references: the serializer groups by resource and scope identity
+    // The serializer groups records by resource and scope identity.
     resource: logRecord.resource,
     instrumentationScope: logRecord.instrumentationScope,
     attributes,

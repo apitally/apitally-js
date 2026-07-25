@@ -38,9 +38,8 @@ export interface ApitallySpanExporterOptions {
   maskResponseBody?: BodyMaskCallback;
 }
 
-// Builds export copies at batch-drain time, off the request path: applies the
-// request record, attaches stashed headers and bodies, and redacts, all on
-// rewritten copies; the original spans are never mutated.
+// Export copies receive transport attributes, captured data, and redaction
+// without mutating the original spans.
 export class ApitallySpanExporter implements SpanExporter {
   private readonly redaction: Redaction;
   private readonly env: string;
@@ -68,7 +67,7 @@ export class ApitallySpanExporter implements SpanExporter {
       try {
         exportCopies.push(this.buildExportCopy(span, rewrittenResources));
       } catch {
-        // A span that failed redaction must never leave the process
+        // A span that failed redaction must never leave the process.
         logWarning(
           "Failed to prepare a span for export to Apitally, so the span was dropped",
         );
@@ -131,8 +130,8 @@ export class ApitallySpanExporter implements SpanExporter {
       stash &&
       (stash.requestBody !== undefined || stash.responseBody !== undefined)
     ) {
-      // Mask callbacks receive the span as it will be exported, redaction
-      // applied and captured headers attached, without the body attributes
+      // Mask callbacks receive the redacted export copy with captured headers
+      // attached, but without body attributes.
       const snapshot = copySpan(copy);
       snapshot.attributes = { ...attributes } as Attributes;
       if (stash.requestBody !== undefined) {
@@ -155,9 +154,8 @@ export class ApitallySpanExporter implements SpanExporter {
     return copy;
   }
 
-  // Stock instrumentations set query attributes raw, so query-bearing and captured
-  // header attributes are redacted here, in both semconv normalizations, on every
-  // span passing through Apitally's export path.
+  // OpenTelemetry HTTP instrumentations leave query and header attributes raw.
+  // Both legacy and stable HTTP attribute names are redacted before export.
   private redactQueryAndHeaderAttributes(
     attributes: Record<string, unknown>,
   ): void {
@@ -179,7 +177,7 @@ export class ApitallySpanExporter implements SpanExporter {
         if (this.redaction.shouldRedactHeader(headerName)) {
           attributes[key] = typeof value === "string" ? REDACTED : [REDACTED];
         } else if (URL_HEADER_NAMES.has(headerName.toLowerCase())) {
-          // Redirect targets can carry secrets in their query strings
+          // Redirect targets can carry secrets in their query strings.
           if (typeof value === "string") {
             attributes[key] = this.redaction.redactQueryParams(value, false);
           } else if (Array.isArray(value)) {
@@ -194,8 +192,8 @@ export class ApitallySpanExporter implements SpanExporter {
     }
   }
 
-  // Mask callback, then parse, then field redaction, then serialization. Failing
-  // closed: a body the user tried to mask is never exported unmasked.
+  // Bodies are masked, parsed, field-redacted, and serialized in that order.
+  // Masking failures redact the entire body.
   private processBody(
     snapshot: ReadableSpan,
     body: Buffer,
@@ -217,7 +215,6 @@ export class ApitallySpanExporter implements SpanExporter {
         return REDACTED;
       }
       if (masked === null || masked === undefined) {
-        // The documented redact-everything signal
         return REDACTED;
       }
       if (!Buffer.isBuffer(masked)) {
@@ -234,10 +231,8 @@ export class ApitallySpanExporter implements SpanExporter {
     return this.redaction.redactBody(processed);
   }
 
-  // Every export copy's resource has to match the Apitally-Env transport header;
-  // a user provider's differing env is rewritten on Apitally's copy only, and an
-  // absent attribute is filled in whenever the resolved env is not the default,
-  // since absence reads as the default env downstream.
+  // Export resources must match Apitally-Env. Conflicting values are rewritten
+  // only on Apitally's copy, and missing non-default values are added.
   private resolveExportResource(
     resource: Resource,
     rewrittenResources: Map<Resource, Resource>,
@@ -267,9 +262,6 @@ export class ApitallySpanExporter implements SpanExporter {
   }
 }
 
-// Shared by the span and log exporters: serializes export items to OTLP
-// protobuf in bounded chunks, appends them to the spool, and reports one
-// combined result through the exporter callback contract.
 export function serializeInChunksToSpool<Item>(
   items: Item[],
   serializeChunk: (chunk: Item[]) => Uint8Array | undefined,
@@ -306,7 +298,6 @@ export function serializeInChunksToSpool<Item>(
   );
 }
 
-// Captured headers are exported list-valued, one name/value pair per element
 function writeCapturedHeaderAttributes(
   attributes: Record<string, unknown>,
   prefix: string,

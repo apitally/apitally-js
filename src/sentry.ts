@@ -15,9 +15,8 @@ interface SentryClient {
   on(hook: "beforeSendEvent", callback: (event: SentryEvent) => void): unknown;
 }
 
-// Installing Sentry is the consent: when a client is detected, every exception
-// event's id is written onto the active SERVER span, so Apitally can link the
-// request to the Sentry issue. Without an active request the write is a no-op.
+// An initialized Sentry client opts in to linking exception event IDs with
+// active SERVER spans. Calls outside a request are no-ops.
 export function installSentryEventIdLinkage(): void {
   try {
     const client =
@@ -65,11 +64,8 @@ function getClientThroughPeerResolution(): SentryClient | undefined {
   }
 }
 
-// Strict package layouts (pnpm, Yarn PnP) can make a wrapper package's
-// transitive @sentry/node unresolvable; the initialized client is still
-// reachable through the carrier Sentry keeps on globalThis, in one of two
-// shapes: version 7 holds a hub on the carrier root, versions 8 to 10 nest
-// their state under the carrier's version key.
+// Strict package layouts may prevent peer resolution. Sentry 7 to 10 still
+// expose initialized clients through two globalThis carrier shapes.
 function getClientFromGlobalCarrier(): SentryClient | undefined {
   const carrier = (globalThis as { __SENTRY__?: unknown }).__SENTRY__;
   if (!isRecord(carrier)) {

@@ -114,9 +114,8 @@ export const EXCLUDE_USER_AGENTS = [
 const WRITE_TOKEN_FORMAT = /^apt_[a-zA-Z0-9]{24}$/;
 const TRUE_VALUES = new Set(["1", "true", "yes"]);
 
-// The ESM and CJS builds can both load in one process, so the config singleton
-// lives on globalThis under a Symbol.for key: both module copies resolve one
-// configuration.
+// The ESM and CJS builds can load together, so a Symbol.for key gives both
+// copies the same configuration.
 const CONFIG_SLOT_KEY = Symbol.for("apitally.config");
 const configHolder = globalThis as Record<symbol, ApitallyConfig | undefined>;
 
@@ -259,8 +258,8 @@ function isHttpUrl(value: string): boolean {
   return url.protocol === "http:" || url.protocol === "https:";
 }
 
-// A silently kept but broken redaction pattern would leave data unredacted, so
-// invalid patterns are dropped loudly while the remaining patterns stay in effect.
+// A silently invalid pattern could leave data unredacted, so invalid patterns
+// are logged and omitted.
 function dropInvalidPatterns(
   optionName: string,
   patterns: string[] = [],

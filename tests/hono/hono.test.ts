@@ -123,7 +123,7 @@ describe("hono adapter", () => {
   });
 
   it("excludes health check requests from spans while counting them in the request metrics, and records OPTIONS requests in neither", async () => {
-    // Capture stays enabled so excluded requests provably export no payloads
+    // Capture stays enabled so excluded requests provably export no payloads.
     prepareFirstRequestActivation({
       captureRequestBody: true,
       captureResponseBody: true,
@@ -470,8 +470,8 @@ describe("hono adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(2);
-    // The mask callback receives the wire bytes in the exporter, the
-    // observable proof that the capture came from the byte-faithful cache entry
+    // The callback receives original wire bytes, proving capture used a cache
+    // entry that preserves those bytes.
     expect(observedWireBody).toBe(wireBody);
     const jsonAttributes = spans[0].attributes;
     expect(jsonAttributes["apitally.request.body"]).toBe('{"b":2,"a":1}');

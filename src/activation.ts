@@ -37,16 +37,15 @@ import { SpanPipeline, setActiveSpanPipeline } from "./spanProcessor.js";
 import { Spool } from "./spool.js";
 import { emitStartupEvent, type StartupEventInfo } from "./startup.js";
 
-// OTel defaults except the schedule delay: the export worker sends every 15
-// seconds, so batches only need to reach the spool well within that interval.
+// The worker sends every 15 seconds, so batches only need to reach the spool
+// within that interval.
 const BATCH_SCHEDULE_DELAY_MILLIS = 1_000;
 const BATCH_EXPORT_TIMEOUT_MILLIS = 30_000;
 const BATCH_MAX_QUEUE_SIZE = 2_048;
 const BATCH_MAX_EXPORT_BATCH_SIZE = 512;
 
-// The ESM and CJS builds can both load in one process, so the activation
-// singleton lives on globalThis under a Symbol.for key: whichever build copy
-// activated, the other copy's entry points observe and reuse the same state.
+// The ESM and CJS builds can load together, so a Symbol.for key gives both
+// copies the same activation state.
 const ACTIVATION_SLOT_KEY = Symbol.for("apitally.activation");
 
 interface ActivationSlot {
@@ -69,32 +68,25 @@ export interface ActivationHandles {
   undiciInstrumentation?: UndiciInstrumentation;
 }
 
-// The synchronous configure step behind useApitally(): records configuration
-// only; timers and I/O are deferred to activate().
+// Configuration stays synchronous; activate() defers timers and I/O.
 export function configure(options: ApitallyOptions = {}): ApitallyConfig {
   const config = setConfig(options);
-  // User instrumentations constructed after configure read this env var once at
-  // init and default to old HTTP semconv names when it is unset; http/dup adds
-  // the stable names without changing what a user's existing OpenTelemetry
-  // backend receives. A user-set value is respected.
+  // User instrumentations read this at initialization. `http/dup` adds stable
+  // HTTP attributes alongside legacy ones; a user-set value takes precedence.
   if (process.env.OTEL_SEMCONV_STABILITY_OPT_IN === undefined) {
     process.env.OTEL_SEMCONV_STABILITY_OPT_IN = "http/dup";
   }
   return config;
 }
 
-// Called by the adapters at wrap time; activation emits the startup event from
-// the registered info. The first registration wins, so one process emits one
-// startup event.
+// The first adapter registration wins so one process emits one startup event.
 export function registerStartupEventInfo(info: StartupEventInfo): void {
   const slot = getSlot();
   slot.startupEventInfo ??= info;
 }
 
-// Called by the adapters' outermost per-request wrapper before the SDK's own
-// SERVER span starts. Attempted at most once per process: fully synchronous, so
-// the single-threaded event loop guarantees concurrent first requests observe
-// either no activation or a completed one.
+// Activation is synchronous and attempted once, so concurrent first requests
+// observe either no activation or completed activation.
 export function activate(): void {
   const slot = getSlot();
   if (slot.activationAttempted) {
@@ -122,9 +114,8 @@ export function getActivationHandles(): ActivationHandles | undefined {
   return getSlot().handles;
 }
 
-// Idempotent final drain of all buffered telemetry; a no-op before activation.
-// Concurrent calls share one promise, and the beforeExit hook triggers the same
-// drain on clean process exits.
+// Concurrent calls and the beforeExit hook share one final drain; calls before
+// activation are no-ops.
 export function shutdown(): Promise<void> {
   const slot = getSlot();
   if (!slot.runShutdown) {
@@ -134,8 +125,7 @@ export function shutdown(): Promise<void> {
   return slot.shutdownPromise;
 }
 
-// Construction seam for the pieces with I/O side effects; tests substitute
-// these to isolate the spool directory and the worker's timing.
+// Tests replace these factories to isolate spool files and worker timing.
 export const activationFactories = {
   createSpool: (): Spool => new Spool(),
   createExportWorker: (options: ExportWorkerOptions): ExportWorker =>
@@ -143,8 +133,7 @@ export const activationFactories = {
 };
 const defaultFactories = { ...activationFactories };
 
-// Test seam: tears down everything activation started, restores the factories,
-// and clears the process-global slot.
+// Tests reset process-global activation and its side effects between cases.
 export async function resetActivation(): Promise<void> {
   Object.assign(activationFactories, defaultFactories);
   const holder = globalThis as Record<symbol, ActivationSlot | undefined>;
@@ -198,7 +187,7 @@ function shouldSkipActivation(): boolean {
     Boolean(process.env.JEST_WORKER_ID) ||
     Boolean(process.env.VITEST) ||
     process.env.NODE_ENV === "test" ||
-    // The emergency kill switch wins even over an explicit disabled: false option
+    // The emergency kill switch overrides an explicit disabled: false option.
     isApitallyDisabledViaEnv() ||
     getConfig().disabled
   );
@@ -219,9 +208,8 @@ function startPipelines(
     maskRequestBody: config.maskRequestBody,
     maskResponseBody: config.maskResponseBody,
   });
-  // Every batch parameter is a concrete value in a fresh object literal per
-  // processor: the OTEL_BSP_*/OTEL_BLRP_* env vars apply to omitted or
-  // undefined parameters, and the BatchSpanProcessor shim mutates its config.
+  // Concrete options prevent OTel environment variables from changing batch
+  // behavior. Each processor gets a fresh object because its config is mutated.
   const batchSpanProcessor = new BatchSpanProcessor(spanExporter, {
     scheduledDelayMillis: BATCH_SCHEDULE_DELAY_MILLIS,
     exportTimeoutMillis: BATCH_EXPORT_TIMEOUT_MILLIS,
@@ -235,10 +223,9 @@ function startPipelines(
   } else {
     tracerProvider = setupTracerProvider(resource, [spanPipeline]);
   }
-  // Published for the ApitallySpanProcessor shell attached to user providers
   setActiveSpanPipeline(spanPipeline);
-  // BatchLogRecordProcessor only accepts the single-options-object form; the
-  // positional (exporter, config) form constructs a silently broken processor.
+  // BatchLogRecordProcessor requires its single-options-object form; positional
+  // arguments create a broken processor.
   const batchLogProcessor = new BatchLogRecordProcessor({
     exporter: new ApitallyLogRecordExporter(spool),
     scheduledDelayMillis: BATCH_SCHEDULE_DELAY_MILLIS,
@@ -270,9 +257,8 @@ function startPipelines(
   installSentryEventIdLinkage();
   let undiciInstrumentation: UndiciInstrumentation | undefined;
   if (!hasUserProvider) {
-    // On adopted setups the user's instrumentation set owns client-span
-    // production; a second instance would emit duplicate CLIENT spans into
-    // the user's exporters.
+    // With a user tracer provider, user instrumentation owns CLIENT span
+    // production; another Undici instrumentation would duplicate them.
     undiciInstrumentation = createUndiciInstrumentation(config.otlpEndpoint);
   }
   worker.start();
@@ -290,9 +276,8 @@ function startPipelines(
   };
 }
 
-// The ignoreRequestHook is the instrumentation's contract for exempting the
-// SDK's own export POSTs; the request origin arrives as string | URL at
-// runtime despite the string typing, so it is coerced before parsing.
+// ignoreRequestHook prevents telemetry for export POSTs. The request origin can
+// be a string or URL at runtime despite its string type.
 function createUndiciInstrumentation(
   otlpEndpoint: string,
 ): UndiciInstrumentation {
@@ -308,9 +293,6 @@ function createUndiciInstrumentation(
   });
 }
 
-// Releases buffered requests whose transport already completed and discards
-// the rest, flushes both batch processors into the spool, and sends everything
-// pending in one final uncapped cycle.
 async function drainAndStop(handles: ActivationHandles): Promise<void> {
   try {
     await handles.spanPipeline.shutdown();
@@ -324,8 +306,8 @@ async function drainAndStop(handles: ActivationHandles): Promise<void> {
 
 function installBeforeExitHook(slot: ActivationSlot): void {
   const listener = () => {
-    // Fire-and-forget: the drain's own pending work keeps the event loop alive
-    // until it completes, and a repeated beforeExit joins the settled promise.
+    // The drain keeps the event loop alive, and repeated beforeExit events share
+    // the settled promise.
     void shutdown().catch((error: unknown) => {
       logDebug(`Error draining telemetry on shutdown: ${String(error)}`);
     });

@@ -50,8 +50,8 @@ const PER_MESSAGE_SPAN_NAME_SUFFIXES = [
 ];
 const EXCLUDE_USER_AGENT_PATTERNS = compilePatterns(EXCLUDE_USER_AGENTS);
 
-// Headers and bodies captured by a transport for one request. They never touch the
-// live span and reach only Apitally's export copy, in the exporter.
+// Transport-captured headers and bodies are attached only to Apitally's export
+// copy.
 export interface RequestStash {
   requestHeaders?: Record<string, string | string[]>;
   requestBody?: Buffer;
@@ -71,10 +71,8 @@ export type SpanCopy = {
   -readonly [Key in keyof ReadableSpan]: ReadableSpan[Key];
 } & { apitallyData?: ApitallySpanData };
 
-// The public span processor attached to a user-owned tracer provider. Construction
-// is side-effect-free so it is safe anywhere in the user's setup; every callback
-// forwards to the SDK's process-global pipeline, and callbacks arriving before a
-// pipeline exists are safe no-ops.
+// The public processor delegates to the process-global pipeline, so construction
+// has no side effects and callbacks before activation are no-ops.
 export class ApitallySpanProcessor implements SpanProcessor {
   onStart(span: Span, parentContext: Context): void {
     getActiveSpanPipeline()?.onStart(span, parentContext);
@@ -95,16 +93,14 @@ export class ApitallySpanProcessor implements SpanProcessor {
     });
   }
 
-  // A user provider's shutdown only flushes released requests downstream and never
-  // tears down the SDK; teardown belongs to the SDK's own shutdown path.
+  // A user provider's shutdown only flushes released requests; SDK shutdown owns
+  // teardown.
   shutdown(): Promise<void> {
     return this.forceFlush();
   }
 }
 
-// The active pipeline is published on globalThis under a Symbol.for key: the
-// ESM and CJS build copies of this module resolve one shared pipeline, so the
-// shell above forwards to the copy that activated.
+// A Symbol.for key lets ESM and CJS builds share the active pipeline.
 const ACTIVE_SPAN_PIPELINE_KEY = Symbol.for("apitally.activeSpanPipeline");
 
 export function setActiveSpanPipeline(
@@ -157,9 +153,8 @@ export function captureException(error: unknown): void {
   }
 }
 
-// Attribute writes during a request go to the live span if it is still recording
-// and always mirror into the request record, which the exporter applies onto the
-// export copy last, so late-learned values still reach the exported span.
+// Mirroring attributes into the request record preserves values learned after
+// the live span stops recording.
 export function writeRequestAttribute(
   span: ApiSpan | undefined,
   record: RequestRecord | undefined,
@@ -177,7 +172,6 @@ export function writeRequestAttribute(
 interface RequestEntry {
   readonly serverSpanId: string;
   readonly serverSpan: Span;
-  // Every span id in the in-flight request map pointing at this entry
   readonly spanIds: Set<string>;
   record?: RequestRecord;
   buffered: ReadableSpan[];
@@ -188,31 +182,27 @@ interface RequestEntry {
 
 interface KeptSpanEntry {
   readonly serverSpanId: string;
-  // Carries the demotion decision across the release for spans that end late
+  // Carries the demotion decision across release for spans that end late.
   readonly demoted: boolean;
 }
 
-// The single keep/drop decision point in front of Apitally's export path. Requests
-// are buffered per request and released to the downstream processor when both the
-// SERVER span has ended and the transport has completed, exactly once per request.
+// Requests remain buffered until the SERVER span and transport complete, then
+// one keep/drop decision releases them once.
 export class SpanPipeline implements SpanProcessor {
-  // Seams for the metrics and log pipelines, registered at activation.
+  // Callbacks are optional because metrics and log pipelines start at activation.
   metricsRecorder?: (record: RequestRecord) => void;
   onRequestFinished?: (serverSpanId: string, kept: boolean) => void;
   private readonly downstream: SpanProcessor;
   private readonly config: ApitallyConfig;
   private readonly sampleRateBound: bigint;
   private readonly excludePathPatterns: RegExp[];
-  // In-flight request map keyed by span id; all spans of a request share one entry.
-  // Every id stays mapped until the request completes, so log records emitted after
-  // their span ended still resolve. A lookup miss means dropped or completed; only
-  // kept requests are entered, so dropped requests and non-request roots fall to
-  // the miss rule with all their descendants.
+  // Every span ID remains mapped to one request until completion so late logs
+  // resolve. A miss means dropped, completed, or non-request telemetry.
   private readonly requests = new Map<string, RequestEntry>();
   private readonly stash = new Map<string, RequestStash>();
   private readonly demotedSpanIds = new Set<string>();
-  // Span ids of requests released as kept, so late spans and log records still
-  // export after the release; oldest evicted at the cap.
+  // Kept span IDs remain resolvable after release for late spans and logs; the
+  // oldest are evicted at the cap.
   private readonly keptSpanIds = new Map<string, KeptSpanEntry>();
 
   constructor(downstream: SpanProcessor) {
@@ -252,8 +242,8 @@ export class SpanPipeline implements SpanProcessor {
         return;
       }
       if (span.kind === SpanKind.SERVER) {
-        // A second span-producing middleware is active for the same request; Apitally
-        // deduplicates on its own copy, but the user's exporters keep the duplicate.
+        // A second middleware produced a SERVER span for this request. Apitally
+        // demotes its copy, but user exporters retain the duplicate.
         this.demotedSpanIds.add(spanId);
         logWarning(
           `Detected a duplicate SERVER span produced by the instrumentation scope "${span.instrumentationScope?.name ?? "unknown"}" inside an active request. Apitally exports it as an INTERNAL span, but your own OpenTelemetry exporters still receive the duplicate. To resolve this, remove the middleware that produces it.`,
@@ -307,10 +297,8 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  // The transport-completion entry point called by the adapters when the response
-  // is fully sent: finalizes the record, runs the response-stage sampling decision,
-  // and records metrics at that moment, independent of span-end timing. Tolerates
-  // a request map miss: metrics are still recorded, everything else is discarded.
+  // Transport completion drives response sampling and metrics independently of
+  // span-end timing. Map misses still record metrics and discard other data.
   handleTransportCompletion(record: RequestRecord): void {
     try {
       const entry =
@@ -318,9 +306,8 @@ export class SpanPipeline implements SpanProcessor {
           ? this.requests.get(record.serverSpanId)
           : undefined;
       if (entry && !entry.transportCompleted && !entry.released) {
-        // An adopted span started outside the request context, so its entry
-        // carries no record yet; attaching it here lets the exporter apply the
-        // transport-observed attributes onto the export copy.
+        // The user-produced SERVER span started before the request record existed;
+        // attaching the record here carries transport attributes to the export copy.
         entry.record ??= record;
         entry.transportCompleted = true;
         if (!this.isResponseSampledIn(entry)) {
@@ -376,9 +363,8 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
-  // The SERVER span id for a span of an in-flight request or of a request
-  // released as kept; undefined when the request is dropped or unknown. The
-  // log pipeline resolves request linkage through this lookup.
+  // Kept requests remain resolvable after release so late logs retain request
+  // linkage.
   resolveServerSpanId(spanId: string): string | undefined {
     return (
       this.requests.get(spanId)?.serverSpanId ??
@@ -386,8 +372,6 @@ export class SpanPipeline implements SpanProcessor {
     );
   }
 
-  // Whether the SERVER span id still has its in-flight map entry, i.e. the
-  // request has neither been released nor dropped yet.
   isRequestInFlight(serverSpanId: string): boolean {
     return this.requests.has(serverSpanId);
   }
@@ -396,9 +380,8 @@ export class SpanPipeline implements SpanProcessor {
     return this.downstream.forceFlush();
   }
 
-  // Requests whose transport already completed are released through the same
-  // one-shot; everything else is discarded, including spans that ended without
-  // transport completion, whose requests can never be released after shutdown.
+  // Shutdown releases requests with completed transport observation once and
+  // discards incomplete requests, which cannot complete afterward.
   async shutdown(): Promise<void> {
     try {
       for (const entry of new Set(this.requests.values())) {
@@ -562,9 +545,8 @@ export class SpanPipeline implements SpanProcessor {
     this.releaseRequest(entry, entry.endedServerSpan);
   }
 
-  // Release is an enqueue: buffered descendants, then the SERVER span with the
-  // record and payload stash attached to a private copy, then the request's logs.
-  // Export-copy processing runs in the exporter at batch-drain time.
+  // Descendants, the SERVER span, and logs enter downstream processing once, in
+  // that order. The exporter applies the request record and stash later.
   private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
     entry.released = true;
     for (const spanId of entry.spanIds) {
@@ -584,7 +566,7 @@ export class SpanPipeline implements SpanProcessor {
     if (entry.record || stash || !serverSpan.ended) {
       const copy = copySpan(serverSpan);
       if (!serverSpan.ended) {
-        // Released at shutdown before the span ended; its observation ends now
+        // A SERVER span released during shutdown uses shutdown as its end time.
         copy.endTime = hrTime();
         copy.duration = hrTimeDuration(copy.startTime, copy.endTime);
         copy.ended = true;
@@ -666,9 +648,8 @@ function writeConsumerAttributes(
   }
 }
 
-// Derives url.path, url.query and http.target from the full-URL attribute when the
-// producing instrumentation omitted them: exclusion matching, the display URL, and
-// the query redaction pass all depend on them.
+// Missing path, query, and target attributes are derived from the full URL
+// because exclusion, display, and redaction require them.
 function writeUrlAttributesFromFullUrl(span: Span): void {
   const attributes = span.attributes;
   if (
@@ -704,9 +685,8 @@ function boundForSampleRate(rate: number): bigint {
   return BigInt(Math.round(rate * 2 ** 64));
 }
 
-// Standard ratio-sampler convention: deterministic per trace, so services sampling
-// at the same rate capture the same traces, and the request and response stages
-// testing the same value make the overall capture probability their minimum.
+// Low 64-bit ratio sampling is deterministic per trace. Comparing the same
+// value at both stages makes the lower rate decisive.
 function isTraceSampledIn(traceId: string, bound: bigint): boolean {
   return (BigInt(`0x${traceId}`) & TRACE_ID_LOW_64_BITS_MASK) < bound;
 }

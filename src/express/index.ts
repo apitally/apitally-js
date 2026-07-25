@@ -9,9 +9,7 @@ import { installRouteCaptureFromApp, resolveStartupPaths } from "./routes.js";
 
 export type { ApitallyOptions };
 
-// Synchronous setup: records the configuration, registers the startup event
-// info, installs the route capture through the app's own router, and wraps
-// app.handle. Activation itself is triggered by the first request.
+// Setup stays synchronous; activation begins on the first request.
 export function useApitally(app: Express, options?: ApitallyOptions): void {
   configure(options);
   registerStartupEventInfo({

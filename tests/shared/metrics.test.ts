@@ -287,8 +287,7 @@ describe("metrics", () => {
     const metrics = createMetricsPipeline(spool);
     let expectedSum = 0;
     for (let index = 0; index < 500; index++) {
-      // Values clustered within half an octave make the aggregator pick a
-      // scale well above 3
+      // Narrowly clustered values make the aggregator choose a scale above 3.
       const durationSeconds = 0.08 + (0.04 * index) / 500;
       expectedSum += durationSeconds;
       metrics.recordFromRequest({

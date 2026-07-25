@@ -17,14 +17,12 @@ import type { RequestRecord } from "./context.js";
 import { createMeterProvider } from "./providers.js";
 import type { Spool } from "./spool.js";
 
-// The server accepts exponential histogram scales in [-2, 6], and sdk-metrics
-// offers no scale setting, so data points are downscaled before serialization.
+// Apitally request histograms use scale 3, but @opentelemetry/sdk-metrics has
+// no scale option; higher-scale points are downscaled before serialization.
 const MAX_EXPORTED_HISTOGRAM_SCALE = 3;
 
-// Request histograms and process gauges on the SDK's private meter provider.
-// Requests are recorded at transport completion from the finalized request
-// record, independent of span-end timing and sampling; collection is driven by
-// the export worker, so metrics export in the same cycle as traces and logs.
+// Request histograms use finalized transport data, independent of span timing
+// and sampling. The export worker collects them with process gauges.
 export class MetricsPipeline {
   readonly meterProvider: MeterProvider;
   readonly reader: MetricReader;
@@ -58,16 +56,15 @@ export class MetricsPipeline {
     meter
       .createObservableGauge("process.memory.usage", { unit: "By" })
       .addCallback((result) => result.observe(process.memoryUsage.rss()));
-    // Observed unconditionally, so every collection produces a non-empty
-    // export; the server reads each metrics export as a liveness signal.
+    // Apitally ingest treats every metrics export as a liveness signal, so this
+    // gauge keeps each collection non-empty.
     meter
       .createObservableGauge("process.uptime", { unit: "s" })
       .addCallback((result) => result.observe(process.uptime()));
   }
 
-  // Registered on the span pipeline's metricsRecorder seam, called at transport
-  // completion with the finalized record. Excluded and sampled-out requests are
-  // counted; preflight, websocket, and unmatched-route requests are not.
+  // `metricsRecorder` receives finalized transport records. Excluded and sampled-out
+  // requests count; preflight, websocket, and unmatched routes do not.
   recordFromRequest(record: RequestRecord): void {
     if (record.dropReason === "options" || record.dropReason === "websocket") {
       return;
@@ -75,9 +72,8 @@ export class MetricsPipeline {
     const source = record.attributes;
     const method = source["http.request.method"] ?? source["http.method"];
     const scheme = source["url.scheme"] ?? source["http.scheme"];
-    // Adopted SERVER spans start before the request record exists, so their
-    // records carry no drop reason; the attributes identify preflight and
-    // websocket requests directly, matching the drop decision at span start.
+    // User SERVER spans can start before the request record exists, so attributes
+    // identify preflight and websocket requests when no drop reason is present.
     if (method === "OPTIONS" || scheme === "ws" || scheme === "wss") {
       return;
     }
@@ -117,8 +113,6 @@ export class MetricsPipeline {
     }
   }
 
-  // Called by the export worker each cycle: collects from the reader and
-  // appends one OTLP payload to the spool.
   async collectAndExport(): Promise<void> {
     const { resourceMetrics } = await this.reader.collect();
     const payload = ProtobufMetricsSerializer.serializeRequest(
@@ -145,10 +139,8 @@ export class MetricsPipeline {
   }
 }
 
-// Collects only when asked; the export worker drives collection each cycle.
-// The selectors make histograms exponential with delta temporality, the only
-// form the server ingests, while gauges keep last-value aggregation and the
-// default cumulative temporality.
+// Worker-driven collection uses exponential histograms with delta temporality.
+// Gauges keep the default aggregation and cumulative temporality.
 class OnDemandMetricReader extends MetricReader {
   constructor() {
     super({
@@ -200,8 +192,8 @@ function downscaleMetricData(metric: MetricData): MetricData {
   };
 }
 
-// Exponential buckets nest by powers of two, so the index-wise merge is exact:
-// the result equals what a native scale-3 aggregator would have recorded.
+// Exponential buckets nest by powers of two, so index merging matches native
+// aggregation at the configured export scale.
 function downscaleDataPointValue(
   value: ExponentialHistogram,
 ): ExponentialHistogram {
@@ -222,7 +214,7 @@ function mergeBuckets(
     return buckets;
   }
   const factor = 2 ** scaleReduction;
-  // Math.floor, not a bit shift, so negative indices merge into the bucket below
+  // Math.floor keeps negative indices in the lower bucket.
   const firstIndex = Math.floor(buckets.offset / factor);
   const lastIndex = Math.floor(
     (buckets.offset + buckets.bucketCounts.length - 1) / factor,

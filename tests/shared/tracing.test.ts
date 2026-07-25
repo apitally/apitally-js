@@ -10,7 +10,7 @@ import {
   type TracePipeline,
 } from "../utils.js";
 
-// Manual tracing rides the global tracer API, so the provider registers globally.
+// Manual tracing uses the global tracer API, so the provider registers globally.
 function createTracingFixture(): TracePipeline {
   enableAsyncContextManager();
   const fixture = createTracePipeline();

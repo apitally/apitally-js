@@ -11,15 +11,14 @@ export interface RoutePath {
 export interface StartupEventInfo {
   framework: string;
   frameworkVersion?: string;
-  // Called once at emit time: routes commonly finalize after setup.
+  // Resolved at emission because routes often finalize after setup.
   resolvePaths: () => RoutePath[];
 }
 
 let startupEventEmitted = false;
 
-// Emits the startup event on the private logger provider, at most once per
-// process. A throwing paths supplier or a serialization failure logs at debug
-// and emits what it can; emission must never break the application.
+// The startup event emits at most once. Route resolution or serialization
+// failures emit the remaining valid data and never reach the application.
 export function emitStartupEvent(
   loggerProvider: LoggerProvider,
   info: StartupEventInfo,

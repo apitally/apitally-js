@@ -44,10 +44,8 @@ type HandleFunction = (
   callback?: (error?: unknown) => void,
 ) => unknown;
 
-// Wraps app.handle, the single entry point every request passes through,
-// covering unmatched routes and error-handler responses independent of
-// middleware position. Wrapping is check-and-mark, so a second call through
-// any module copy never observes a request twice.
+// Wrapping app.handle observes unmatched routes and error responses regardless
+// of middleware order. The marker prevents duplicate observation.
 export function wrapAppHandle(app: Express): void {
   const markedApp = app as unknown as Record<symbol, boolean | undefined>;
   if (markedApp[HANDLE_WRAP_MARKER] === true) {
@@ -91,10 +89,8 @@ export function wrapAppHandle(app: Express): void {
   };
 }
 
-// Sets up everything request-scoped before the middleware stack runs: the
-// SERVER span (own or adopted), the context holders, response and request body
-// observation, and route tracking. Returns the context the stack runs under,
-// or undefined when the request is served without telemetry.
+// Request setup precedes Express middleware so span, body, response, and route
+// observation share one context.
 function observeRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -114,7 +110,7 @@ function observeRequest(
   const config = getConfig();
   const startTimeMillis = performance.now();
   const method = (req.method ?? "GET").toUpperCase();
-  // The URL is captured before express mutates req.url during routing
+  // The URL is captured before Express mutates req.url during routing.
   const requestUrl = req.url ?? "/";
   const record: RequestRecord = { attributes: {} };
   const spanHandle: SpanHandle = {};
@@ -179,13 +175,12 @@ interface ResponseObservationOptions {
   requestUrl: string;
 }
 
-// The write and end patches are installed before the middleware stack runs, so
-// anything a compression middleware layers on top feeds its output through
-// them: the SDK always observes the bytes that cross the wire.
+// Patching write and end before middleware lets compression wrappers feed their
+// final wire bytes through capture.
 function installResponseObservation(options: ResponseObservationOptions): void {
   const { res, config } = options;
   let responseBodyCapture: BodyCapture | undefined;
-  // Response headers are settled by the first write, when they are flushed
+  // Response headers are settled when the first write flushes them.
   const ensureResponseBodyCapture = (): BodyCapture => {
     responseBodyCapture ??= new BodyCapture({
       captureBody: config.captureResponseBody,
@@ -255,8 +250,6 @@ function installResponseObservation(options: ResponseObservationOptions): void {
   res.on("close", () => finalizeRequest(false));
 }
 
-// Resolves the framework-native values of the completed response and hands
-// them to the shared finalize with the request's common state.
 function finalizeRequestFromResponse(
   options: ResponseObservationOptions,
   responseBodyCapture: BodyCapture,
@@ -302,9 +295,8 @@ function finalizeRequestFromResponse(
   });
 }
 
-// The emit wrap observes the request body as it passes through to the app's
-// own consumer; the SDK never changes the stream's flow state, so a body no
-// consumer reads is never read and never captured.
+// Wrapping emit observes only bytes delivered to application consumers and does
+// not change the stream's flow state.
 function observeRequestBody(
   req: IncomingMessage,
   requestBodyCapture: BodyCapture,
@@ -344,7 +336,6 @@ function attachServerCloseFlush(req: IncomingMessage): void {
     typeof (server as { on?: unknown }).on !== "function" ||
     flushOnCloseServers.has(server as object)
   ) {
-    // Requests dispatched without a live server (serverless-style) skip this
     return;
   }
   flushOnCloseServers.add(server as object);
@@ -395,8 +386,8 @@ function resolveStartAttributes(
   if (typeof userAgent === "string") {
     attributes["user_agent.original"] = userAgent;
   }
-  // The trusted Content-Length, when present; the final size is written at
-  // completion from the observed byte count otherwise
+  // A trusted Content-Length is available immediately; otherwise completion
+  // supplies the observed byte count.
   const requestBodySize = requestBodyCapture.size;
   if (requestBodySize !== undefined) {
     attributes["http.request.body.size"] = requestBodySize;

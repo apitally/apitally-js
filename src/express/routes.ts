@@ -1,11 +1,6 @@
 import { logDebug, logWarning } from "../logger.js";
 import type { RoutePath } from "../startup.js";
 
-// Route templates only exist at registration time: the router keeps them inside
-// path-to-regexp closures, so the registration methods on the shared router
-// prototype are patched to buffer every path argument per router instance.
-// Assembly happens per request from mount segments tracked during dispatch.
-
 const ROUTER_PATCH_MARKER = Symbol.for("apitally.expressRouterPatch");
 const ROUTE_PATCH_MARKER = Symbol.for("apitally.expressRoutePatch");
 const APP_USE_PATCH_MARKER = Symbol.for("apitally.expressAppUsePatch");
@@ -47,13 +42,12 @@ export interface RouteTrackingResult {
 }
 
 const captureTables = new WeakMap<object, RouterCaptureTable>();
-// Routes registered through the patched prototype. The dispatch patch only
-// assembles for these, so registrations made before the patch behave the same
-// on every express major, independent of how the router binds dispatch.
+// Dispatch assembles only routes captured after patching, independent of how
+// each Express version binds dispatch.
 const capturedRoutes = new WeakSet<object>();
 
-// Installs the capture patches through a probe router created with the given
-// express module; used by the register entry with the peer-resolved copy.
+// Express stores templates in path-to-regexp closures, so a probe from the user's
+// Express module locates and patches the shared router prototypes.
 export function installRouteCaptureFromExpress(expressModule: unknown): void {
   const routerFactory = (expressModule as { Router?: unknown } | undefined)
     ?.Router;
@@ -62,13 +56,13 @@ export function installRouteCaptureFromExpress(expressModule: unknown): void {
     return;
   }
   installRouteCapturePatches((routerFactory as () => object)());
-  // Apps copy the prototype's methods at creation, so the prototype patch
-  // reaches every app created after this import.
+  // Apps copy prototype methods at creation, so the patch reaches apps created
+  // after this import.
   patchApplicationUse((expressModule as { application?: unknown }).application);
 }
 
-// Installs the capture patches through the app's own router, covering express
-// copies the peer resolution cannot see (bundled or duplicated installs).
+// The app's own router covers bundled or duplicated Express copies that peer
+// resolution cannot reach.
 export function installRouteCaptureFromApp(app: unknown): void {
   const router = resolveAppRouter(app);
   if (!router) {
@@ -88,10 +82,8 @@ export function beginRouteTracking(req: object): void {
   (req as Record<symbol, unknown>)[ROUTE_STATE_KEY] = state;
 }
 
-// Resolves the request's final route template: the assembled template must
-// prefix-match the actual request path, otherwise the route is cleared. A
-// request that matched a route without a captured registration is reported so
-// the transport can warn about it.
+// A template that does not prefix-match the request path indicates an uncaptured
+// registration.
 export function finishRouteTracking(
   req: object,
   requestPath: string,
@@ -115,14 +107,12 @@ export function finishRouteTracking(
     return { matchedUncapturedRegistration: true };
   }
   if (state.sawCapturedRouteDispatch) {
-    // The dispatched route has no meaningful template (e.g. a pure catch-all)
+    // The dispatched route has no meaningful template, such as a pure catch-all.
     return { matchedUncapturedRegistration: false };
   }
   return { matchedUncapturedRegistration: matchedExpressRoute };
 }
 
-// Enumerates the captured registration table into the startup event's paths,
-// walking mounted routers depth-first with their mount prefixes.
 export function resolveStartupPaths(app: unknown): RoutePath[] {
   const router = resolveAppRouter(app);
   if (!router) {
@@ -280,10 +270,8 @@ function patchRoutePrototype(
   routePrototype[ROUTE_PATCH_MARKER] = true;
 }
 
-// app.use replaces a mounted sub-app with an internal closure before it
-// reaches the router, so sub-app mounts are recorded at the application seam,
-// where the sub-app itself is still visible. Recording only; dispatch tracking
-// stays with the router-level mount wrapper.
+// Express replaces mounted sub-apps with closures before routing, so app.use is
+// patched while each sub-app remains visible. Dispatch tracking stays router-level.
 function patchApplicationUse(target: unknown): void {
   const targetObject = target as Record<PropertyKey, unknown> | undefined;
   const originalUse = targetObject?.use;
@@ -323,9 +311,8 @@ function patchApplicationUse(target: unknown): void {
   (targetObject as Record<PropertyKey, unknown>).use = patchedUse;
 }
 
-// The wrapper tracks descent into mounted routers and sub-apps: it pushes the
-// mount's template segment for the duration of the handler and pops when the
-// handler passes the request back out through next().
+// The wrapper adds a mount segment during the handler and removes it when next()
+// returns control to the parent.
 function wrapMountHandler(
   handler: unknown,
   pathTemplates: string[],
@@ -337,7 +324,7 @@ function wrapMountHandler(
   table.mounts.push({ pathTemplates, handler });
   warnIfRouterHasUncapturedRegistrations(handler);
   if (handler.length >= 4) {
-    // Error middleware never descends into route dispatch
+    // Error middleware never descends into route dispatch.
     return handler;
   }
   const mountHandler = handler as (
@@ -403,8 +390,8 @@ function tableFor(router: object): RouterCaptureTable {
   return table;
 }
 
-// A stub carrier lets the original route() mint a Route instance for the
-// prototype walk without registering a layer anywhere.
+// Calling route() on a minimal prototype object creates a Route for prototype
+// discovery without registering a layer.
 function createProbeRoute(
   routerPrototype: Record<PropertyKey, unknown>,
 ): object | undefined {
@@ -423,8 +410,8 @@ function createProbeRoute(
   }
 }
 
-// A mounted express sub-app carries its routes on its own internal router.
-// The duck check mirrors express's own sub-app detection in app.use.
+// A mounted Express sub-app carries routes on its own internal router. The shape
+// check follows Express's sub-app detection in app.use.
 function resolveSubAppRouter(handler: object): object | undefined {
   return isExpressApp(handler) ? resolveAppRouter(handler) : undefined;
 }
@@ -449,13 +436,13 @@ function resolveAppRouter(app: unknown): object | undefined {
       appObject.lazyrouter();
     }
   } catch {
-    // The router is resolved from the properties below
+    // Existing _router or router properties may still expose the router.
   }
   if (typeof appObject._router === "function") {
     return appObject._router as object;
   }
   try {
-    // Reading app.router throws on express 4, where _router is used instead
+    // Reading app.router throws on Express 4, where _router is used instead.
     return typeof appObject.router === "function"
       ? (appObject.router as object)
       : undefined;
@@ -489,8 +476,8 @@ function extractPathTemplates(pathArgument: unknown): string[] | undefined {
   return undefined;
 }
 
-// Mirrors express's own use() disambiguation: a function in first position,
-// possibly nested in arrays, means the call carries no path.
+// Express treats a first-position function, including one nested in arrays, as
+// a use() call without a path.
 function isHandlerFirstArgument(argument: unknown): boolean {
   let first = argument;
   while (Array.isArray(first) && first.length > 0) {
@@ -564,8 +551,8 @@ function isMeaningfulSegment(segment: string): boolean {
   );
 }
 
-// Strips express 4 inline parameter patterns, e.g. /items/:id(\d+) becomes
-// /items/:id; express 5 rejects the syntax at registration.
+// Express 4 inline parameter patterns are removed; Express 5 rejects this syntax
+// at registration.
 function normalizeInlineRegexParams(path: string): string {
   return path.replace(INLINE_PARAM_REGEX_PATTERN, "$1");
 }
@@ -591,10 +578,8 @@ function joinTemplateParts(prefix: string, part: string): string {
 // request, so compiled patterns are cached; the bounded key space needs no eviction.
 const compiledTemplatePatterns = new Map<string, RegExp | undefined>();
 
-// Structural template matching in express syntax: named parameters match one
-// path segment, wildcards match any remainder, braced groups are optional.
-// Matching stays permissive on unrecognized syntax so a legitimate route is
-// never cleared by the validation.
+// Express template matching handles named parameters, wildcards, and optional
+// groups. Unknown syntax remains permissive so valid routes are not cleared.
 function matchesTemplate(
   template: string,
   path: string,

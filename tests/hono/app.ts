@@ -4,10 +4,7 @@ import { useApitally } from "../../src/hono/index.js";
 import { setConsumer } from "../../src/spanProcessor.js";
 import { WRITE_TOKEN } from "../utils.js";
 
-// The uniform app fixture driven by every framework's integration suite:
-// an item GET with a path parameter, an item POST consuming a JSON body, a
-// health check, a synchronously throwing error route, a consumer route, a
-// streaming route, and a mounted sub-app with a nested mount.
+// These fixtures must remain behaviorally aligned across adapter suites.
 export function buildAppFixture(options: ApitallyOptions = {}): Hono {
   const app = new Hono();
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });
@@ -29,7 +26,7 @@ export function buildAppFixture(options: ApitallyOptions = {}): Hono {
   });
   app.get("/stream", (c) => {
     const encoder = new TextEncoder();
-    // With hold the stream stays open until the client disconnects, for abort scenarios
+    // `hold=1` keeps the stream open until the client disconnects in abort scenarios.
     const holdOpen = c.req.query("hold") === "1";
     const body = new ReadableStream<Uint8Array>({
       start(controller) {

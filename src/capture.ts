@@ -13,10 +13,8 @@ export interface BodyCaptureOptions {
   transferEncoding?: string | string[] | null;
 }
 
-// Accumulates one direction's body under the capture rules while counting every
-// observed byte independent of capture. The capture decisions are header-only:
-// outside the content-type allow-list the body is never buffered, and a declared
-// over-cap size short-circuits to the sentinel without buffering a byte.
+// Capture eligibility and declared oversize decisions use headers only; all
+// observed bytes still count toward size.
 export class BodyCapture {
   private readonly shouldCapture: boolean;
   private readonly declaredSize?: number;
@@ -29,8 +27,8 @@ export class BodyCapture {
   constructor(options: BodyCaptureOptions) {
     this.shouldCapture =
       options.captureBody && isAllowedContentType(options.contentType);
-    // A Content-Length combined with chunked transfer encoding describes the
-    // payload before chunking, not the wire bytes, and is not trusted.
+    // Transfer-Encoding: chunked makes Content-Length unusable, so observed
+    // decoded bytes determine size.
     this.declaredSize = isChunkedTransferEncoding(options.transferEncoding)
       ? undefined
       : parseContentLength(options.contentLength);
@@ -93,10 +91,8 @@ export interface CapturedBody {
   completed: boolean;
 }
 
-// Tees the response body so the SDK observes the wire bytes without consuming
-// or delaying the app's copy. The returned response replaces the original; the
-// promise settles when the body was fully sent, the stream aborted, or reading
-// never started within the timeout.
+// The response is teed so capture does not consume or delay the application's
+// copy. Observation ends on completion, abort, or read timeout.
 export function captureResponse(
   response: Response,
   captureBody: boolean,
@@ -149,14 +145,13 @@ export function captureResponse(
   return [teedResponse, capturedBodyPromise];
 }
 
-// Normalizes headers into the stash shape: lowercase names, multi-value headers
-// kept as arrays. Values stay raw; redaction runs at the export boundary.
+// Values remain raw so all redaction happens at the export boundary.
 export function normalizeHeaders(
   headers: Headers | Record<string, string | number | string[] | undefined>,
 ): Record<string, string | string[]> {
   const normalized: Record<string, string | string[]> = {};
   if (isWebHeaders(headers)) {
-    // Web Headers combine duplicates themselves; only set-cookie repeats.
+    // The Headers API combines repeated values except Set-Cookie.
     for (const [name, value] of headers) {
       const existing = normalized[name];
       if (existing === undefined) {

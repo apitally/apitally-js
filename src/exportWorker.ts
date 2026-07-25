@@ -31,9 +31,8 @@ interface ProxyTransport {
   dispatcher: { close(): Promise<void> };
 }
 
-// Sends spool files to the OTLP endpoint every export interval. Cycles are
-// serialized on one timer chain; a flush request arriving mid-cycle awaits the
-// running cycle instead of starting a second one.
+// Send cycles are serialized; a flush request joins the active cycle instead of
+// posting files twice.
 export class ExportWorker {
   // Invoked at the start of every cycle, before files are rotated and sent.
   readonly flushCallbacks: FlushCallback[] = [];
@@ -120,7 +119,7 @@ export class ExportWorker {
 
   private async executeCycle(final: boolean): Promise<void> {
     try {
-      // Suppress instrumentation so the worker's flushes and POSTs generate no telemetry
+      // Suppress instrumentation so worker flushes and POSTs generate no telemetry.
       await context.with(suppressTracing(context.active()), async () => {
         for (const callback of this.flushCallbacks) {
           await callback();
@@ -138,7 +137,7 @@ export class ExportWorker {
     }
   }
 
-  // During an outage the stop-on-failure rule below amounts to one probe POST per cycle.
+  // During an outage, stopping on failure limits each cycle to one probe POST.
   private async sendPendingFiles(final: boolean): Promise<void> {
     let sent = 0;
     for (const file of this.spool.pendingFiles()) {
@@ -149,7 +148,8 @@ export class ExportWorker {
         await sleep(this.interSendPauseMillis());
       }
       if (file.isExpired()) {
-        // A retry landing outside the server's dedup window could double-ingest
+        // Apitally ingest deduplicates for one hour; a later retry could ingest
+        // the file twice.
         logWarning(
           `Buffered ${file.signal} could not be delivered within an hour and were dropped`,
         );
@@ -184,7 +184,7 @@ export class ExportWorker {
         if (isTimeoutError(error)) {
           throw error;
         }
-        // The server may close an idle keep-alive connection mid-request; retry once
+        // The server may close an idle keep-alive connection mid-request; retry once.
         response = await this.postFile(url, body);
       }
     } catch (error) {
@@ -234,8 +234,8 @@ export class ExportWorker {
 
   private getProxyTransport(): ProxyTransport {
     if (!this.proxyTransport) {
-      // undici's fetch is required alongside the agent: a dispatcher from the
-      // undici package is not accepted by the Node-bundled fetch on all Node versions
+      // undici's fetch is required because Node's bundled fetch does not accept
+      // an undici dispatcher on every supported Node version.
       const undici = createRequire(import.meta.url)("undici") as {
         fetch: ProxyTransport["fetch"];
         EnvHttpProxyAgent: new () => ProxyTransport["dispatcher"];
@@ -272,7 +272,7 @@ export class ExportWorker {
         )
         .finally(() => {
           if (this.started) {
-            // Jitter desynchronizes deployments whose processes started together
+            // Jitter desynchronizes deployments whose processes started together.
             this.armTimer(this.intervalMillis * (0.9 + Math.random() * 0.2));
           }
         });

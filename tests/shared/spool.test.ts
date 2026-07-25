@@ -34,9 +34,8 @@ describe("spool", () => {
 
   const backends = [{ backend: "disk" }, { backend: "memory" }] as const;
 
-  // Spool warnings stay out of the test log; tests asserting warnings start a
-  // fresh capture after this call. The memory backend is entered through a
-  // failing writability probe against a directory that does not exist.
+  // Suppress spool warnings here; warning tests start a fresh capture. A missing
+  // directory selects the memory backend.
   function createSpool(backend: "disk" | "memory"): Spool {
     captureStderr();
     spool =
@@ -91,7 +90,7 @@ describe("spool", () => {
       expect(files[0].uncompressedSize).toBeLessThanOrEqual(
         MAX_UNCOMPRESSED_FILE_SIZE,
       );
-      // Buffer.equals: toEqual's element-wise comparison is unusably slow on megabyte buffers
+      // Buffer.equals avoids slow element-wise comparison of megabyte buffers.
       expect(gunzipSync(await files[0].readStoredBytes()).equals(first)).toBe(
         true,
       );

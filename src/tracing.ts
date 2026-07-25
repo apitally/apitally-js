@@ -47,9 +47,8 @@ export function span<Result>(name: string, fn: () => Result): Result {
   return runInsideSpan(name, undefined, fn);
 }
 
-// The function's own exceptions and rejections always propagate to the caller;
-// only failures of the SDK's span bookkeeping degrade, to running the function
-// without a span.
+// Function errors propagate unchanged. If span creation fails, the function
+// runs without a span.
 function runInsideSpan<Result>(
   name: string,
   attributes: Attributes | undefined,

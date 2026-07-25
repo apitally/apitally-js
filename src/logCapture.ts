@@ -24,7 +24,7 @@ const CONSOLE_METHOD_SEVERITIES = {
   error: SeverityNumber.ERROR,
 } as const;
 
-// Union of winston's npm, syslog, and cli level vocabularies.
+// Union of `winston` npm, syslog, and CLI level vocabularies.
 const WINSTON_LEVEL_SEVERITIES: Record<string, SeverityNumber> = {
   emerg: SeverityNumber.FATAL3,
   alert: SeverityNumber.FATAL2,
@@ -63,8 +63,8 @@ let restoreConsoleCapture: (() => void) | undefined;
 let restoreWinstonCapture: (() => void) | undefined;
 let restorePinoCapture: (() => void) | undefined;
 
-// The console has no policy layer to respect; the method wrap is the seam. Each
-// wrap calls the original first and never throws into the application.
+// Console has no transport or filter hook, so capture wraps each method. The
+// wrappers call the original first and never throw into the application.
 export function installConsoleCapture(loggerProvider: LoggerProvider): void {
   if (hasPatchMarker(console, CONSOLE_PATCH_MARKER)) {
     return;
@@ -96,9 +96,8 @@ export function installConsoleCapture(loggerProvider: LoggerProvider): void {
   };
 }
 
-// Log data flows exclusively through winston's official transport contract, so
-// silent, level thresholds, and formats apply before a record arrives here. The
-// only patch is a write shadow that attaches the transport, never reading logs.
+// Capture uses `winston`'s transport contract so silence, level filters, and
+// formats run first. The write wrapper only attaches the transport.
 export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   let createProbeLogger: () => object;
   let TransportBase: new () => object;
@@ -109,15 +108,14 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
       createLogger: () => object;
     };
     createProbeLogger = winston.createLogger;
-    // The transport base resolves relative to the winston entry, so both come
-    // from the same installed copy under strict package layouts.
+    // Resolving the transport base from the `winston` entry keeps both modules
+    // in the same installed package tree.
     TransportBase = requireFromWinston("winston-transport") as new () => object;
   } catch {
-    // winston is not installed
     return;
   }
-  // createLogger mints a per-call DerivedLogger subclass; the prototype shared
-  // by every logger is the one owning configure.
+  // createLogger creates a DerivedLogger subclass per call; all loggers share
+  // the prototype that owns configure.
   const loggerPrototype = findPrototypeOwning(createProbeLogger(), "configure");
   if (!loggerPrototype || typeof loggerPrototype.write !== "function") {
     logDebug("The winston logger prototype was not recognized");
@@ -146,16 +144,14 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
     }
   }
 
-  // Weak tracking, so the registry never pins logger instances against collection
+  // WeakRef prevents the registry from retaining logger instances.
   const attachedLoggers = new Set<WeakRef<WinstonLoggerInstance>>();
   const attachedTransports = new WeakMap<WinstonLoggerInstance, object>();
   const originalWrite = loggerPrototype.write as (
     ...args: unknown[]
   ) => boolean;
-  // The shadow never reads the log entry: it only ensures the transport is
-  // attached through the official add(), covering loggers created before the
-  // patch and re-attaching after clear(), then delegates. winston buffers
-  // entries on zero-transport loggers and the attach drains that backlog.
+  // Attaching through add() before delegation covers existing loggers,
+  // reattaches after clear(), and drains `winston`'s zero-transport buffer.
   loggerPrototype.write = function (
     this: WinstonLoggerInstance,
     ...args: unknown[]
@@ -172,7 +168,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
         attachedTransports.set(this, transport);
       }
     } catch {
-      // An attach failure must never break the application's logging
+      // An attach failure must never break the application's logging.
     }
     return originalWrite.apply(this, args);
   };
@@ -189,23 +185,20 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
       try {
         winstonLogger.remove(transport);
       } catch {
-        // The logger may already have removed the transport itself
+        // The logger may already have removed the transport itself.
       }
     }
   };
 }
 
-// Capture reads the post-redaction, post-serializer line through pino's
-// official streamWrite hook, so redact paths and serializers apply before the
-// SDK sees a record. The write patch is a discovery point that never reads the
-// log data: it retrofits the hook and stashes the level, then delegates.
+// Capture uses `pino`'s streamWrite hook so redaction and serializers run first.
+// The write wrapper only installs the hook and records the level.
 export function installPinoCapture(loggerProvider: LoggerProvider): void {
   let pino: PinoModule;
   try {
     const pinoEntryPath = peerResolver.resolveEntryPath("pino");
     pino = createRequire(pinoEntryPath)(pinoEntryPath) as PinoModule;
   } catch {
-    // pino is not installed
     return;
   }
   const { writeSym, messageKeySym, hooksSym } = pino.symbols;
@@ -213,8 +206,8 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
     logDebug("The pino symbols were not recognized");
     return;
   }
-  // Probe instance for prototype discovery only; it never writes. The owner of
-  // the write method is a grand-prototype shared by every logger and child.
+  // The probe locates the prototype that owns write, which all loggers and child
+  // loggers share.
   const probeLogger = pino({}, { write: () => {} });
   const writePrototype = findPrototypeOwning(probeLogger, writeSym);
   if (!writePrototype || typeof writePrototype[writeSym] !== "function") {
@@ -225,7 +218,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
     return;
   }
   const logger = loggerProvider.getLogger("pino");
-  // Weak tracking, so the registry never pins hooks objects against collection
+  // WeakRef prevents the registry from retaining hook objects.
   const retrofittedHooks = new Set<WeakRef<PinoStreamWriteHooks>>();
   const userStreamWrites = new WeakMap<
     PinoStreamWriteHooks,
@@ -245,7 +238,7 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
       if (message === undefined) {
         return;
       }
-      // The stashed numeric level is immune to formatters.level rewrites
+      // The stored numeric level is unaffected by formatters.level rewrites.
       const severityNumber = severityNumberFromPinoLevel(writeContext.level);
       logger.emit({
         severityNumber,
@@ -254,14 +247,12 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
         timestamp: typeof parsed.time === "number" ? parsed.time : undefined,
       });
     } catch {
-      // Capture must never throw into the application's logging path
+      // Capture must never throw into the application's logging path.
     }
   };
 
-  // Loggers created without a hooks option share pino's module-level default
-  // hooks object, so one installation covers all of them; loggers with their
-  // own hooks are retrofitted on their first write, composing after the user's
-  // hook so capture reads the line the user's hook produced.
+  // Loggers without hooks share `pino`'s default hook object. Other hook objects
+  // are wrapped on first write after the user's hook runs.
   const ensureStreamWriteHook = (
     hooks: PinoStreamWriteHooks | undefined,
   ): void => {
@@ -319,9 +310,6 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
   };
 }
 
-// Test seam: restores the console methods, detaches the winston write shadow
-// and transports, removes the pino write patch and streamWrite hooks, and
-// resets the peer resolver.
 export function uninstallLogCapture(): void {
   restoreConsoleCapture?.();
   restoreConsoleCapture = undefined;
@@ -332,8 +320,8 @@ export function uninstallLogCapture(): void {
   peerResolver.resolveEntryPath = defaultResolveEntryPath;
 }
 
-// Peer libraries resolve with createRequire so the SDK reaches the user's own
-// copy; tests replace this seam to simulate an absent library.
+// createRequire resolves peer libraries from the user's installation. Tests
+// replace peerResolver.resolveEntryPath to simulate an absent peer.
 export const peerResolver = {
   resolveEntryPath(id: string): string {
     return createRequire(import.meta.url).resolve(id);
@@ -341,8 +329,7 @@ export const peerResolver = {
 };
 const defaultResolveEntryPath = peerResolver.resolveEntryPath;
 
-// Emits into the private provider under the active context, so the log
-// pipeline resolves the request linkage from the emitting span.
+// The active context lets the log pipeline resolve the emitting request.
 function emitCapturedLogRecord(
   logger: Logger,
   logRecord: {
@@ -355,7 +342,7 @@ function emitCapturedLogRecord(
   try {
     logger.emit(logRecord);
   } catch {
-    // Capture must never throw into the application's logging path
+    // Capture must never throw into the application's logging path.
   }
 }
 

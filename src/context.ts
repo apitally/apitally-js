@@ -6,9 +6,6 @@ import {
   type Span,
 } from "@opentelemetry/api";
 
-// The OTel context is immutable, so request-scoped state that changes during a
-// request lives in mutable holder objects installed into the context at request entry.
-
 // Write sites resolve the request's SERVER span through this handle: under a child
 // span, the active span is not the SERVER span, and OTel has no public upward walk.
 export interface SpanHandle {
@@ -29,9 +26,8 @@ export type RequestDropReason =
   | "websocket"
   | "sampled-out";
 
-// Transport-observed request state. The exporter applies the attributes onto the
-// exported span copy last, so transport-observed values win; the metrics recorder
-// reads the finalized record at transport completion.
+// Transport attributes are applied to exported spans last and used for metrics,
+// so transport values take precedence.
 export interface RequestRecord {
   attributes: Attributes;
   serverSpanId?: string;
@@ -45,6 +41,7 @@ export const SPAN_HANDLE_KEY = createContextKey("apitally-span-handle");
 export const REQUEST_RECORD_KEY = createContextKey("apitally-request-record");
 export const CONSUMER_HOLDER_KEY = createContextKey("apitally-consumer-holder");
 
+// Mutable holders carry changing request state because OTel contexts are immutable.
 export function withRequestHolders(
   baseContext: Context,
   spanHandle: SpanHandle,

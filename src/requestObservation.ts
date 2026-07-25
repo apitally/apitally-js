@@ -27,10 +27,6 @@ import {
   writeRequestAttribute,
 } from "./spanProcessor.js";
 
-// Shared by the adapters' transport middleware: the SERVER-span adopt-or-create
-// step at request entry, and the record finalization and request release at
-// response completion, both operating on framework-independent values.
-
 export interface StartServerSpanOptions {
   activeContext: Context;
   extractedContext: Context;
@@ -106,8 +102,8 @@ export function adoptOrStartServerSpan(
     }
   }
 
-  // The RPC metadata is the transport-span beacon middleware-based span
-  // producers demote on; the route is written onto it at completion.
+  // Middleware-based span producers inspect OTel RPC metadata to demote duplicate
+  // transport spans; completion adds the route.
   let rpcMetadata = getRPCMetadata(requestContext);
   if (!rpcMetadata && spanHandle.span) {
     rpcMetadata = { type: RPCType.HTTP, span: spanHandle.span };
@@ -177,8 +173,8 @@ export function finalizeRecordAndReleaseRequest(
       ownSpan.updateName(`${method} ${route}`);
     }
   } else {
-    // An empty route on the record clears a wrong route a producing
-    // instrumentation may have set; the histograms skip empty routes.
+    // An empty route clears one set by the producing instrumentation; request
+    // metrics omit empty routes.
     record.attributes["http.route"] = "";
   }
   if (ownSpan && statusCode >= 500) {

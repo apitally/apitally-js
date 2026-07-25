@@ -9,7 +9,8 @@ import {
 
 export const REDACTED = "[REDACTED]";
 
-// Headers whose values are URLs and get query redaction instead of masking
+// Location headers can contain secret query values, so redaction targets only
+// their query parameters.
 export const URL_HEADER_NAMES = new Set(["location", "content-location"]);
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -43,8 +44,8 @@ export class Redaction {
     );
   }
 
-  // Redacts matching param names in a path?query target, a full URL, or (with
-  // assumeQuery) a bare query string.
+  // Redacts matching parameter names in a path with a query, a full URL, or a
+  // bare query string when `assumeQuery` is true.
   redactQueryParams(value: string, assumeQuery = true): string {
     const separatorIndex = value.indexOf("?");
     if (separatorIndex === -1 && !assumeQuery) {
@@ -102,7 +103,7 @@ export class Redaction {
   }
 
   shouldRedactHeader(name: string): boolean {
-    // Also match the underscore-normalized attribute key form emitted by older instrumentations
+    // OpenTelemetry HTTP header attributes normalize hyphens to underscores.
     return (
       matchesAny(this.headerPatterns, name) ||
       matchesAny(this.headerPatterns, name.replaceAll("_", "-"))

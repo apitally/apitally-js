@@ -74,7 +74,7 @@ import { Spool } from "../src/spool.js";
 
 export const WRITE_TOKEN = `apt_${"a".repeat(24)}`;
 
-// Nothing listens on port 1, so a stray send fails fast without leaving the host.
+// Tests start no server on this loopback endpoint, so stray sends stay on the host.
 export const UNROUTABLE_ENDPOINT = "http://127.0.0.1:1";
 
 // The version expectation is read straight from package.json, independent of
@@ -86,9 +86,8 @@ export function readPackageVersion(): string {
   return version;
 }
 
-// Batch processor options with the scheduled flush pushed out of reach, so
-// tests drain batches only through forceFlush. Returns a fresh object per
-// processor because the BatchSpanProcessor shim mutates its config.
+// A one-hour schedule makes forceFlush the only expected drain. Fresh options
+// are required because BatchSpanProcessor mutates them.
 export function createBatchProcessorOptions() {
   return {
     scheduledDelayMillis: 3_600_000,
@@ -106,15 +105,13 @@ export function clearTestRunnerMarkers(): void {
   delete process.env.NODE_ENV;
 }
 
-// Configures past the test-environment guards without activating: clears the
-// test-runner markers, isolates the spool in a fresh temp directory, and keeps
-// the worker off its export timer, so a later activate() call (or a first
-// request through an adapter) starts the pipelines under test conditions.
+// First-request activation tests use an isolated spool and one-hour worker delay
+// after removing the test-runner guards.
 export function prepareFirstRequestActivation(
   options: ApitallyOptions = {},
 ): void {
   clearTestRunnerMarkers();
-  // A stray worker cycle must never reach the real ingest endpoint
+  // A stray worker cycle must never reach the real ingest endpoint.
   process.env.APITALLY_OTLP_ENDPOINT ??= UNROUTABLE_ENDPOINT;
   activationFactories.createSpool = () =>
     new Spool(mkdtempSync(join(tmpdir(), "apitally-test-")));
@@ -128,8 +125,6 @@ export function prepareFirstRequestActivation(
   configure({ writeToken: WRITE_TOKEN, ...options });
 }
 
-// Drives configure + activate and asserts activation succeeded. The global
-// teardown resets everything it starts.
 export function configureAndActivate(
   options: ApitallyOptions = {},
 ): ActivationHandles {
@@ -142,8 +137,6 @@ export function configureAndActivate(
   return handles;
 }
 
-// Requires activation to have happened, e.g. triggered by an adapter's first
-// request after prepareFirstRequestActivation.
 export function requireActivationHandles(): ActivationHandles {
   const handles = getActivationHandles();
   if (!handles) {
@@ -164,7 +157,6 @@ export function readFetchPaths(
   return fetchSpy.mock.calls.map(([url]) => new URL(String(url)).pathname);
 }
 
-// Binds a request listener to a listening server for the duration of fn.
 export async function withServer(
   listener: (req: IncomingMessage, res: ServerResponse) => void,
   fn: (server: Server, baseUrl: string) => Promise<void>,
@@ -183,8 +175,8 @@ export async function withServer(
   }
 }
 
-// Reads the response body to completion, then yields one macrotask turn so a
-// response tee's completion chain settles before assertions.
+// Reading the body completes telemetry; one macrotask lets the response tee
+// settle before assertions.
 export async function readResponseAndSettleTransport(
   response: Response,
 ): Promise<Buffer> {
@@ -195,9 +187,8 @@ export async function readResponseAndSettleTransport(
   return body;
 }
 
-// Resolves when the span pipeline finishes its next request, composing with
-// the log pipeline's release hook. Used where response completion is not
-// observable from the client side, e.g. an aborted request.
+// Used when response completion is not client-observable, such as an aborted
+// request; composes with the log release hook.
 export function waitForNextRequestFinish(
   pipeline: SpanPipeline,
 ): Promise<void> {
@@ -233,9 +224,8 @@ export class CollectingSpanProcessor implements SpanProcessor {
   }
 }
 
-// A real tracer provider driving the Apitally span pipeline, with an in-memory
-// exporter as the default downstream. Extra processors attach alongside the
-// pipeline, like user-owned processors on a shared provider.
+// A real tracer provider drives the pipeline; extra processors model user
+// processors on the same provider.
 export function createTracePipeline(
   options: {
     downstream?: SpanProcessor;
@@ -261,9 +251,7 @@ export interface LogTestPipeline {
   logExporter: InMemoryLogRecordExporter;
 }
 
-// The private logger provider driving the Apitally log pipeline, wired to the
-// span pipeline for request linkage, with an in-memory exporter as the default
-// downstream.
+// A private logger provider connects to the span pipeline for request linkage.
 export function createLogPipeline(
   spanPipeline: SpanPipeline,
   downstream?: LogRecordProcessor,
@@ -277,7 +265,6 @@ export function createLogPipeline(
   return { logPipeline, loggerProvider, logExporter };
 }
 
-// Registers a working context manager so code under test sees the active context.
 export function enableAsyncContextManager(): void {
   const contextManager = new AsyncLocalStorageContextManager();
   contextManager.enable();
@@ -291,7 +278,6 @@ export interface RequestContext {
   consumerHolder: ConsumerHolder;
 }
 
-// The request-scoped holders the transport middleware installs at request entry.
 export function createRequestContext(
   base: Context = ROOT_CONTEXT,
 ): RequestContext {
@@ -309,7 +295,6 @@ export function createRequestContext(
   };
 }
 
-// Runs fn inside a kept request and completes it, so buffered telemetry releases.
 export async function runInsideRequest(
   fixture: { pipeline: SpanPipeline; tracer: Tracer },
   fn: () => void | Promise<void>,
@@ -321,8 +306,6 @@ export async function runInsideRequest(
   return span;
 }
 
-// Starts a SERVER span under a fresh request context, optionally under a sampled
-// remote parent so the test picks the trace id.
 export function startServerSpan(
   tracer: Tracer,
   options: {
@@ -399,13 +382,12 @@ export async function readActivationDurationDataPoints(): Promise<
     .flatMap((metric) => metric.dataPoints);
 }
 
-// Collects metrics on demand without exporting them anywhere.
 export class CollectOnlyMetricReader extends MetricReader {
   protected async onForceFlush(): Promise<void> {}
   protected async onShutdown(): Promise<void> {}
 }
 
-// Captures SDK diagnostics written to process.stderr; the global teardown restores the spy.
+// Global teardown restores the stderr spy.
 export function captureStderr(): string[] {
   const written: string[] = [];
   vi.spyOn(process.stderr, "write").mockImplementation(

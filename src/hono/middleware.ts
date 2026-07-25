@@ -55,8 +55,8 @@ interface RequestObservation {
   matchedRoute?: MatchedRouteResult;
 }
 
-// The route-recording middleware and the transport completion path share the
-// per-request observation through the record installed into the request context.
+// WeakMap links route middleware to transport observation without retaining
+// completed request records.
 const observationsByRecord = new WeakMap<RequestRecord, RequestObservation>();
 
 const WEB_HEADERS_GETTER: TextMapGetter<Headers> = {
@@ -64,11 +64,8 @@ const WEB_HEADERS_GETTER: TextMapGetter<Headers> = {
   keys: (carrier) => [...carrier.keys()],
 };
 
-// Wraps app.fetch, the single entry point every request passes through
-// (onError-synthesized responses included), and registers the route-recording
-// middleware ahead of the routes registered after setup. Wrapping is
-// check-and-mark, so a second call through any module copy never observes a
-// request twice.
+// Wrapping app.fetch covers every response, including onError. Route middleware
+// precedes later registrations, and the marker prevents duplicate observation.
 export function wrapAppFetch(app: Hono): void {
   const markedApp = app as unknown as Record<symbol, boolean | undefined>;
   if (markedApp[FETCH_WRAP_MARKER] === true) {
@@ -79,9 +76,8 @@ export function wrapAppFetch(app: Hono): void {
   app.use(recordMatchedRouteAfterNext);
   const originalFetch = app.fetch as FetchFunction;
   let errorHandlerWrapPending = true;
-  // Wrapped on the first request, so it sits after route() mounting and any
-  // user onError registration; a handler replaced after the first request
-  // loses exception capture.
+  // First-request wrapping follows route() mounts and onError registration.
+  // Replacing the handler afterward disables exception capture.
   const wrapErrorHandlerOnce = () => {
     if (errorHandlerWrapPending) {
       errorHandlerWrapPending = false;
@@ -123,10 +119,8 @@ export function wrapAppFetch(app: Hono): void {
   (app as { fetch: FetchFunction }).fetch = wrappedFetch;
 }
 
-// Runs for every request from the position useApitally registered it, so the
-// routes registered after setup compose behind it; after next() the matched
-// route and the Hono context (for the request body cache) are recorded onto
-// the observation.
+// Registered before later routes, this middleware records the resolved route
+// and Hono body cache after next().
 const recordMatchedRouteAfterNext: MiddlewareHandler = async (c, next) => {
   const record = getRequestRecord();
   await next();
@@ -149,9 +143,6 @@ interface ObservedRequestStart {
   requestContext: Context;
 }
 
-// Sets up everything request-scoped before the app dispatches: the SERVER span
-// (own or adopted) and the context holders. Returns undefined when the request
-// is served without telemetry.
 function observeRequest(
   request: Request,
   env: unknown,
@@ -215,10 +206,8 @@ function observeRequest(
   return { observation, requestContext };
 }
 
-// The tee wraps the Response the app returned, after any compress middleware,
-// so the SDK observes the bytes that cross the wire; the caller receives the
-// replacement Response and transport completion follows the tee's completion
-// promise, which settles immediately for bodiless responses.
+// A tee after compression observes bytes sent to the client. Finalization follows
+// tee completion, and bodiless responses complete immediately.
 function observeResponse(
   response: Response,
   observation: RequestObservation,
@@ -242,8 +231,6 @@ function observeResponse(
   }
 }
 
-// Resolves the framework-native values of the completed response and hands
-// them to the shared finalize with the request's common state.
 async function finalizeRequestFromResponse(
   observation: RequestObservation,
   response: Response,
@@ -280,9 +267,8 @@ async function finalizeRequestFromResponse(
   });
 }
 
-// A rejected dispatch means Hono rethrew a non-Error value or the error
-// handler itself failed: the record is finalized without a response and the
-// rejection propagates to the caller unchanged.
+// A rejected dispatch has no response, so the record is finalized and the
+// rejection propagates unchanged.
 function releaseRequestOnFetchRejection(
   observation: RequestObservation,
   error: unknown,
@@ -304,11 +290,8 @@ function releaseRequestOnFetchRejection(
   }
 }
 
-// Reads Hono's request body cache at transport completion. Only byte-faithful
-// entries are captured (c.req.json() reads through the text entry); parsedBody
-// and formData entries would re-serialize into bytes that never crossed the
-// wire and are skipped. An empty cache means the app never read the body, and
-// the SDK never calls request body methods or touches the request stream.
+// Only cache entries preserving the original request bytes are captured. If no
+// such entry exists, the SDK leaves the request stream untouched.
 async function captureRequestBodyFromCache(
   observation: RequestObservation,
 ): Promise<void> {
@@ -325,7 +308,6 @@ async function captureRequestBodyFromCache(
       observation.requestBodyCapture.markComplete();
     }
   } catch (error) {
-    // A rejected cache entry means the body read failed; nothing is captured
     logDebug(`Error reading the hono request body cache: ${String(error)}`);
   }
 }
@@ -354,9 +336,8 @@ async function resolveCachedBodyBytes(
   return undefined;
 }
 
-// The errorHandler property is runtime-accessible by design in Hono; wrapping
-// it records the exception event on the SERVER span before the app's handler
-// (or Hono's default) converts the error into a response.
+// Hono exposes errorHandler at runtime; wrapping it records the exception before
+// Hono converts it into a response.
 function wrapErrorHandler(app: Hono): void {
   try {
     const appWithHandler = app as unknown as { errorHandler?: unknown };
@@ -417,7 +398,7 @@ function resolveStartAttributes(
     attributes["server.address"] = url.hostname;
     attributes["url.full"] = request.url;
   } catch {
-    // An unparseable request URL leaves only the method attribute
+    // An unparseable request URL leaves only the method attribute.
   }
   const clientAddress = resolveNodeServerClientAddress(env);
   if (clientAddress !== undefined) {
@@ -427,8 +408,8 @@ function resolveStartAttributes(
   if (userAgent !== null) {
     attributes["user_agent.original"] = userAgent;
   }
-  // The trusted Content-Length, when present; the final size is written at
-  // completion from the body cache's byte count otherwise
+  // A trusted Content-Length is available immediately; otherwise completion
+  // supplies the cached body byte count.
   const requestBodySize = requestBodyCapture.size;
   if (requestBodySize !== undefined) {
     attributes["http.request.body.size"] = requestBodySize;

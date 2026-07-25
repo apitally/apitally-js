@@ -30,9 +30,8 @@ function createTrackedApp(expressModule: ExpressModule): TrackedApp {
   return { app, requests };
 }
 
-// Fixtures whose mounts predate any capture installation, like routers
-// assembled before the SDK loaded. Built at module scope so no test has
-// installed the prototype patches yet.
+// Module-scope fixtures model routers created before the SDK installs capture
+// patches.
 function buildPreCaptureFixture(expressModule: ExpressModule): TrackedApp & {
   mountedBeforeCapture: ReturnType<ExpressModule["Router"]>;
 } {

@@ -32,9 +32,8 @@ import { logWarning } from "./logger.js";
 const MAX_ATTRIBUTE_VALUE_LENGTH = 65_536;
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
 
-// Duck-typed because the user's provider may come from a different copy of the
-// OTel packages: the API global is a ProxyTracerProvider, and a delegate that is
-// absent or exposes only the API surface (getTracer) is the no-setup noop.
+// User providers can come from another OTel package copy, so detection uses API
+// shape. A proxy with no delegate or only getTracer represents no provider setup.
 export function hasUserTracerProvider(): boolean {
   const globalProvider = trace.getTracerProvider() as TracerProvider & {
     getDelegate?: () => TracerProvider;
@@ -50,11 +49,11 @@ export function hasUserTracerProvider(): boolean {
   );
 }
 
-// The Apitally-Env export header and the resource's deployment.environment.name
-// both come from this one resolution, so the two can never disagree.
+// Apitally-Env and deployment.environment.name use the same resolution so they
+// cannot disagree.
 export function resolveEnv(hasUserProvider: boolean): string {
-  // The env option and APITALLY_ENV are already folded into config.env, whose
-  // default doubles as the not-explicitly-configured sentinel.
+  // The env option and APITALLY_ENV are already resolved into config.env; its
+  // default also indicates that neither was configured.
   const configuredEnv = getConfig().env;
   const resourceAttributesEnv = readDeploymentEnvironmentNameFromEnv();
   if (!hasUserProvider) {
@@ -77,9 +76,8 @@ export function resolveEnv(hasUserProvider: boolean): string {
 }
 
 export function createResource(env: string): Resource {
-  // defaultResource() alone reads no env vars; the envDetector merge honors
-  // OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES. The Apitally-owned keys are
-  // merged last and win, so the resource env always matches the Apitally-Env header.
+  // defaultResource() ignores environment variables, so envDetector supplies
+  // them. Apitally attributes merge last to keep the env aligned with Apitally-Env.
   return defaultResource()
     .merge(detectResources({ detectors: [envDetector] }))
     .merge(
@@ -96,10 +94,8 @@ export function setupTracerProvider(
   resource: Resource,
   spanProcessors: SpanProcessor[],
 ): NodeTracerProvider {
-  // The sampler and both length limit settings are passed explicitly so the
-  // OTEL_TRACES_SAMPLER and OTEL_(SPAN_)ATTRIBUTE_VALUE_LENGTH_LIMIT env vars
-  // never apply: a SERVER span under an unsampled upstream traceparent must still
-  // record, and a low limit would clip long attributes like the full request URL.
+  // Explicit sampler and length limits prevent OTel environment variables from
+  // dropping upstream-unsampled SERVER spans or truncating long attributes.
   const provider = new NodeTracerProvider({
     sampler: new AlwaysOnSampler(),
     resource,
@@ -107,9 +103,9 @@ export function setupTracerProvider(
     generalLimits: { attributeValueLengthLimit: MAX_ATTRIBUTE_VALUE_LENGTH },
     spanLimits: { attributeValueLengthLimit: MAX_ATTRIBUTE_VALUE_LENGTH },
   });
+  // OTel global setters reject duplicate or version-mismatched registrations,
+  // preserving existing registrations.
   trace.setGlobalTracerProvider(provider);
-  // The API refuses duplicate or version-mismatched registrations, leaving any
-  // pre-existing user registration untouched.
   const contextManager = new AsyncLocalStorageContextManager();
   contextManager.enable();
   context.setGlobalContextManager(contextManager);
@@ -124,9 +120,8 @@ export function warnAboutExistingTracerProvider(): void {
   );
 }
 
-// The meter and logger providers are private instances backed by the Apitally
-// resource, never registered into the OTel API globals: global registration would
-// overwrite or race a user's own metrics or logs pipeline.
+// Meter and logger providers remain private because global registration could
+// replace or race a user's metrics or logs pipeline.
 export function createMeterProvider(
   resource: Resource,
   readers: IMetricReader[],
@@ -173,10 +168,8 @@ function readDeploymentEnvironmentNameFromEnv(): string | undefined {
   return undefined;
 }
 
-// The API exposes no getter for the registered context manager, so the outcome of
-// the registration attempt is verified by observing whether context values propagate.
-// Without a working context manager, per-request contexts and trace suppression
-// silently stop working.
+// OTel exposes no context-manager getter, so a propagated probe verifies
+// registration. Without propagation, request contexts and suppression fail silently.
 function warnIfContextPropagationIsInert(): void {
   const probeKey = createContextKey("apitally-context-probe");
   const isPropagated = context.with(

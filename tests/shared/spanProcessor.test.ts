@@ -28,10 +28,10 @@ import {
   WRITE_TOKEN,
 } from "../utils.js";
 
-// The low 64 bits of the trace id decide sampling; rate 0.5 keeps ids below 2^63
+// The low 64 bits of the trace ID decide sampling; rate 0.5 keeps IDs below 2^63.
 const TRACE_ID_KEPT_AT_HALF = `${"0".repeat(16)}7fffffffffffffff`;
 const TRACE_ID_DROPPED_AT_HALF = `${"0".repeat(16)}8000000000000000`;
-// The highest trace id fails every sampling rate below 1
+// The highest trace ID fails every sampling rate below 1.
 const TRACE_ID_DROPPED_BELOW_ONE = "f".repeat(32);
 
 describe("spanProcessor", () => {
@@ -537,7 +537,6 @@ describe("spanProcessor", () => {
       apitallyExporter.getFinishedSpans().map((span) => span.name),
     ).toEqual(["GET /first", "GET /second"]);
 
-    // The pipeline and its downstream processor were not torn down
     const sdkProvider = new NodeTracerProvider({
       sampler: new AlwaysOnSampler(),
       spanProcessors: [pipeline],

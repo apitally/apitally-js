@@ -25,9 +25,8 @@ const MAX_SPOOL_SIZE_MEMORY = 10_000_000;
 const MAX_UNTOUCHED_FILE_AGE_MILLIS = 2 * 60 * 60 * 1000;
 const SPOOL_FILE_NAME_PATTERN = /^apitally-.*\.gz$/;
 
-// Byte spool between the batch processors and the export worker. Gzip and file
-// streams complete across event-loop turns, so all operations on a signal's
-// current file are serialized on one per-signal operation queue.
+// Operations for each signal are serialized because gzip and file streams
+// complete asynchronously.
 export class Spool {
   readonly inMemory: boolean;
   maxSize: number;
@@ -82,10 +81,8 @@ export class Spool {
     });
   }
 
-  // Close each signal's current file so it becomes sendable, unless closed
-  // files are already waiting (a backlog grows the current file instead of
-  // adding one file per cycle). Signals close one after another so files
-  // rotated in the same cycle keep a deterministic send order.
+  // Current files close only when no backlog exists, avoiding one file per cycle.
+  // Sequential rotation preserves send order.
   async rotateForExport(): Promise<void> {
     for (const signal of SIGNALS) {
       await this.enqueue(signal, async () => {
@@ -106,7 +103,6 @@ export class Spool {
     }
   }
 
-  // Closed files in send order (oldest first).
   pendingFiles(): SpoolFile[] {
     return [...this.closed];
   }
@@ -119,7 +115,7 @@ export class Spool {
     await file.delete();
   }
 
-  // Refresh mtimes so orphan cleanup in a sibling process never removes live files.
+  // Refresh mtimes so orphan cleanup in another process preserves live files.
   touchFiles(): void {
     for (const file of [...this.current.values(), ...this.closed]) {
       file.touch();
@@ -180,7 +176,7 @@ export class Spool {
       deletions.push(file.delete());
     }
     while (this.totalSize() > this.maxSize) {
-      // Prefer retaining metrics, but the size bound still applies when only metrics remain
+      // Prefer retaining metrics, but enforce the size limit when only metrics remain.
       const oldest =
         this.closed.find((file) => file.signal !== "metrics") ?? this.closed[0];
       if (!oldest) {
@@ -235,7 +231,7 @@ export class SpoolFile {
       closeEvent = "end";
     } else {
       this.path = join(tempDir, `apitally-${randomUUID()}.gz`);
-      // A synchronous exclusive open surfaces creation errors at the append that caused them
+      // A synchronous exclusive open reports creation errors to the triggering append.
       const fd = openSync(this.path, "wx", 0o600);
       this.fileStream = createWriteStream(this.path, { fd });
       this.gzip.pipe(this.fileStream);
@@ -251,7 +247,8 @@ export class SpoolFile {
         stream.once("error", reject);
       }
     });
-    // A stream error may fire with no operation awaiting it; it invalidates the file on the next operation
+    // Stream errors can occur outside an awaited operation; rejection handling
+    // prevents an unhandled rejection.
     this.closedPromise.catch(() => undefined);
     for (const stream of streams) {
       stream.on("error", (error: Error) => {
@@ -309,7 +306,7 @@ export class SpoolFile {
         const now = new Date();
         utimesSync(this.path, now, now);
       } catch {
-        // The file may already be gone; orphan cleanup only targets stale files
+        // The file may already be gone; orphan cleanup only targets stale files.
       }
     }
   }
@@ -341,9 +338,8 @@ function isTempDirWritable(tempDir: string): boolean {
   }
 }
 
-// Best-effort removal of spool files left behind by dead processes. Live
-// processes refresh their files' mtimes every export cycle, keeping them newer
-// than the cutoff.
+// Live processes refresh mtimes each cycle, so only stale spool files from dead
+// processes are removed.
 function cleanupOrphanedFiles(tempDir: string): void {
   const cutoff = Date.now() - MAX_UNTOUCHED_FILE_AGE_MILLIS;
   try {
@@ -357,10 +353,10 @@ function cleanupOrphanedFiles(tempDir: string): void {
           unlinkSync(filePath);
         }
       } catch {
-        // Another process may have removed the file first
+        // Another process may have removed the file first.
       }
     }
   } catch {
-    // Reading the temp dir is best-effort
+    // Reading the temporary directory is best-effort.
   }
 }

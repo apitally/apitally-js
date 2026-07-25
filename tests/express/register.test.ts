@@ -1,5 +1,4 @@
-// The documented Express setup: the register entry imported on the first
-// line, before any module assembles routers at module scope.
+// The register entry is the first import so module-scope routers are captured.
 import "../../src/express/register.js";
 
 import express from "express";
@@ -15,8 +14,7 @@ import {
   withServer,
 } from "../utils.js";
 
-// Assembled at module scope before useApitally runs, like a route module in
-// an express-generator layout.
+// Created before useApitally(), as in an `express-generator` route module.
 const moduleScopeRouter = express.Router();
 moduleScopeRouter.get("/items/:id", (_req, res) => {
   res.json({ ok: true });

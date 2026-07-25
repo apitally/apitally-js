@@ -5,10 +5,7 @@ import { useApitally } from "../../src/express/index.js";
 import { setConsumer } from "../../src/spanProcessor.js";
 import { WRITE_TOKEN } from "../utils.js";
 
-// The uniform app fixture driven by every framework's integration suite:
-// an item GET with a path parameter, an item POST consuming a JSON body, a
-// health check, a synchronously throwing error route, a consumer route, a
-// streaming route, and a mounted sub-router with a nested mount.
+// These fixtures must remain behaviorally aligned across adapter suites.
 export function buildAppFixture(options: ApitallyOptions = {}): Express {
   const app = express();
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });
@@ -35,7 +32,7 @@ export function buildAppFixture(options: ApitallyOptions = {}): Express {
     res.write("chunk-2\n");
     res.write("chunk-3\n");
     if (req.query.hold === "1") {
-      // Stays open until the client disconnects, for abort scenarios
+      // `hold=1` keeps the stream open until the client disconnects in abort scenarios.
       await once(res, "close");
       return;
     }

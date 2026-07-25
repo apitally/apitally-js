@@ -464,7 +464,7 @@ describe("exporter", () => {
     expect(seen).toHaveLength(1);
     expect(seen[0].body.toString()).toBe('{"a": 1}');
     expect(seen[0].ended).toBe(true);
-    // The callback sees the span as it will be exported, minus the body attributes
+    // The callback sees the exported span before body attributes are attached.
     expect(seen[0].attributes).toEqual({
       "http.request.header.authorization": ["[REDACTED]"],
       "http.request.header.content-type": ["application/json"],

@@ -200,7 +200,7 @@ describe("express adapter", () => {
   });
 
   it("excludes health check requests from spans while counting them in the request metrics, and records OPTIONS requests in neither", async () => {
-    // Capture stays enabled so excluded requests provably export no payloads
+    // Capture stays enabled so excluded requests provably export no payloads.
     prepareFirstRequestActivation({
       captureRequestBody: true,
       captureResponseBody: true,
@@ -563,7 +563,7 @@ describe("express adapter", () => {
       await new Promise<void>((resolve) => {
         serverA.close(() => resolve());
       });
-      // The close-triggered flush cycle completes before the next request
+      // The close-triggered flush cycle completes before the next request.
       await requireActivationHandles().worker.runCycle();
       await request(serverB).get("/items/3").expect(200);
 
