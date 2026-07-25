@@ -29,7 +29,13 @@ export class BodyCapture {
       options.captureBody && isAllowedContentType(options.contentType);
     // Transfer-Encoding: chunked makes Content-Length unusable, so observed
     // decoded bytes determine size.
-    this.declaredSize = isChunkedTransferEncoding(options.transferEncoding)
+    const transferEncoding = Array.isArray(options.transferEncoding)
+      ? options.transferEncoding.join(",")
+      : options.transferEncoding;
+    const isChunkedTransferEncoding =
+      typeof transferEncoding === "string" &&
+      transferEncoding.toLowerCase().includes("chunked");
+    this.declaredSize = isChunkedTransferEncoding
       ? undefined
       : parseContentLength(options.contentLength);
     this.tooLarge =
@@ -201,11 +207,4 @@ function parseContentLength(
     return parseContentLength(value[0]);
   }
   return undefined;
-}
-
-function isChunkedTransferEncoding(
-  value: string | string[] | null | undefined,
-): boolean {
-  const joined = Array.isArray(value) ? value.join(",") : value;
-  return typeof joined === "string" && joined.toLowerCase().includes("chunked");
 }

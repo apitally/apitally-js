@@ -60,7 +60,12 @@ export function adoptOrStartServerSpan(
   const activeSpan = trace.getSpan(activeContext);
   let requestContext: Context;
   let ownSpan: Span | undefined;
-  if (activeSpan?.isRecording() && isServerSpan(activeSpan)) {
+  // Span kind is not part of the OTel API surface, so read the SDK-level
+  // property from whichever package copy produced the span.
+  if (
+    activeSpan?.isRecording() &&
+    (activeSpan as { kind?: unknown }).kind === SpanKind.SERVER
+  ) {
     // A SERVER span produced by the user's own instrumentation is adopted:
     // no second span, and the request runs under the user's context.
     spanHandle.span = activeSpan;
@@ -202,12 +207,6 @@ export function finalizeRecordAndReleaseRequest(
   }
   ownSpan?.end();
   getActiveSpanPipeline()?.handleTransportCompletion(record);
-}
-
-// The active span's kind is not part of the OpenTelemetry API surface, so the
-// SDK-level property is read from whichever package copy produced the span.
-function isServerSpan(span: Span): boolean {
-  return (span as { kind?: unknown }).kind === SpanKind.SERVER;
 }
 
 function warnAboutNonRecordingServerSpan(): void {

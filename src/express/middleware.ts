@@ -24,11 +24,7 @@ import {
   finalizeRecordAndReleaseRequest,
 } from "../requestObservation.js";
 import { captureException } from "../spanProcessor.js";
-import {
-  beginRouteTracking,
-  finishRouteTracking,
-  warnAboutUncapturedRouteRegistrations,
-} from "./routes.js";
+import { beginRouteTracking, finishRouteTracking } from "./routes.js";
 
 const HANDLE_WRAP_MARKER = Symbol.for("apitally.expressHandleWrap");
 // A request dispatched through nested wrapped apps is observed by the
@@ -274,7 +270,9 @@ function finalizeRequestFromResponse(
   }
   const routeResult = finishRouteTracking(req, requestUrl.split("?")[0]);
   if (routeResult.matchedUncapturedRegistration) {
-    warnAboutUncapturedRouteRegistrations();
+    logWarning(
+      'Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
+    );
   }
   finalizeRecordAndReleaseRequest({
     record,
@@ -361,8 +359,11 @@ function resolveStartAttributes(
   requestBodyCapture: BodyCapture,
 ): Attributes {
   const attributes: Attributes = { "http.request.method": method };
-  const [path, query] = splitPathAndQuery(requestUrl);
-  attributes["url.path"] = path;
+  const queryIndex = requestUrl.indexOf("?");
+  attributes["url.path"] =
+    queryIndex === -1 ? requestUrl : requestUrl.slice(0, queryIndex);
+  const query =
+    queryIndex === -1 ? undefined : requestUrl.slice(queryIndex + 1);
   if (query) {
     attributes["url.query"] = query;
   }
@@ -372,9 +373,10 @@ function resolveStartAttributes(
   attributes["url.scheme"] = scheme;
   const host = req.headers.host;
   if (host) {
-    const hostname = parseHostname(scheme, host);
-    if (hostname) {
-      attributes["server.address"] = hostname;
+    try {
+      attributes["server.address"] = new URL(`${scheme}://${host}`).hostname;
+    } catch {
+      // An invalid Host header leaves the server address unset.
     }
     attributes["url.full"] = `${scheme}://${host}${requestUrl}`;
   }
@@ -393,22 +395,6 @@ function resolveStartAttributes(
     attributes["http.request.body.size"] = requestBodySize;
   }
   return attributes;
-}
-
-function splitPathAndQuery(url: string): [string, string | undefined] {
-  const queryIndex = url.indexOf("?");
-  if (queryIndex === -1) {
-    return [url, undefined];
-  }
-  return [url.slice(0, queryIndex), url.slice(queryIndex + 1) || undefined];
-}
-
-function parseHostname(scheme: string, host: string): string | undefined {
-  try {
-    return new URL(`${scheme}://${host}`).hostname;
-  } catch {
-    return undefined;
-  }
 }
 
 function firstStringValue(

@@ -96,7 +96,7 @@ describe("activation", () => {
   });
 
   it("leaves client span production to the user when attaching to an existing tracer provider", async () => {
-    captureStderr();
+    const lines = captureStderr();
     const userExporter = new InMemorySpanExporter();
     trace.setGlobalTracerProvider(
       new BasicTracerProvider({
@@ -115,6 +115,9 @@ describe("activation", () => {
     expect(userExporter.getFinishedSpans()).toHaveLength(0);
     const spans = await readActivationSpans();
     expect(spans).toEqual([]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("ApitallySpanProcessor");
+    expect(lines[0]).toContain("spanProcessors");
   });
 
   const guardCases: {

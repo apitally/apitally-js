@@ -11,9 +11,6 @@ const ROUTE_STATE_KEY = Symbol.for("apitally.expressRouteState");
 const INLINE_PARAM_REGEX_PATTERN = /(:\w+)\([^)]*\)/g;
 const PURE_WILDCARD_SEGMENT_PATTERN = /^\/?\{\*[^}]*\}$/;
 
-const REGISTER_IMPORT_HINT =
-  'add `import "apitally/express/register";` as the first line of your application\'s entry module';
-
 interface CapturedRoute {
   path: unknown;
   methods?: Record<string, boolean>;
@@ -328,7 +325,16 @@ function wrapMountHandler(
     return handler;
   }
   table.mounts.push({ pathTemplates, handler });
-  warnIfRouterHasUncapturedRegistrations(handler);
+  const stack = (handler as { stack?: unknown }).stack;
+  if (
+    Array.isArray(stack) &&
+    stack.length > 0 &&
+    !captureTables.has(handler as object)
+  ) {
+    logWarning(
+      'The routes of a mounted router were registered before Apitally could capture them, so requests to that router are exported without route templates. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
+    );
+  }
   if (handler.length >= 4) {
     // Error middleware never descends into route dispatch.
     return handler;
@@ -366,25 +372,6 @@ function wrapMountHandler(
       next(error);
     });
   };
-}
-
-function warnIfRouterHasUncapturedRegistrations(handler: unknown): void {
-  const stack = (handler as { stack?: unknown }).stack;
-  if (
-    Array.isArray(stack) &&
-    stack.length > 0 &&
-    !captureTables.has(handler as object)
-  ) {
-    logWarning(
-      `The routes of a mounted router were registered before Apitally could capture them, so requests to that router are exported without route templates. To resolve this, ${REGISTER_IMPORT_HINT}.`,
-    );
-  }
-}
-
-export function warnAboutUncapturedRouteRegistrations(): void {
-  logWarning(
-    `Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, ${REGISTER_IMPORT_HINT}.`,
-  );
 }
 
 function tableFor(router: object): RouterCaptureTable {
@@ -596,22 +583,18 @@ function matchesTemplate(
   }
   const key = `${mode} ${template}`;
   if (!compiledTemplatePatterns.has(key)) {
-    compiledTemplatePatterns.set(key, compileTemplatePattern(template, mode));
+    const suffix = mode === "full" ? "/?$" : "(?:/|$)";
+    try {
+      compiledTemplatePatterns.set(
+        key,
+        new RegExp(`^${templateToRegExpSource(template)}${suffix}`, "i"),
+      );
+    } catch {
+      compiledTemplatePatterns.set(key, undefined);
+    }
   }
   const pattern = compiledTemplatePatterns.get(key);
   return pattern ? pattern.test(path) : true;
-}
-
-function compileTemplatePattern(
-  template: string,
-  mode: "full" | "prefix",
-): RegExp | undefined {
-  const suffix = mode === "full" ? "/?$" : "(?:/|$)";
-  try {
-    return new RegExp(`^${templateToRegExpSource(template)}${suffix}`, "i");
-  } catch {
-    return undefined;
-  }
 }
 
 function templateToRegExpSource(template: string): string {

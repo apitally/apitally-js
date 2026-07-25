@@ -114,12 +114,6 @@ export function setupTracerProvider(
   return provider;
 }
 
-export function warnAboutExistingTracerProvider(): void {
-  logWarning(
-    "An existing OpenTelemetry tracer provider was detected, and Apitally will not replace it. Only metrics and the startup event are sent to Apitally until you add ApitallySpanProcessor (exported by the apitally package) to your tracer provider's spanProcessors constructor option or the NodeSDK spanProcessors option.",
-  );
-}
-
 // Meter and logger providers remain private because global registration could
 // replace or race a user's metrics or logs pipeline.
 export function createMeterProvider(

@@ -72,7 +72,15 @@ export function wrapAppFetch(app: Hono): void {
     return;
   }
   markedApp[FETCH_WRAP_MARKER] = true;
-  warnIfRoutesWereRegisteredBeforeSetup(app);
+  try {
+    if (Array.isArray(app.routes) && app.routes.length > 0) {
+      logWarning(
+        "useApitally() was called after routes or middleware were registered on the Hono app, so requests handled by those earlier registrations are exported without a route template and are not counted in the request metrics. To resolve this, call useApitally() immediately after creating the app, before registering middleware and routes.",
+      );
+    }
+  } catch (error) {
+    logDebug(`Error inspecting the hono app's routes: ${String(error)}`);
+  }
   app.use(recordMatchedRouteAfterNext);
   const originalFetch = app.fetch as FetchFunction;
   let errorHandlerWrapPending = true;
@@ -365,18 +373,6 @@ function wrapErrorHandler(app: Hono): void {
     appWithHandler.errorHandler = wrappedHandler;
   } catch (error) {
     logDebug(`Error wrapping the hono onError handler: ${String(error)}`);
-  }
-}
-
-function warnIfRoutesWereRegisteredBeforeSetup(app: Hono): void {
-  try {
-    if (Array.isArray(app.routes) && app.routes.length > 0) {
-      logWarning(
-        "useApitally() was called after routes or middleware were registered on the Hono app, so requests handled by those earlier registrations are exported without a route template and are not counted in the request metrics. To resolve this, call useApitally() immediately after creating the app, before registering middleware and routes.",
-      );
-    }
-  } catch (error) {
-    logDebug(`Error inspecting the hono app's routes: ${String(error)}`);
   }
 }
 

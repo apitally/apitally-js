@@ -145,7 +145,12 @@ export class ExportWorker {
         return;
       }
       if (!final && sent > 0) {
-        await sleep(this.interSendPauseMillis());
+        const pauseMillis = this.interSendPauseMillis();
+        if (pauseMillis > 0) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, pauseMillis).unref(),
+          );
+        }
       }
       if (file.isExpired()) {
         // Apitally ingest deduplicates for one hour; a later retry could ingest
@@ -283,11 +288,4 @@ export class ExportWorker {
 
 function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && error.name === "TimeoutError";
-}
-
-function sleep(millis: number): Promise<void> {
-  if (millis <= 0) {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => setTimeout(resolve, millis).unref());
 }

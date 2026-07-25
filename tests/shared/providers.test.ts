@@ -30,7 +30,6 @@ import {
   hasUserTracerProvider,
   resolveEnv,
   setupTracerProvider,
-  warnAboutExistingTracerProvider,
 } from "../../src/providers.js";
 import {
   CollectOnlyMetricReader,
@@ -152,15 +151,6 @@ describe("providers", () => {
     expect(hasUserTracerProvider()).toBe(false);
     trace.setGlobalTracerProvider(new BasicTracerProvider());
     expect(hasUserTracerProvider()).toBe(true);
-  });
-
-  it("warns about an existing tracer provider naming the degraded mode and the spanProcessors fix", () => {
-    const lines = captureStderr();
-    warnAboutExistingTracerProvider();
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("metrics and the startup event");
-    expect(lines[0]).toContain("ApitallySpanProcessor");
-    expect(lines[0]).toContain("spanProcessors");
   });
 
   it("keeps the meter and logger providers out of the OTel API globals", async () => {

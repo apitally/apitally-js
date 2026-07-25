@@ -29,7 +29,6 @@ import {
   hasUserTracerProvider,
   resolveEnv,
   setupTracerProvider,
-  warnAboutExistingTracerProvider,
 } from "./providers.js";
 import { Redaction } from "./redaction.js";
 import { installSentryEventIdLinkage } from "./sentry.js";
@@ -219,7 +218,9 @@ function startPipelines(
   const spanPipeline = new SpanPipeline(batchSpanProcessor);
   let tracerProvider: NodeTracerProvider | undefined;
   if (hasUserProvider) {
-    warnAboutExistingTracerProvider();
+    logWarning(
+      "An existing OpenTelemetry tracer provider was detected, and Apitally will not replace it. Only metrics and the startup event are sent to Apitally until you add ApitallySpanProcessor (exported by the apitally package) to your tracer provider's spanProcessors constructor option or the NodeSDK spanProcessors option.",
+    );
   } else {
     tracerProvider = setupTracerProvider(resource, [spanPipeline]);
   }
