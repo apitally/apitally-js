@@ -359,6 +359,21 @@ describe("spanProcessor", () => {
     expect(exported.events[1].attributes?.["exception.message"]).toBe("42");
   });
 
+  it("records a custom Error subclass by its constructor name", () => {
+    class OrderFailedError extends Error {}
+
+    enableAsyncContextManager();
+    const { pipeline, tracer, exporter } = createTracePipeline();
+    const { span, request } = startServerSpan(tracer);
+    context.with(trace.setSpan(request.context, span), () => {
+      captureException(new OrderFailedError("request failed"));
+    });
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+    const [exported] = exporter.getFinishedSpans();
+    expect(exported.events[0].attributes?.["exception.type"]).toBe("OrderFailedError");
+  });
+
   it("treats setConsumer, setRequestAttribute, and captureException as safe no-ops outside a request", () => {
     const { exporter } = createTracePipeline();
     expect(() => {
