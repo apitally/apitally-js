@@ -254,6 +254,75 @@ describe("activation", () => {
     expect(isActivated()).toBe(false);
   });
 
+  it("flushes once and restores termination when Apitally is the sole signal listener", async () => {
+    const previousSigtermListeners = process.listeners("SIGTERM");
+    const previousSigintListeners = process.listeners("SIGINT");
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const handles = configureAndActivate();
+    const finalDrainSpy = vi.spyOn(handles.worker, "finalDrain").mockResolvedValue();
+    const sigtermListener = process
+      .listeners("SIGTERM")
+      .find((listener) => !previousSigtermListeners.includes(listener));
+    const sigintListener = process
+      .listeners("SIGINT")
+      .find((listener) => !previousSigintListeners.includes(listener));
+    if (!sigtermListener || !sigintListener) {
+      throw new Error("Apitally signal listeners were not installed");
+    }
+
+    sigtermListener("SIGTERM");
+    const activationState = (globalThis as Record<symbol, { signalDrainPromise?: Promise<void> }>)[
+      Symbol.for("apitally.activation")
+    ];
+    await activationState.signalDrainPromise;
+
+    expect(finalDrainSpy).toHaveBeenCalledExactlyOnceWith(5_000);
+    expect(process.listeners("SIGTERM")).not.toContain(sigtermListener);
+    expect(process.listeners("SIGINT")).not.toContain(sigintListener);
+    expect(killSpy).toHaveBeenCalledExactlyOnceWith(process.pid, "SIGTERM");
+  });
+
+  it("leaves process termination to an application signal listener", async () => {
+    const applicationListener = () => {};
+    process.on("SIGTERM", applicationListener);
+    try {
+      const previousSigtermListeners = process.listeners("SIGTERM");
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+      const handles = configureAndActivate();
+      let releaseSignalDrain = () => {};
+      const signalDrain = new Promise<void>((resolve) => {
+        releaseSignalDrain = resolve;
+      });
+      const finalDrainSpy = vi
+        .spyOn(handles.worker, "finalDrain")
+        .mockImplementation((timeoutMillis?: number) =>
+          timeoutMillis === undefined ? Promise.resolve() : signalDrain,
+        );
+      const spanShutdownSpy = vi.spyOn(handles.spanPipeline, "shutdown");
+      const sigtermListener = process
+        .listeners("SIGTERM")
+        .find((listener) => !previousSigtermListeners.includes(listener));
+      if (!sigtermListener) {
+        throw new Error("Apitally SIGTERM listener was not installed");
+      }
+
+      sigtermListener("SIGTERM");
+      const shutdownPromise = shutdown();
+      await Promise.resolve();
+      expect(spanShutdownSpy).not.toHaveBeenCalled();
+
+      releaseSignalDrain();
+      await shutdownPromise;
+
+      expect(finalDrainSpy).toHaveBeenNthCalledWith(1, 5_000);
+      expect(finalDrainSpy).toHaveBeenNthCalledWith(2);
+      expect(killSpy).not.toHaveBeenCalled();
+      expect(spanShutdownSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      process.removeListener("SIGTERM", applicationListener);
+    }
+  });
+
   it("drains pending exports on shutdown exactly once across repeated calls", async () => {
     const fetchSpy = spyOnSuccessfulFetch();
     registerStartupEventInfo({ framework: "express", resolvePaths: () => [] });

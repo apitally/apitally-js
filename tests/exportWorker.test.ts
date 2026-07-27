@@ -409,6 +409,66 @@ describe("exportWorker", () => {
     expect(spool.pendingFiles()).toHaveLength(1);
   });
 
+  it("cancels an active export before a bounded final drain sends the retained file", async () => {
+    let observeFirstRequest = () => {};
+    const firstRequestStarted = new Promise<void>((resolve) => {
+      observeFirstRequest = resolve;
+    });
+    let requestCount = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      requestCount += 1;
+      if (requestCount > 1) {
+        return Promise.resolve(new Response(null, { status: 200 }));
+      }
+      observeFirstRequest();
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error("Expected request signal"));
+          return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    });
+    const worker = createWorker();
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
+    const runningCycle = worker.runCycle();
+    await firstRequestStarted;
+
+    await worker.finalDrain(1_000);
+    await runningCycle;
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const firstBody = fetchSpy.mock.calls[0][1]?.body as Buffer;
+    const secondBody = fetchSpy.mock.calls[1][1]?.body as Buffer;
+    expect(firstBody.equals(secondBody)).toBe(true);
+    expect(gunzipSync(secondBody)).toEqual(TRACE_PAYLOAD_ITEMS);
+    expect(spool.pendingFiles()).toEqual([]);
+  });
+
+  it("stops a bounded final drain at its deadline and retains the unsent file", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error("Expected request signal"));
+            return;
+          }
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    );
+    const worker = createWorker();
+    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
+    await spool.closeCurrentFiles();
+
+    await worker.finalDrain(50);
+    await worker.waitForIdle();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(spool.pendingFiles()).toHaveLength(1);
+  });
+
   it("drops an expired file at the final drain while a never-attempted file still delivers", async () => {
     const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();

@@ -126,24 +126,23 @@ Your existing exporters keep seeing everything they already see: Apitally adopts
 
 ## Graceful shutdown
 
-Telemetry is exported in the background roughly every 15 seconds. **If your process is killed without a graceful shutdown, the telemetry from that final interval is lost.** The SDK never installs signal handlers itself, so make sure your app handles termination signals — closing the HTTP server on `SIGTERM` is standard practice and triggers a flush for Express apps:
+Telemetry is exported in the background roughly every 15 seconds. After successful activation, Apitally installs `SIGTERM` and `SIGINT` listeners by default on supported POSIX main-thread processes. There is no opt-out, and the fixed five-second timeout is not configurable.
 
-```javascript
-process.on("SIGTERM", () => {
-  server.close(); // triggers a flush of pending telemetry
-});
-```
+On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-Alternatively — and always for Hono apps, which have no server to close through the SDK — await the `shutdown` function exported from `apitally`:
+The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";
 
-process.on("SIGTERM", async () => {
-  await shutdown(); // flushes and drains all pending telemetry
-  process.exit(0);
+process.on("SIGTERM", () => {
+  server.close(async () => {
+    await shutdown();
+  });
 });
 ```
+
+No final drain is guaranteed for `SIGKILL`, a synchronous `process.exit()`, a native crash or out-of-memory failure, worker-thread signal delivery, or collector failure that lasts beyond the deadline.
 
 ## Runtime support
 

@@ -47,6 +47,7 @@ export class ExportWorker {
   private proxyTransport?: ProxyTransport;
   private readonly warnedStatuses = new Set<number>();
   private currentCycle?: Promise<void>;
+  private currentCycleController?: AbortController;
   private timer?: NodeJS.Timeout;
   private started = false;
 
@@ -81,9 +82,7 @@ export class ExportWorker {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
-    if (this.currentCycle) {
-      await this.currentCycle;
-    }
+    await this.waitForIdle();
     if (this.proxyTransport) {
       await this.proxyTransport.dispatcher.close();
     }
@@ -94,30 +93,68 @@ export class ExportWorker {
     return this.currentCycle ?? this.chainCycle(false);
   }
 
-  // One uncapped, unpaced cycle that closes all current files and sends everything pending.
-  async finalDrain(): Promise<void> {
-    await this.chainCycle(true);
+  // Closes current files and sends everything pending, optionally within one deadline.
+  async finalDrain(timeoutMillis?: number): Promise<void> {
+    if (timeoutMillis === undefined) {
+      await this.chainCycle(true);
+      return;
+    }
+
+    const deadlineController = new AbortController();
+    let deadlineTimer: NodeJS.Timeout | undefined;
+    const deadlineReached = new Promise<void>((resolve) => {
+      deadlineTimer = setTimeout(() => {
+        deadlineController.abort();
+        resolve();
+      }, timeoutMillis);
+    });
+
+    this.currentCycleController?.abort();
+    const cycle = this.chainCycle(true, deadlineController.signal);
+    try {
+      await Promise.race([cycle, deadlineReached]);
+    } finally {
+      if (deadlineTimer) {
+        clearTimeout(deadlineTimer);
+      }
+    }
   }
 
-  private chainCycle(final: boolean): Promise<void> {
+  waitForIdle(): Promise<void> {
+    return this.currentCycle ?? Promise.resolve();
+  }
+
+  private chainCycle(final: boolean, deadlineSignal?: AbortSignal): Promise<void> {
     const previous = this.currentCycle ?? Promise.resolve();
+    const controller = new AbortController();
+    const signal = deadlineSignal
+      ? AbortSignal.any([controller.signal, deadlineSignal])
+      : controller.signal;
     const cycle = previous
-      .then(() => this.executeCycle(final))
+      .then(() => this.executeCycle(final, signal))
       .finally(() => {
         if (this.currentCycle === cycle) {
           this.currentCycle = undefined;
+          this.currentCycleController = undefined;
         }
       });
     this.currentCycle = cycle;
+    this.currentCycleController = controller;
     return cycle;
   }
 
-  private async executeCycle(final: boolean): Promise<void> {
+  private async executeCycle(final: boolean, signal: AbortSignal): Promise<void> {
     try {
       // Suppress instrumentation so worker flushes and POSTs generate no telemetry.
       await context.with(suppressTracing(context.active()), async () => {
         for (const callback of this.flushCallbacks) {
+          if (signal.aborted) {
+            return;
+          }
           await callback();
+        }
+        if (signal.aborted) {
+          return;
         }
         if (final) {
           await this.spool.closeCurrentFiles();
@@ -125,7 +162,10 @@ export class ExportWorker {
           await this.spool.rotateForExport();
           this.spool.touchFiles();
         }
-        await this.sendPendingFiles(final);
+        if (signal.aborted) {
+          return;
+        }
+        await this.sendPendingFiles(final, signal);
       });
     } catch (error) {
       logDebug(`Error in Apitally export cycle: ${String(error)}`);
@@ -133,16 +173,19 @@ export class ExportWorker {
   }
 
   // During an outage, stopping on failure limits each cycle to one probe POST.
-  private async sendPendingFiles(final: boolean): Promise<void> {
+  private async sendPendingFiles(final: boolean, signal: AbortSignal): Promise<void> {
     let sent = 0;
     for (const file of this.spool.pendingFiles()) {
-      if (!final && sent >= MAX_SENDS_PER_CYCLE) {
+      if (signal.aborted || (!final && sent >= MAX_SENDS_PER_CYCLE)) {
         return;
       }
       if (!final && sent > 0) {
         const pauseMillis = this.interSendPauseMillis();
         if (pauseMillis > 0) {
           await new Promise<void>((resolve) => setTimeout(resolve, pauseMillis).unref());
+        }
+        if (signal.aborted) {
+          return;
         }
       }
       if (file.isExpired()) {
@@ -155,7 +198,7 @@ export class ExportWorker {
         continue;
       }
       sent += 1;
-      if (!(await this.sendFile(file))) {
+      if (!(await this.sendFile(file, signal))) {
         return;
       }
     }
@@ -163,7 +206,7 @@ export class ExportWorker {
 
   // Sends the file's stored bytes verbatim. Returns false on a retryable
   // failure, which ends the cycle and keeps the file queued.
-  private async sendFile(file: SpoolFile): Promise<boolean> {
+  private async sendFile(file: SpoolFile, signal: AbortSignal): Promise<boolean> {
     file.markAttempt();
     const url = `${this.otlpEndpoint}/v1/${file.signal}`;
     let body: Buffer;
@@ -174,22 +217,32 @@ export class ExportWorker {
       await this.spool.deleteFile(file);
       return true;
     }
+    if (signal.aborted) {
+      return false;
+    }
     let response: Response;
     try {
       try {
-        response = await this.postFile(url, body);
+        response = await this.postFile(url, body, signal);
       } catch (error) {
-        if (isTimeoutError(error)) {
+        if (signal.aborted || isAbortError(error) || isTimeoutError(error)) {
           throw error;
         }
         // The server may close an idle keep-alive connection mid-request; retry once.
-        response = await this.postFile(url, body);
+        response = await this.postFile(url, body, signal);
       }
     } catch (error) {
-      logDebug(`Sending buffered ${file.signal} to Apitally failed (${String(error)}), will retry`);
+      if (!signal.aborted) {
+        logDebug(
+          `Sending buffered ${file.signal} to Apitally failed (${String(error)}), will retry`,
+        );
+      }
       return false;
     }
     await response.arrayBuffer().catch(() => undefined);
+    if (signal.aborted) {
+      return false;
+    }
     this.applyIntervalHeader(response);
     if (response.status >= 200 && response.status < 300) {
       await this.spool.deleteFile(file);
@@ -211,12 +264,12 @@ export class ExportWorker {
     return true;
   }
 
-  private postFile(url: string, body: Buffer): Promise<Response> {
+  private postFile(url: string, body: Buffer, signal: AbortSignal): Promise<Response> {
     const init: RequestInit = {
       method: "POST",
       headers: this.headers,
       body: body as unknown as BodyInit,
-      signal: AbortSignal.timeout(this.requestTimeoutMillis),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(this.requestTimeoutMillis)]),
     };
     if (!this.useProxy) {
       return fetch(url, init);
@@ -270,6 +323,10 @@ export class ExportWorker {
     }, delayMillis);
     this.timer.unref();
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function isTimeoutError(error: unknown): boolean {
