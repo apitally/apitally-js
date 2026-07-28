@@ -106,6 +106,19 @@ For further instructions, see our [setup guide for Hono](https://docs.apitally.i
 
 The root `useApitally` function auto-detects your framework. If you prefer an explicit import, use the framework entries `apitally/express` or `apitally/hono` instead — they export the same function, typed for that framework.
 
+## Using Sentry
+
+Sentry's Node.js SDK registers an OpenTelemetry tracer provider by default. If you use Sentry for error monitoring without performance tracing, let Apitally configure OpenTelemetry by disabling Sentry's setup:
+
+```javascript
+Sentry.init({
+  dsn: "your-sentry-dsn",
+  skipOpenTelemetrySetup: true,
+});
+```
+
+This keeps Sentry error reporting and Apitally's request logs and traces working together. If you use Sentry performance tracing, configure a shared OpenTelemetry provider and include `ApitallySpanProcessor` as described below.
+
 ## Works with your existing OpenTelemetry setup
 
 If your app doesn't use OpenTelemetry, you don't need to know it's there — the SDK sets up a private, fully configured pipeline.
