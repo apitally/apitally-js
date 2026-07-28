@@ -63,20 +63,34 @@ class NonPropagatingContextManager implements ContextManager {
 }
 
 describe("providers", () => {
-  it("registers its tracer provider globally and records a server span under an unsampled remote parent", () => {
+  it("does not record non-SERVER roots or their children", () => {
     const exporter = new InMemorySpanExporter();
     setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
+    const tracer = trace.getTracer("test");
 
-    trace.getTracer("test").startSpan("local root").end();
+    const root = tracer.startSpan("background job");
+    const child = tracer.startSpan("background child", {}, trace.setSpan(ROOT_CONTEXT, root));
+    expect(root.isRecording()).toBe(false);
+    expect(child.isRecording()).toBe(false);
+    child.end();
+    root.end();
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
+  });
+
+  it("records SERVER spans under unsampled remote parents with their children", () => {
+    const exporter = new InMemorySpanExporter();
+    setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
+    const tracer = trace.getTracer("test");
     const remoteParent = propagation.extract(context.active(), {
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
     });
-    trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER }, remoteParent).end();
+
+    const server = tracer.startSpan("GET /items", { kind: SpanKind.SERVER }, remoteParent);
+    tracer.startSpan("request child", {}, trace.setSpan(ROOT_CONTEXT, server)).end();
+    server.end();
 
     const spans = exporter.getFinishedSpans();
-    expect(spans).toHaveLength(2);
-    expect(spans[0].name).toBe("local root");
-    expect(spans[1].name).toBe("GET /items");
+    expect(spans.map((span) => span.name)).toEqual(["request child", "GET /items"]);
     expect(spans[1].spanContext().traceId).toBe("0af7651916cd43dd8448eb211c80319c");
     expect(spans[1].parentSpanContext?.spanId).toBe("b7ad6b7169203331");
   });
@@ -168,7 +182,7 @@ describe("providers", () => {
     setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
 
     const longUrl = `https://example.com/items?q=${"x".repeat(10_000)}`;
-    const span = trace.getTracer("test").startSpan("GET /items");
+    const span = trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER });
     span.setAttribute("url.full", longUrl);
     span.end();
 

@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import {
+  type Context,
   context,
   createContextKey,
   propagation,
+  SpanKind,
+  TraceFlags,
   type TracerProvider,
   trace,
 } from "@opentelemetry/api";
@@ -18,13 +21,39 @@ import {
 } from "@opentelemetry/resources";
 import { LoggerProvider, type LogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { type IMetricReader, MeterProvider } from "@opentelemetry/sdk-metrics";
-import { AlwaysOnSampler, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import {
+  type Sampler,
+  SamplingDecision,
+  type SamplingResult,
+  type SpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { DEFAULT_ENV, getConfig } from "./config.js";
 import { logWarning } from "./logger.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 65_536;
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
+
+class RequestRootedSampler implements Sampler {
+  shouldSample(
+    parentContext: Context,
+    _traceId: string,
+    _spanName: string,
+    spanKind: SpanKind,
+  ): SamplingResult {
+    const parent = trace.getSpanContext(parentContext);
+    const shouldRecord =
+      spanKind === SpanKind.SERVER ||
+      (parent !== undefined && !parent.isRemote && (parent.traceFlags & TraceFlags.SAMPLED) !== 0);
+    return {
+      decision: shouldRecord ? SamplingDecision.RECORD_AND_SAMPLED : SamplingDecision.NOT_RECORD,
+    };
+  }
+
+  toString(): string {
+    return "RequestRootedSampler";
+  }
+}
 
 // User providers can come from another OTel package copy, so detection uses API
 // shape. A proxy with no delegate or only getTracer represents no provider setup.
@@ -81,7 +110,7 @@ export function setupTracerProvider(
   // Explicit sampler and length limits prevent OTel environment variables from
   // dropping upstream-unsampled SERVER spans or truncating long attributes.
   const provider = new NodeTracerProvider({
-    sampler: new AlwaysOnSampler(),
+    sampler: new RequestRootedSampler(),
     resource,
     spanProcessors,
     generalLimits: { attributeValueLengthLimit: MAX_ATTRIBUTE_VALUE_LENGTH },
