@@ -36,6 +36,7 @@ const BATCH_SCHEDULE_DELAY_MILLIS = 1_000;
 const BATCH_EXPORT_TIMEOUT_MILLIS = 30_000;
 const BATCH_MAX_QUEUE_SIZE = 2_048;
 const BATCH_MAX_EXPORT_BATCH_SIZE = 512;
+const BATCH_MAX_EXPORT_BATCH_SIZE_WITH_BODY_CAPTURE = 32;
 const SIGNAL_FLUSH_TIMEOUT_MILLIS = 5_000;
 
 type TerminationSignal = "SIGTERM" | "SIGINT";
@@ -216,7 +217,10 @@ function startPipelines(startupEventInfo: StartupEventInfo | undefined): Activat
     scheduledDelayMillis: BATCH_SCHEDULE_DELAY_MILLIS,
     exportTimeoutMillis: BATCH_EXPORT_TIMEOUT_MILLIS,
     maxQueueSize: BATCH_MAX_QUEUE_SIZE,
-    maxExportBatchSize: BATCH_MAX_EXPORT_BATCH_SIZE,
+    maxExportBatchSize:
+      config.captureRequestBody || config.captureResponseBody
+        ? BATCH_MAX_EXPORT_BATCH_SIZE_WITH_BODY_CAPTURE
+        : BATCH_MAX_EXPORT_BATCH_SIZE,
   });
   const spanPipeline = new SpanPipeline(batchSpanProcessor);
   let tracerProvider: NodeTracerProvider | undefined;
