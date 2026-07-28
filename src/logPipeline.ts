@@ -1,6 +1,6 @@
-import type { Context } from "@opentelemetry/api";
+import { type Context, trace } from "@opentelemetry/api";
 import type { AnyValue, LogAttributes } from "@opentelemetry/api-logs";
-import type { ExportResult } from "@opentelemetry/core";
+import type { ExportResult, InstrumentationScope } from "@opentelemetry/core";
 import { ProtobufLogsSerializer } from "@opentelemetry/otlp-transformer";
 import type {
   LogRecordExporter,
@@ -33,6 +33,20 @@ export class LogPipeline implements LogRecordProcessor {
     spanPipeline.onRequestFinished = (serverSpanId, kept) => {
       this.releaseRequestLogRecords(serverSpanId, kept);
     };
+  }
+
+  enabled({
+    context,
+    instrumentationScope,
+  }: {
+    context: Context;
+    instrumentationScope: InstrumentationScope;
+  }): boolean {
+    if (instrumentationScope.name === APITALLY_SCOPE_NAME) {
+      return true;
+    }
+    const spanId = trace.getSpanContext(context)?.spanId;
+    return spanId !== undefined && this.spanPipeline.resolveServerSpanId(spanId) !== undefined;
   }
 
   onEmit(logRecord: SdkLogRecord, context?: Context): void {

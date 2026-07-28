@@ -78,11 +78,13 @@ export function installConsoleCapture(loggerProvider: LoggerProvider): void {
     const original = console[method];
     console[method] = (...args: unknown[]) => {
       original.apply(console, args);
-      emitCapturedLogRecord(logger, {
-        severityNumber,
-        severityText: method,
-        body: format(...args),
-      });
+      if (logger.enabled({ severityNumber })) {
+        emitCapturedLogRecord(logger, {
+          severityNumber,
+          severityText: method,
+          body: format(...args),
+        });
+      }
     };
     restoreSteps.push(() => {
       console[method] = original;
@@ -132,11 +134,14 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
 
     log(info: { level?: unknown; message?: unknown }, callback?: () => void): void {
       const severityText = typeof info.level === "string" ? info.level : "";
-      emitCapturedLogRecord(logger, {
-        severityNumber: WINSTON_LEVEL_SEVERITIES[severityText] ?? SeverityNumber.INFO,
-        severityText,
-        body: info.message as AnyValue,
-      });
+      const severityNumber = WINSTON_LEVEL_SEVERITIES[severityText] ?? SeverityNumber.INFO;
+      if (logger.enabled({ severityNumber })) {
+        emitCapturedLogRecord(logger, {
+          severityNumber,
+          severityText,
+          body: info.message as AnyValue,
+        });
+      }
       callback?.();
     }
   }
@@ -220,13 +225,16 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
       return;
     }
     try {
+      // The stored numeric level is unaffected by formatters.level rewrites.
+      const severityNumber = severityNumberFromPinoLevel(writeContext.level);
+      if (!logger.enabled({ severityNumber })) {
+        return;
+      }
       const parsed = JSON.parse(line) as Record<string, unknown>;
       const message = parsed[writeContext.messageKey];
       if (message === undefined) {
         return;
       }
-      // The stored numeric level is unaffected by formatters.level rewrites.
-      const severityNumber = severityNumberFromPinoLevel(writeContext.level);
       logger.emit({
         severityNumber,
         severityText: severityTextFromNumber(severityNumber),
