@@ -272,16 +272,19 @@ describe("spanProcessor", () => {
     const { pipeline, tracer, exporter } = createTracePipeline();
     const { span, request } = startServerSpan(tracer);
     const requestContext = trace.setSpan(request.context, span);
-    for (let index = 0; index <= 1_000; index++) {
+    for (let index = 0; index < 1_000; index++) {
       tracer.startSpan(`child-${index}`, {}, requestContext).end();
     }
+    const overflowSpan = tracer.startSpan("overflow", {}, requestContext);
     span.end();
     pipeline.handleTransportCompletion(request.record);
-    const names = exporter.getFinishedSpans().map((span) => span.name);
-    expect(names).toEqual([
+    const expectedNames = [
       ...Array.from({ length: 1_000 }, (_, index) => `child-${index}`),
       "GET /items",
-    ]);
+    ];
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(expectedNames);
+    overflowSpan.end();
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(expectedNames);
   });
 
   it("exports a late-ending descendant immediately after a kept release and discards it after a drop", () => {

@@ -32,6 +32,7 @@ import {
 import { logDebug, logWarning } from "./logger.js";
 
 const MAX_BUFFERED_SPANS = 1_000;
+const MAX_TRACKED_SPAN_IDS = MAX_BUFFERED_SPANS + 1;
 const MAX_STASHED_REQUESTS = 2_048;
 const MAX_KEPT_SPAN_IDS = 10_000;
 
@@ -223,6 +224,10 @@ export class SpanPipeline implements SpanProcessor {
             demoted: false,
           });
         }
+        return;
+      }
+      if (entry.spanIds.size >= MAX_TRACKED_SPAN_IDS) {
+        logDebug("Apitally span tracking cap reached, dropping the span");
         return;
       }
       if (span.kind === SpanKind.SERVER) {
