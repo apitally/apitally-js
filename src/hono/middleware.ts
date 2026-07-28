@@ -12,7 +12,7 @@ import type { RPCMetadata } from "@opentelemetry/core";
 import type { Hono, Context as HonoContext, MiddlewareHandler } from "hono";
 import { activate, isActivated } from "../activation.js";
 import { BodyCapture, type CapturedBody, captureResponse } from "../capture.js";
-import { type ApitallyConfig, getConfig } from "../config.js";
+import { getConfig } from "../config.js";
 import {
   type ConsumerHolder,
   getConsumerHolder,
@@ -32,7 +32,6 @@ const TRACER_NAME = "apitally.hono";
 type FetchFunction = (request: Request, ...rest: unknown[]) => Response | Promise<Response>;
 
 interface RequestObservation {
-  config: ApitallyConfig;
   record: RequestRecord;
   spanHandle: SpanHandle;
   ownSpan?: Span;
@@ -179,9 +178,11 @@ function observeRequest(
     record,
     consumerHolder,
   });
+  if (record.dropReason !== undefined) {
+    requestBodyCapture.stopBuffering();
+  }
 
   const observation: RequestObservation = {
-    config,
     record,
     spanHandle,
     ownSpan,
@@ -201,10 +202,12 @@ function observeResponse(response: Response, observation: RequestObservation): R
   try {
     const [teedResponse, capturedBodyPromise] = captureResponse(
       response,
-      observation.config.captureResponseBody,
+      getConfig().captureResponseBody && observation.record.dropReason === undefined,
     );
     capturedBodyPromise
-      .then((capturedBody) => finalizeRequestFromResponse(observation, response, capturedBody))
+      .then((capturedResponseBody) =>
+        finalizeRequestFromResponse(observation, response, capturedResponseBody),
+      )
       .catch((error: unknown) => {
         logWarning(`Error in the Apitally middleware: ${String(error)}`);
       });
@@ -218,36 +221,27 @@ function observeResponse(response: Response, observation: RequestObservation): R
 async function finalizeRequestFromResponse(
   observation: RequestObservation,
   response: Response,
-  capturedBody: CapturedBody,
+  capturedResponseBody: CapturedBody,
 ): Promise<void> {
-  const {
-    config,
-    record,
-    spanHandle,
-    ownSpan,
-    rpcMetadata,
-    requestBodyCapture,
-    startTimeMillis,
-    method,
-  } = observation;
-  const durationSeconds = (performance.now() - startTimeMillis) / 1000;
+  const durationSeconds = (performance.now() - observation.startTimeMillis) / 1000;
   await captureRequestBodyFromCache(observation);
   finalizeRecordAndReleaseRequest({
-    record,
-    spanHandle,
-    ownSpan,
-    rpcMetadata,
-    config,
-    method,
+    record: observation.record,
+    spanHandle: observation.spanHandle,
+    ownSpan: observation.ownSpan,
+    rpcMetadata: observation.rpcMetadata,
+    method: observation.method,
     durationSeconds,
     statusCode: response.status,
     route: observation.matchedRoute?.route,
     requestHeaders: observation.requestHeaders,
     responseHeaders: response.headers,
-    requestBodySize: requestBodyCapture.size,
-    responseBodySize: capturedBody.size,
-    requestBody: requestBodyCapture.body,
-    responseBody: capturedBody.body,
+    requestBodySize: observation.requestBodyCapture.size,
+    responseBodySize: capturedResponseBody.size,
+    requestBody:
+      observation.record.dropReason === undefined ? observation.requestBodyCapture.body : undefined,
+    responseBody:
+      observation.record.dropReason === undefined ? capturedResponseBody.body : undefined,
   });
 }
 
@@ -279,9 +273,9 @@ async function captureRequestBodyFromCache(observation: RequestObservation): Pro
     return;
   }
   try {
-    const bytes = await resolveCachedBodyBytes(bodyCache);
-    if (bytes) {
-      observation.requestBodyCapture.addChunk(bytes);
+    const chunk = await resolveCachedBodyChunk(bodyCache);
+    if (chunk !== undefined) {
+      observation.requestBodyCapture.addChunk(chunk);
       observation.requestBodyCapture.markComplete();
     }
   } catch (error) {
@@ -289,16 +283,16 @@ async function captureRequestBodyFromCache(observation: RequestObservation): Pro
   }
 }
 
-async function resolveCachedBodyBytes(
+async function resolveCachedBodyChunk(
   bodyCache: Record<string, unknown>,
-): Promise<Uint8Array | undefined> {
+): Promise<Uint8Array | string | undefined> {
   if (bodyCache.arrayBuffer !== undefined) {
     const value: unknown = await bodyCache.arrayBuffer;
     return value instanceof ArrayBuffer ? new Uint8Array(value) : undefined;
   }
   if (bodyCache.text !== undefined) {
     const value: unknown = await bodyCache.text;
-    return typeof value === "string" ? Buffer.from(value) : undefined;
+    return typeof value === "string" ? value : undefined;
   }
   if (bodyCache.blob !== undefined) {
     const value: unknown = await bodyCache.blob;

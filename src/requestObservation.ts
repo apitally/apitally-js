@@ -8,7 +8,7 @@ import {
 } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import { normalizeHeaders } from "./capture.js";
-import type { ApitallyConfig } from "./config.js";
+import { getConfig } from "./config.js";
 import {
   type ConsumerHolder,
   type RequestRecord,
@@ -60,9 +60,13 @@ export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerS
     // no second span, and the request runs under the user's context.
     spanHandle.span = activeSpan;
     record.serverSpanId = activeSpan.spanContext().spanId;
+    if (getActiveSpanPipeline()?.isRequestInFlight(record.serverSpanId) !== true) {
+      record.dropReason = "sampled-out";
+    }
     requestContext = withRequestHolders(activeContext, spanHandle, record, consumerHolder);
   } else if (activeSpan && !activeSpan.isRecording()) {
     warnAboutNonRecordingServerSpan();
+    record.dropReason = "sampled-out";
     requestContext = withRequestHolders(activeContext, spanHandle, record, consumerHolder);
   } else {
     requestContext = withRequestHolders(extractedContext, spanHandle, record, consumerHolder);
@@ -71,6 +75,7 @@ export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerS
       .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
     if (!ownSpan.isRecording()) {
       warnAboutNonRecordingServerSpan();
+      record.dropReason = "sampled-out";
       ownSpan = undefined;
     } else {
       spanHandle.span = ownSpan;
@@ -93,7 +98,6 @@ export interface FinalizeRequestOptions {
   spanHandle: SpanHandle;
   ownSpan?: Span;
   rpcMetadata?: RPCMetadata;
-  config: ApitallyConfig;
   method: string;
   durationSeconds: number;
   statusCode: number;
@@ -107,7 +111,7 @@ export interface FinalizeRequestOptions {
 }
 
 export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions): void {
-  const { record, spanHandle, ownSpan, rpcMetadata, config, method, statusCode, route } = options;
+  const { record, spanHandle, ownSpan, rpcMetadata, method, statusCode, route } = options;
   record.durationSeconds = options.durationSeconds;
   const span = spanHandle.span;
   writeRequestAttribute(span, record, "http.response.status_code", statusCode);
@@ -136,6 +140,7 @@ export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions)
   // A dropped request's spans are never released, so a stash entry for it
   // would sit unconsumed until the cap evicts it.
   if (record.serverSpanId !== undefined && record.dropReason === undefined) {
+    const config = getConfig();
     const stash: RequestStash = {};
     if (config.captureRequestHeaders) {
       stash.requestHeaders = normalizeHeaders(options.requestHeaders);

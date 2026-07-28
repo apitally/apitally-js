@@ -11,7 +11,7 @@ import type { RPCMetadata } from "@opentelemetry/core";
 import type { Express, NextFunction, Request, Response } from "express";
 import { activate, getActivationHandles, isActivated } from "../activation.js";
 import { BodyCapture } from "../capture.js";
-import { type ApitallyConfig, getConfig } from "../config.js";
+import { getConfig } from "../config.js";
 import {
   type ConsumerHolder,
   getConsumerHolder,
@@ -128,11 +128,13 @@ function observeRequest(
     record,
     consumerHolder,
   });
+  if (record.dropReason !== undefined) {
+    requestBodyCapture.stopBuffering();
+  }
 
   installResponseObservation({
     req,
     res,
-    config,
     record,
     spanHandle,
     ownSpan,
@@ -148,7 +150,6 @@ function observeRequest(
 interface ResponseObservationOptions {
   req: IncomingMessage;
   res: ServerResponse;
-  config: ApitallyConfig;
   record: RequestRecord;
   spanHandle: SpanHandle;
   ownSpan?: Span;
@@ -162,12 +163,13 @@ interface ResponseObservationOptions {
 // Patching write and end before middleware lets compression wrappers feed their
 // final wire bytes through capture.
 function installResponseObservation(options: ResponseObservationOptions): void {
-  const { res, config } = options;
+  const { res, record } = options;
+  const captureResponseBody = getConfig().captureResponseBody;
   let responseBodyCapture: BodyCapture | undefined;
   // Response headers are settled when the first write flushes them.
   const ensureResponseBodyCapture = (): BodyCapture => {
     responseBodyCapture ??= new BodyCapture({
-      captureBody: config.captureResponseBody,
+      captureBody: captureResponseBody && record.dropReason === undefined,
       contentType: firstStringValue(res.getHeader("content-type")),
       contentLength: res.getHeader("content-length") as string | number | string[] | undefined,
       transferEncoding: res.getHeader("transfer-encoding") as string | string[] | undefined,
@@ -224,7 +226,6 @@ function finalizeRequestFromResponse(
   const {
     req,
     res,
-    config,
     record,
     spanHandle,
     ownSpan,
@@ -244,12 +245,12 @@ function finalizeRequestFromResponse(
       'Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
   }
+  const shouldReadCapturedBodies = record.dropReason === undefined;
   finalizeRecordAndReleaseRequest({
     record,
     spanHandle,
     ownSpan,
     rpcMetadata,
-    config,
     method,
     durationSeconds,
     statusCode: res.statusCode,
@@ -258,8 +259,8 @@ function finalizeRequestFromResponse(
     responseHeaders: res.getHeaders(),
     requestBodySize: requestBodyCapture.size,
     responseBodySize: responseBodyCapture.size,
-    requestBody: requestBodyCapture.body,
-    responseBody: responseBodyCapture.body,
+    requestBody: shouldReadCapturedBodies ? requestBodyCapture.body : undefined,
+    responseBody: shouldReadCapturedBodies ? responseBodyCapture.body : undefined,
   });
 }
 

@@ -415,11 +415,11 @@ describe("express adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     const attributes = spans[0].attributes;
-    const capturedBody = attributes["apitally.response.body"];
-    if (!(capturedBody instanceof Uint8Array)) {
+    const capturedResponseBody = attributes["apitally.response.body"];
+    if (!(capturedResponseBody instanceof Uint8Array)) {
       throw new Error("Expected a byte-valued response body");
     }
-    const capturedBytes = Buffer.from(capturedBody);
+    const capturedBytes = Buffer.from(capturedResponseBody);
     expect(gunzipSync(capturedBytes).toString()).toBe(JSON.stringify(payload));
     expect(attributes["http.response.body.size"]).toBe(capturedBytes.length);
   });

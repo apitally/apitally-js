@@ -49,6 +49,20 @@ describe("capture", () => {
     expect(capture.size).toBe(12);
   });
 
+  it("stops buffering while continuing to count observed bytes", () => {
+    const capture = new BodyCapture({
+      captureBody: true,
+      contentType: "application/json",
+    });
+    capture.addChunk(Buffer.from("kept"));
+    capture.stopBuffering();
+    capture.addChunk("€");
+    capture.markComplete();
+
+    expect(capture.body).toBeUndefined();
+    expect(capture.size).toBe(7);
+  });
+
   it("tees a web response stream without consuming or delaying it", async () => {
     const { response, pushChunk, closeStream } = createChunkedResponse();
     const [teedResponse, captured] = captureResponse(response, true);

@@ -12,7 +12,7 @@ export interface BodyCaptureOptions {
 // Capture eligibility and declared oversize decisions use headers only; all
 // observed bytes still count toward size.
 export class BodyCapture {
-  private readonly shouldCapture: boolean;
+  private shouldCapture: boolean;
   private readonly declaredSize?: number;
   private tooLarge: boolean;
   private chunks: Uint8Array[] = [];
@@ -37,12 +37,14 @@ export class BodyCapture {
   }
 
   addChunk(chunk: Buffer | Uint8Array | string, encoding?: BufferEncoding): void {
-    const bytes = typeof chunk === "string" ? Buffer.from(chunk, encoding) : chunk;
-    this.observedLength += bytes.byteLength;
+    const byteLength =
+      typeof chunk === "string" ? Buffer.byteLength(chunk, encoding) : chunk.byteLength;
+    this.observedLength += byteLength;
     if (!this.shouldCapture || this.tooLarge) {
       return;
     }
-    this.bufferedLength += bytes.byteLength;
+    const bytes = typeof chunk === "string" ? Buffer.from(chunk, encoding) : chunk;
+    this.bufferedLength += byteLength;
     if (this.bufferedLength > MAX_BODY_SIZE) {
       // A body must never be exported truncated, so crossing the cap discards
       // the buffer and yields the sentinel.
@@ -51,6 +53,13 @@ export class BodyCapture {
       return;
     }
     this.chunks.push(bytes);
+  }
+
+  stopBuffering(): void {
+    this.shouldCapture = false;
+    this.tooLarge = false;
+    this.chunks = [];
+    this.bufferedLength = 0;
   }
 
   markComplete(): void {

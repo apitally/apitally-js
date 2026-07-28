@@ -309,11 +309,11 @@ describe("hono adapter", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     const attributes = spans[0].attributes;
-    const capturedBody = attributes["apitally.response.body"];
-    if (!(capturedBody instanceof Uint8Array)) {
+    const capturedResponseBody = attributes["apitally.response.body"];
+    if (!(capturedResponseBody instanceof Uint8Array)) {
       throw new Error("Expected a byte-valued response body");
     }
-    expect(Buffer.from(capturedBody).equals(wireBytes)).toBe(true);
+    expect(Buffer.from(capturedResponseBody).equals(wireBytes)).toBe(true);
     expect(attributes["http.response.body.size"]).toBe(wireBytes.length);
   });
 
