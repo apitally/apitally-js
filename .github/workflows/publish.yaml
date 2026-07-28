@@ -1,0 +1,39 @@
+name: Publish
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: 24.17.x
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: npm ci
+      - name: Build package
+        run: npm run build
+      - name: Check package types
+        run: npm run check:package --if-present
+      - name: Update version from release tag
+        run: npm version from-git --no-git-tag-version
+      - name: Publish to npm
+        run: |
+          version="$(node --print "require('./package.json').version")"
+          prerelease="${version#*-}"
+          if [[ "$prerelease" = "$version" ]]; then
+            npm publish
+          else
+            npm publish --tag "${prerelease%%.*}"
+          fi
