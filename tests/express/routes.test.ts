@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import { createRequire } from "node:module";
 import express, { type Express } from "express";
 import { describe, expect, it } from "vitest";
 import {
@@ -8,6 +9,10 @@ import {
   resolveStartupPaths,
 } from "../../src/express/routes.js";
 import { withServer } from "../utils.js";
+
+const { version: expressVersion } = createRequire(import.meta.url)("express/package.json") as {
+  version: string;
+};
 
 interface RouteFixture {
   app: Express;
@@ -53,6 +58,24 @@ async function sendRequestsAndResolveRoutes(fixture: RouteFixture, requestPaths:
   return requestPaths.map((requestPath, index) =>
     finishRouteTracking(fixture.requests[firstRequestIndex + index], requestPath.split("?")[0]),
   );
+}
+
+async function expectPureCatchAllSegmentOmitted(catchAllPath: string): Promise<void> {
+  const fixture = createRouteFixture();
+  const catchAllRouter = express.Router();
+  catchAllRouter.get(catchAllPath, respondOk);
+  fixture.app.use("/files", catchAllRouter);
+
+  const [routeResult] = await sendRequestsAndResolveRoutes(fixture, ["/files/a/b"]);
+  expect(routeResult).toEqual({ route: "/files", matchedUncapturedRegistration: false });
+}
+
+async function expectNamedWildcardTemplatePreserved(wildcardPath: string): Promise<void> {
+  const fixture = createRouteFixture();
+  fixture.app.get(wildcardPath, respondOk);
+
+  const [routeResult] = await sendRequestsAndResolveRoutes(fixture, ["/assets/img/logo.png"]);
+  expect(routeResult).toEqual({ route: wildcardPath, matchedUncapturedRegistration: false });
 }
 
 const respondOk = (_req: unknown, res: { json: (body: object) => void }) => {
@@ -146,23 +169,19 @@ describe("express routes", () => {
     expect(routeResult).toEqual({ matchedUncapturedRegistration: true });
   });
 
-  it("omits pure catch-all templates while preserving named wildcards in longer routes", async () => {
-    const fixture = createRouteFixture();
-    const catchAllRouter = express.Router();
-    catchAllRouter.get("/{*splat}", respondOk);
-    fixture.app.use("/files", catchAllRouter);
-    fixture.app.get("/assets/{*path}", respondOk);
+  it.runIf(expressVersion.startsWith("4."))(
+    "omits pure catch-all templates while preserving named wildcards in longer Express 4 routes",
+    async () => {
+      await expectPureCatchAllSegmentOmitted("*");
+      await expectNamedWildcardTemplatePreserved("/assets/:path*");
+    },
+  );
 
-    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
-      "/files/a/b",
-      "/assets/img/logo.png",
-    ]);
-    expect(routeResults).toEqual([
-      { route: "/files", matchedUncapturedRegistration: false },
-      {
-        route: "/assets/{*path}",
-        matchedUncapturedRegistration: false,
-      },
-    ]);
-  });
+  it.runIf(expressVersion.startsWith("5."))(
+    "omits pure catch-all templates while preserving named wildcards in longer Express 5 routes",
+    async () => {
+      await expectPureCatchAllSegmentOmitted("/{*splat}");
+      await expectNamedWildcardTemplatePreserved("/assets/{*path}");
+    },
+  );
 });
