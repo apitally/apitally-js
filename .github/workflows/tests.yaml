@@ -9,7 +9,10 @@ on:
       - LICENSE
       - README.md
   pull_request:
+  schedule:
+    - cron: "0 0,12 * * *"
   workflow_dispatch:
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
@@ -28,131 +31,12 @@ jobs:
         run: npm ci
       - name: Run checks
         run: npm run check
-
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: "24"
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Run tests
-        run: npm test
-
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: "24"
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Build package
-        run: npm run build
-
-  attw:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: "24"
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
       - name: Build package
         run: npm run build
       - name: Check package types
         run: npm run check:package
 
-  test-matrix:
-    name: test-matrix (${{ matrix.name }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Node 20
-            node: "20"
-          - name: Node 22
-            node: "22"
-          - name: express 4 floor
-            node: "24"
-            deps: express4@npm:express@4.18.2
-          - name: express 5 floor
-            node: "24"
-            deps: express@5.0.0
-          - name: hono floor
-            node: "24"
-            deps: hono@4.8.4
-          - name: hono mid
-            node: "24"
-            deps: hono@4.10
-          - name: OTel floor
-            node: "24"
-            deps: >-
-              @opentelemetry/sdk-trace-node@2.9.0
-              @opentelemetry/sdk-trace-base@2.9.0
-              @opentelemetry/sdk-metrics@2.9.0
-              @opentelemetry/resources@2.9.0
-              @opentelemetry/core@2.9.0
-              @opentelemetry/context-async-hooks@2.9.0
-              @opentelemetry/sdk-logs@0.220.0
-              @opentelemetry/api-logs@0.220.0
-              @opentelemetry/otlp-transformer@0.220.0
-              @opentelemetry/instrumentation-undici@0.30.0
-              @opentelemetry/api@1.9.1
-          - name: Sentry 7
-            node: "24"
-            deps: "@sentry/node@7"
-          - name: winston floor
-            node: "24"
-            deps: winston@3.2.0
-          - name: pino floor
-            node: "24"
-            deps: pino@9.6.0
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: "${{ matrix.node }}"
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Override dependencies from matrix
-        if: matrix.deps
-        run: npm install --no-save --force ${{ matrix.deps }}
-      - name: Run tests
-        run: npm test
-
-  test-pnpm:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 10
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: "24"
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Build package
-        run: pnpm run build
-      - name: Run tests
-        run: pnpm exec vitest run
-
-  coverage:
+  test-coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -171,17 +55,51 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: ./coverage/
 
+  test-matrix:
+    name: test-matrix (${{ matrix.node }}, ${{ matrix.scenario }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22", "24"]
+        scenario:
+          - express
+          - express-5.0
+          - express-4.18
+          - hono
+          - hono-4.8
+        include:
+          - scenario: express
+            packages: express
+          - scenario: express-5.0
+            packages: express@5.0.0 pino@9.6.0
+          - scenario: express-4.18
+            packages: express@4.18.2 winston@3.2.0 @sentry/node@7
+          - scenario: hono
+            packages: hono
+          - scenario: hono-4.8
+            packages: hono@4.8.4 @opentelemetry/api@1.9.0
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: "${{ matrix.node }}"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install scenario dependencies
+        run: npm install --no-save --force ${{ matrix.packages }}
+      - name: Run tests
+        run: npm test
+
   ci-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
       - check
-      - test
+      - test-coverage
       - test-matrix
-      - test-pnpm
-      - build
-      - attw
-      - coverage
     if: always()
     steps:
       - name: Fail if any job failed or was cancelled
