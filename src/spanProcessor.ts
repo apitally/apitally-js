@@ -1,5 +1,6 @@
 import {
   type Span as ApiSpan,
+  type Attributes,
   type AttributeValue,
   type Context,
   type Exception,
@@ -332,6 +333,7 @@ export class SpanPipeline implements SpanProcessor {
   // of span-end timing. Map misses still record metrics and discard other data.
   handleTransportCompletion(record: RequestRecord): void {
     try {
+      record.dropReason = resolveTransportDropReason(record.attributes) ?? record.dropReason;
       const entry =
         record.serverSpanId !== undefined ? this.requests.get(record.serverSpanId) : undefined;
       if (entry && !entry.transportCompleted && !entry.released) {
@@ -469,13 +471,9 @@ export class SpanPipeline implements SpanProcessor {
   // excluded request never invokes a user sampling callback.
   private resolveDropReasonAtStart(span: Span): RequestDropReason | undefined {
     const attributes = span.attributes;
-    const method = attributes["http.request.method"] ?? attributes["http.method"];
-    if (method === "OPTIONS") {
-      return "options";
-    }
-    const scheme = attributes["url.scheme"] ?? attributes["http.scheme"];
-    if (scheme === "ws" || scheme === "wss") {
-      return "websocket";
+    const transportDropReason = resolveTransportDropReason(attributes);
+    if (transportDropReason !== undefined) {
+      return transportDropReason;
     }
     const path = attributes["url.path"] ?? attributes["http.target"];
     if (typeof path === "string" && matchesAny(this.excludePathPatterns, path.split("?")[0])) {
@@ -616,6 +614,15 @@ export function copySpan(span: ReadableSpan): SpanCopy {
     droppedEventsCount: span.droppedEventsCount,
     droppedLinksCount: span.droppedLinksCount,
   };
+}
+
+function resolveTransportDropReason(attributes: Attributes): RequestDropReason | undefined {
+  const method = attributes["http.request.method"] ?? attributes["http.method"];
+  if (method === "OPTIONS") {
+    return "method";
+  }
+  const scheme = attributes["url.scheme"] ?? attributes["http.scheme"];
+  return scheme === "ws" || scheme === "wss" ? "scheme" : undefined;
 }
 
 function writeConsumerAttributes(

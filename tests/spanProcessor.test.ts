@@ -408,23 +408,24 @@ describe("spanProcessor", () => {
     }
     expect(records.map((record) => record.dropReason)).toEqual([
       "excluded",
-      "options",
-      "websocket",
+      "method",
+      "scheme",
       "sampled-out",
       undefined,
     ]);
     expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
   });
 
-  it("records metrics and exports nothing on transport completion without an in-flight request", () => {
+  it("classifies and records metrics on transport completion without an in-flight request", () => {
     const { pipeline, exporter } = createTracePipeline();
     const records: RequestRecord[] = [];
     pipeline.metricsRecorder = (record) => records.push(record);
     const record: RequestRecord = {
-      attributes: { "http.request.method": "GET" },
+      attributes: { "http.request.method": "OPTIONS" },
       serverSpanId: "00f067aa0ba902b7",
     };
     pipeline.handleTransportCompletion(record);
+    expect(record.dropReason).toBe("method");
     expect(records).toEqual([record]);
     expect(exporter.getFinishedSpans()).toHaveLength(0);
   });

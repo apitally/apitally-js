@@ -20,7 +20,7 @@ export interface ConsumerHolder {
 
 // Requests dropped for these reasons are still counted in request metrics,
 // except preflight and websocket requests, which are never recorded.
-export type RequestDropReason = "excluded" | "options" | "websocket" | "sampled-out";
+export type RequestDropReason = "excluded" | "method" | "scheme" | "sampled-out";
 
 // Transport attributes are applied to exported spans last and used for metrics,
 // so transport values take precedence.

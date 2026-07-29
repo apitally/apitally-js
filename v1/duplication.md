@@ -38,13 +38,15 @@ These operations are SDK request-observation invariants rather than framework-sp
 
 ### 3. Low: OPTIONS and WebSocket classification is repeated
 
+**Status:** Completed
+
 **References:** `src/spanProcessor.ts:470-480`, `src/metrics.ts:59-70`
 
 The span and metrics pipelines both resolve stable and legacy HTTP method and scheme attributes and independently classify OPTIONS and WebSocket requests as telemetry that must not be recorded.
 
-The metrics fallback is necessary for adopted SERVER spans whose request record did not exist at span start. The classification policy itself does not need two implementations. Drift could suppress traces while still recording request metrics, or the reverse.
+A transport-completion fallback is necessary for adopted SERVER spans whose request record did not exist at span start. The classification policy itself does not need two implementations. Drift could suppress traces while still recording request metrics, or the reverse.
 
-**Recommendation:** use one shared operation that returns `"options"`, `"websocket"`, or `undefined` from request attributes. Keep exclusion paths, user-agent exclusions, and sampling decisions in the span pipeline.
+**Recommendation:** use one shared operation that returns `"method"`, `"scheme"`, or `undefined` from request attributes at span start and transport completion. Metrics should consume the resulting drop reason. Keep exclusion paths, user-agent exclusions, and sampling decisions in the span pipeline.
 
 ### 4. Low: Expired spool-file disposal is repeated
 

@@ -21,8 +21,7 @@ import type { Spool } from "./spool.js";
 // no scale option; higher-scale points are downscaled before serialization.
 const MAX_EXPORTED_HISTOGRAM_SCALE = 3;
 
-// Request histograms use finalized transport data, independent of span timing
-// and sampling. The export worker collects them with process gauges.
+// Request histograms use finalized transport data, independent of span timing and sampling.
 export class MetricsPipeline {
   readonly meterProvider: MeterProvider;
   readonly reader: MetricReader;
@@ -54,20 +53,14 @@ export class MetricsPipeline {
       .addCallback((result) => result.observe(process.uptime()));
   }
 
-  // `metricsRecorder` receives finalized transport records. Excluded and sampled-out
-  // requests count; preflight, websocket, and unmatched routes do not.
+  // Excluded and sampled-out requests count; preflight, websocket, and unmatched routes do not.
   recordFromRequest(record: RequestRecord): void {
-    if (record.dropReason === "options" || record.dropReason === "websocket") {
+    if (record.dropReason === "method" || record.dropReason === "scheme") {
       return;
     }
     const source = record.attributes;
     const method = source["http.request.method"] ?? source["http.method"];
     const scheme = source["url.scheme"] ?? source["http.scheme"];
-    // User SERVER spans can start before the request record exists, so attributes
-    // identify preflight and websocket requests when no drop reason is present.
-    if (method === "OPTIONS" || scheme === "ws" || scheme === "wss") {
-      return;
-    }
     const route = source["http.route"];
     if (typeof route !== "string" || route === "") {
       return;
