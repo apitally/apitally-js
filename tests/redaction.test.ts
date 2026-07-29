@@ -29,7 +29,7 @@ describe("redaction", () => {
     expect(redaction.redactQueryParams("/items/key=value", false)).toBe("/items/key=value");
   });
 
-  it("redacts headers matching default and user-configured patterns to a single [REDACTED] element", () => {
+  it("redacts scalar and list header values matching default and user-configured patterns", () => {
     setConfig({ writeToken: WRITE_TOKEN, maskHeaders: ["x-internal"] });
     const redaction = new Redaction();
     expect(
@@ -38,18 +38,13 @@ describe("redaction", () => {
         "x-api-key": ["abc", "def"],
         authorization: "Bearer xyz",
         "x-internal-id": ["1"],
+        x_api_key: ["ghi"],
       }),
     ).toEqual({
       "content-type": ["application/json"],
       "x-api-key": [REDACTED],
       authorization: REDACTED,
       "x-internal-id": [REDACTED],
-    });
-  });
-
-  it("redacts headers whose names use underscores instead of dashes", () => {
-    const redaction = new Redaction();
-    expect(redaction.redactHeaders({ x_api_key: ["abc"] })).toEqual({
       x_api_key: [REDACTED],
     });
   });

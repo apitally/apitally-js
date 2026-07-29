@@ -53,14 +53,14 @@ function attributesOfSpan(spans: ReadableSpan[], name: string): Record<string, u
 }
 
 describe("exporter", () => {
-  it("redacts query and captured header attributes in both semconv normalizations on every span, leaving the original untouched", async () => {
+  it("redacts query and HTTP header attributes on every span, leaving the original untouched", async () => {
     const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer, {
       attributes: {
         "url.query": "token=secret123&page=2",
         "http.target": "/items?token=secret123&page=2",
         "http.url": "https://example.com/items?token=secret123&page=2",
-        "http.request.header.authorization": ["Bearer secret123"],
+        "http.request.header.authorization": "Bearer secret123",
         "http.response.header.set-cookie": ["session=abc"],
         "http.response.header.content-type": ["application/json"],
         "http.response.header.location": ["/next?token=secret123&page=2"],
@@ -92,14 +92,14 @@ describe("exporter", () => {
     expect(serverAttributes["http.url"]).toBe(
       "https://example.com/items?token=%5BREDACTED%5D&page=2",
     );
-    expect(serverAttributes["http.request.header.authorization"]).toEqual(["[REDACTED]"]);
+    expect(serverAttributes["http.request.header.authorization"]).toBe("[REDACTED]");
     expect(serverAttributes["http.response.header.set-cookie"]).toEqual(["[REDACTED]"]);
     expect(serverAttributes["http.response.header.content-type"]).toEqual(["application/json"]);
     expect(serverAttributes["http.response.header.location"]).toEqual([
       "/next?token=%5BREDACTED%5D&page=2",
     ]);
     expect(span.attributes["url.query"]).toBe("token=secret123&page=2");
-    expect(span.attributes["http.request.header.authorization"]).toEqual(["Bearer secret123"]);
+    expect(span.attributes["http.request.header.authorization"]).toBe("Bearer secret123");
   });
 
   it("applies the request record onto the export copy last, so late-learned transport values win", async () => {

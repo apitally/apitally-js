@@ -11,7 +11,7 @@ export const REDACTED = "[REDACTED]";
 
 // Location headers can contain secret query values, so redaction targets only
 // their query parameters.
-export const URL_HEADER_NAMES = new Set(["location", "content-location"]);
+const URL_HEADER_NAMES = new Set(["location", "content-location"]);
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -50,18 +50,29 @@ export class Redaction {
   redactHeaders(headers: Record<string, string | string[]>): Record<string, string | string[]> {
     const result: Record<string, string | string[]> = {};
     for (const [name, value] of Object.entries(headers)) {
-      if (this.shouldRedactHeader(name)) {
-        result[name] = typeof value === "string" ? REDACTED : [REDACTED];
-      } else if (URL_HEADER_NAMES.has(name.toLowerCase())) {
-        result[name] =
-          typeof value === "string"
-            ? this.redactQueryParams(value, false)
-            : value.map((item) => this.redactQueryParams(item, false));
-      } else {
-        result[name] = value;
-      }
+      result[name] = this.redactHeaderValue(name, value);
     }
     return result;
+  }
+
+  redactHeaderValue(name: string, value: string | string[]): string | string[];
+  redactHeaderValue(name: string, value: unknown): unknown;
+  redactHeaderValue(name: string, value: unknown): unknown {
+    if (this.shouldRedactHeader(name)) {
+      return Array.isArray(value) ? [REDACTED] : REDACTED;
+    }
+    if (!URL_HEADER_NAMES.has(name.toLowerCase())) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return this.redactQueryParams(value, false);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) =>
+        typeof item === "string" ? this.redactQueryParams(item, false) : item,
+      );
+    }
+    return value;
   }
 
   // Whether a body is JSON is decided by a parse attempt, never by content type.
@@ -81,7 +92,7 @@ export class Redaction {
     return JSON.stringify(this.redactBodyFields(data));
   }
 
-  shouldRedactHeader(name: string): boolean {
+  private shouldRedactHeader(name: string): boolean {
     // OpenTelemetry HTTP header attributes normalize hyphens to underscores.
     return (
       matchesAny(this.headerPatterns, name) ||

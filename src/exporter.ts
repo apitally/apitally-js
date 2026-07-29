@@ -12,7 +12,7 @@ import {
   MAX_BODY_SIZE,
 } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
-import { REDACTED, type Redaction, URL_HEADER_NAMES } from "./redaction.js";
+import { REDACTED, type Redaction } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";
 import type { Signal, Spool } from "./spool.js";
 
@@ -150,18 +150,7 @@ export class ApitallySpanExporter implements SpanExporter {
             ? REQUEST_HEADER_ATTRIBUTE_PREFIX.length
             : RESPONSE_HEADER_ATTRIBUTE_PREFIX.length,
         );
-        if (this.redaction.shouldRedactHeader(headerName)) {
-          attributes[key] = typeof value === "string" ? REDACTED : [REDACTED];
-        } else if (URL_HEADER_NAMES.has(headerName.toLowerCase())) {
-          // Redirect targets can carry secrets in their query strings.
-          if (typeof value === "string") {
-            attributes[key] = this.redaction.redactQueryParams(value, false);
-          } else if (Array.isArray(value)) {
-            attributes[key] = value.map((item) =>
-              typeof item === "string" ? this.redaction.redactQueryParams(item, false) : item,
-            );
-          }
-        }
+        attributes[key] = this.redaction.redactHeaderValue(headerName, value);
       }
     }
   }
