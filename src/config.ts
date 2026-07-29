@@ -153,7 +153,8 @@ function resolveConfig(options: ApitallyOptions): {
     appVersion: options.appVersion,
     disabled:
       options.disabled ??
-      isTruthyEnvValue(process.env.APITALLY_DISABLED || process.env.OTEL_SDK_DISABLED),
+      (isTruthyEnvValue(process.env.APITALLY_DISABLED) ||
+        isTruthyEnvValue(process.env.OTEL_SDK_DISABLED)),
     captureLogs: options.captureLogs ?? true,
     captureRequestHeaders: options.captureRequestHeaders ?? false,
     captureRequestBody: options.captureRequestBody ?? false,

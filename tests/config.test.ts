@@ -64,6 +64,13 @@ describe("config", () => {
     expect(config.disabled).toBe(disabled);
   });
 
+  it("disables the SDK when either disable environment variable is true", () => {
+    process.env.APITALLY_DISABLED = "false";
+    process.env.OTEL_SDK_DISABLED = "true";
+    const config = setConfig({ writeToken: WRITE_TOKEN });
+    expect(config.disabled).toBe(true);
+  });
+
   it("prefers an explicit disabled option over the disable environment variables", () => {
     process.env.APITALLY_DISABLED = "1";
     process.env.OTEL_SDK_DISABLED = "1";
