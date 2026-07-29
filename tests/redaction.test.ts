@@ -32,34 +32,23 @@ describe("redaction", () => {
   it("redacts scalar and list header values matching default and user-configured patterns", () => {
     setConfig({ writeToken: WRITE_TOKEN, maskHeaders: ["x-internal"] });
     const redaction = new Redaction();
-    expect(
-      redaction.redactHeaders({
-        "content-type": ["application/json"],
-        "x-api-key": ["abc", "def"],
-        authorization: "Bearer xyz",
-        "x-internal-id": ["1"],
-        x_api_key: ["ghi"],
-      }),
-    ).toEqual({
-      "content-type": ["application/json"],
-      "x-api-key": [REDACTED],
-      authorization: REDACTED,
-      "x-internal-id": [REDACTED],
-      x_api_key: [REDACTED],
-    });
+    expect(redaction.redactHeaderValue("content-type", ["application/json"])).toEqual([
+      "application/json",
+    ]);
+    expect(redaction.redactHeaderValue("x-api-key", ["abc", "def"])).toEqual([REDACTED]);
+    expect(redaction.redactHeaderValue("authorization", "Bearer xyz")).toBe(REDACTED);
+    expect(redaction.redactHeaderValue("x-internal-id", ["1"])).toEqual([REDACTED]);
+    expect(redaction.redactHeaderValue("x_api_key", ["ghi"])).toEqual([REDACTED]);
   });
 
   it("applies query param redaction to Location and Content-Location header values", () => {
     const redaction = new Redaction();
+    expect(redaction.redactHeaderValue("Location", "/callback?token=secret&ok=1")).toBe(
+      "/callback?token=%5BREDACTED%5D&ok=1",
+    );
     expect(
-      redaction.redactHeaders({
-        Location: "/callback?token=secret&ok=1",
-        "Content-Location": ["https://example.com/item?api-key=secret"],
-      }),
-    ).toEqual({
-      Location: "/callback?token=%5BREDACTED%5D&ok=1",
-      "Content-Location": ["https://example.com/item?api-key=%5BREDACTED%5D"],
-    });
+      redaction.redactHeaderValue("Content-Location", ["https://example.com/item?api-key=secret"]),
+    ).toEqual(["https://example.com/item?api-key=%5BREDACTED%5D"]);
   });
 
   it("masks nested JSON body fields matching default and user-configured patterns, leaving other fields untouched", () => {

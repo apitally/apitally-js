@@ -47,14 +47,6 @@ export class Redaction {
       : `${base}?${redactedParams.toString()}`;
   }
 
-  redactHeaders(headers: Record<string, string | string[]>): Record<string, string | string[]> {
-    const result: Record<string, string | string[]> = {};
-    for (const [name, value] of Object.entries(headers)) {
-      result[name] = this.redactHeaderValue(name, value);
-    }
-    return result;
-  }
-
   redactHeaderValue(name: string, value: string | string[]): string | string[];
   redactHeaderValue(name: string, value: unknown): unknown;
   redactHeaderValue(name: string, value: unknown): unknown {

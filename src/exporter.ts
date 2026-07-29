@@ -94,14 +94,16 @@ export class ApitallySpanExporter implements SpanExporter {
       writeCapturedHeaderAttributes(
         attributes,
         REQUEST_HEADER_ATTRIBUTE_PREFIX,
-        this.redaction.redactHeaders(stash.requestHeaders),
+        stash.requestHeaders,
+        this.redaction,
       );
     }
     if (stash?.responseHeaders) {
       writeCapturedHeaderAttributes(
         attributes,
         RESPONSE_HEADER_ATTRIBUTE_PREFIX,
-        this.redaction.redactHeaders(stash.responseHeaders),
+        stash.responseHeaders,
+        this.redaction,
       );
     }
     const copy = copySpan(span);
@@ -258,9 +260,11 @@ function writeCapturedHeaderAttributes(
   attributes: Record<string, unknown>,
   prefix: string,
   headers: Record<string, string | string[]>,
+  redaction: Redaction,
 ): void {
   for (const [name, values] of Object.entries(headers)) {
-    attributes[prefix + name] = Array.isArray(values) ? values : [values];
+    const redactedValues = redaction.redactHeaderValue(name, values);
+    attributes[prefix + name] = Array.isArray(redactedValues) ? redactedValues : [redactedValues];
   }
 }
 
