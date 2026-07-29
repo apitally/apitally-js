@@ -62,8 +62,6 @@ describe("exporter", () => {
         "http.url": "https://example.com/items?token=secret123&page=2",
         "http.request.header.authorization": "Bearer secret123",
         "http.response.header.set-cookie": ["session=abc"],
-        "http.response.header.content-type": ["application/json"],
-        "http.response.header.location": ["/next?token=secret123&page=2"],
       },
     });
     tracer
@@ -94,10 +92,6 @@ describe("exporter", () => {
     );
     expect(serverAttributes["http.request.header.authorization"]).toBe("[REDACTED]");
     expect(serverAttributes["http.response.header.set-cookie"]).toEqual(["[REDACTED]"]);
-    expect(serverAttributes["http.response.header.content-type"]).toEqual(["application/json"]);
-    expect(serverAttributes["http.response.header.location"]).toEqual([
-      "/next?token=%5BREDACTED%5D&page=2",
-    ]);
     expect(span.attributes["url.query"]).toBe("token=secret123&page=2");
     expect(span.attributes["http.request.header.authorization"]).toBe("Bearer secret123");
   });
@@ -130,12 +124,10 @@ describe("exporter", () => {
     pipeline.updateStash(span.spanContext().spanId, {
       requestHeaders: {
         authorization: ["Bearer secret123"],
-        accept: ["application/json"],
       },
       requestBody: Buffer.from('{"password": "hunter2"}'),
       responseHeaders: {
         "set-cookie": ["session=abc123"],
-        "content-type": ["application/json"],
       },
       responseBody: Buffer.from('{"token": "xyz", "id": 7}'),
     });
@@ -148,9 +140,7 @@ describe("exporter", () => {
     expect(attributes["apitally.request.body"]).toBe('{"password":"[REDACTED]"}');
     expect(attributes["apitally.response.body"]).toBe('{"token":"[REDACTED]","id":7}');
     expect(attributes["http.request.header.authorization"]).toEqual(["[REDACTED]"]);
-    expect(attributes["http.request.header.accept"]).toEqual(["application/json"]);
     expect(attributes["http.response.header.set-cookie"]).toEqual(["[REDACTED]"]);
-    expect(attributes["http.response.header.content-type"]).toEqual(["application/json"]);
     expect(span.attributes).toEqual({});
     const [userSpan] = userExporter.getFinishedSpans();
     expect(userSpan.attributes).toEqual({});
@@ -377,7 +367,6 @@ describe("exporter", () => {
     pipeline.updateStash(span.spanContext().spanId, {
       requestHeaders: {
         authorization: ["Bearer secret123"],
-        "content-type": ["application/json"],
       },
       requestBody: Buffer.from('{"a": 1}'),
     });
@@ -395,7 +384,6 @@ describe("exporter", () => {
     // The callback sees the exported span before body attributes are attached.
     expect(seen[0].attributes).toEqual({
       "http.request.header.authorization": ["[REDACTED]"],
-      "http.request.header.content-type": ["application/json"],
     });
   });
 
@@ -442,9 +430,7 @@ describe("exporter", () => {
     const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     tracer.startSpan("child", {}, trace.setSpan(request.context, span)).end();
-    const poisonedHeaders: Record<string, string[]> = {
-      accept: ["application/json"],
-    };
+    const poisonedHeaders: Record<string, string[]> = {};
     Object.defineProperty(poisonedHeaders, "cookie", {
       enumerable: true,
       get() {

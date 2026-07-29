@@ -84,6 +84,8 @@ The tests repeat the same observer promise, held response, release callback, cal
 
 ### 7. Low: The exporter test repeats redaction policy coverage
 
+**Status:** Completed
+
 **References:** `tests/exporter.test.ts:56-103`, `tests/redaction.test.ts:7-52`
 
 The exporter test repeats some Location and pass-through header policy already owned by the redaction module tests. The exporter still needs to prove query attribute-name detection, request and response header prefix detection, all-span processing, and copy-only mutation.
