@@ -13,15 +13,9 @@ import type { Hono, Context as HonoContext, MiddlewareHandler } from "hono";
 import { activate, isActivated } from "../activation.js";
 import { BodyCapture, type CapturedBody, captureResponse } from "../capture.js";
 import { getConfig } from "../config.js";
-import {
-  type ConsumerHolder,
-  getConsumerHolder,
-  getRequestRecord,
-  type RequestRecord,
-  type SpanHandle,
-} from "../context.js";
+import { getRequestRecord, type RequestRecord, type SpanHandle } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
-import { adoptOrStartServerSpan, finalizeRecordAndReleaseRequest } from "../requestObservation.js";
+import { finalizeRecordAndReleaseRequest, startRequestObservation } from "../requestObservation.js";
 import { captureException, coerceToException, getActiveSpanPipeline } from "../spanProcessor.js";
 import { type MatchedRouteResult, resolveMatchedRoute } from "./routes.js";
 
@@ -32,7 +26,7 @@ const TRACER_NAME = "apitally.hono";
 type FetchFunction = (request: Request, ...rest: unknown[]) => Response | Promise<Response>;
 
 interface RequestObservation {
-  record: RequestRecord;
+  requestRecord: RequestRecord;
   spanHandle: SpanHandle;
   ownSpan?: Span;
   rpcMetadata?: RPCMetadata;
@@ -46,7 +40,7 @@ interface RequestObservation {
 
 // WeakMap associates route middleware with transport observation without
 // retaining completed request records.
-const observationsByRecord = new WeakMap<RequestRecord, RequestObservation>();
+const observationsByRequestRecord = new WeakMap<RequestRecord, RequestObservation>();
 
 const WEB_HEADERS_GETTER: TextMapGetter<Headers> = {
   get: (carrier, key) => carrier.get(key) ?? undefined,
@@ -119,13 +113,13 @@ export function wrapAppFetch(app: Hono): void {
 // Registered before later routes, this middleware records the resolved route
 // and Hono body cache after next().
 const recordMatchedRouteAfterNext: MiddlewareHandler = async (c, next) => {
-  const record = getRequestRecord();
+  const requestRecord = getRequestRecord();
   await next();
-  if (!record) {
+  if (!requestRecord) {
     return;
   }
   try {
-    const observation = observationsByRecord.get(record);
+    const observation = observationsByRequestRecord.get(requestRecord);
     if (observation) {
       observation.honoContext = c;
       observation.matchedRoute = resolveMatchedRoute(c);
@@ -153,10 +147,7 @@ function observeRequest(
   const config = getConfig();
   const startTimeMillis = performance.now();
   const method = request.method.toUpperCase();
-  const record: RequestRecord = { attributes: {} };
-  const spanHandle: SpanHandle = {};
   const activeContext = context.active();
-  const consumerHolder: ConsumerHolder = getConsumerHolder(activeContext) ?? {};
   const requestBodyCapture = new BodyCapture({
     captureBody: config.captureRequestBody,
     contentType: request.headers.get("content-type"),
@@ -164,26 +155,18 @@ function observeRequest(
     transferEncoding: request.headers.get("transfer-encoding"),
   });
   const startAttributes = resolveStartAttributes(request, env, method, requestBodyCapture);
-  // Metrics and the exported span copy read from the record, so the start
-  // attributes are mirrored into it on every path, span or no span.
-  Object.assign(record.attributes, startAttributes);
-
-  const { requestContext, ownSpan, rpcMetadata } = adoptOrStartServerSpan({
-    activeContext,
-    extractedContext: propagation.extract(ROOT_CONTEXT, request.headers, WEB_HEADERS_GETTER),
-    tracerName: TRACER_NAME,
-    method,
-    startAttributes,
-    spanHandle,
-    record,
-    consumerHolder,
-  });
-  if (record.dropReason !== undefined) {
-    requestBodyCapture.stopBuffering();
-  }
+  const { requestRecord, requestContext, spanHandle, ownSpan, rpcMetadata } =
+    startRequestObservation({
+      activeContext,
+      extractedContext: propagation.extract(ROOT_CONTEXT, request.headers, WEB_HEADERS_GETTER),
+      tracerName: TRACER_NAME,
+      method,
+      startAttributes,
+      requestBodyCapture,
+    });
 
   const observation: RequestObservation = {
-    record,
+    requestRecord,
     spanHandle,
     ownSpan,
     rpcMetadata,
@@ -192,7 +175,7 @@ function observeRequest(
     startTimeMillis,
     method,
   };
-  observationsByRecord.set(record, observation);
+  observationsByRequestRecord.set(requestRecord, observation);
   return { observation, requestContext };
 }
 
@@ -202,7 +185,7 @@ function observeResponse(response: Response, observation: RequestObservation): R
   try {
     const [teedResponse, capturedBodyPromise] = captureResponse(
       response,
-      getConfig().captureResponseBody && observation.record.dropReason === undefined,
+      getConfig().captureResponseBody && observation.requestRecord.dropReason === undefined,
     );
     capturedBodyPromise
       .then((capturedResponseBody) =>
@@ -226,7 +209,7 @@ async function finalizeRequestFromResponse(
   const durationSeconds = (performance.now() - observation.startTimeMillis) / 1000;
   await captureRequestBodyFromCache(observation);
   finalizeRecordAndReleaseRequest({
-    record: observation.record,
+    requestRecord: observation.requestRecord,
     spanHandle: observation.spanHandle,
     ownSpan: observation.ownSpan,
     rpcMetadata: observation.rpcMetadata,
@@ -239,18 +222,20 @@ async function finalizeRequestFromResponse(
     requestBodySize: observation.requestBodyCapture.size,
     responseBodySize: capturedResponseBody.size,
     requestBody:
-      observation.record.dropReason === undefined ? observation.requestBodyCapture.body : undefined,
+      observation.requestRecord.dropReason === undefined
+        ? observation.requestBodyCapture.body
+        : undefined,
     responseBody:
-      observation.record.dropReason === undefined ? capturedResponseBody.body : undefined,
+      observation.requestRecord.dropReason === undefined ? capturedResponseBody.body : undefined,
   });
 }
 
-// A rejected dispatch has no response, so the record is finalized and the
-// rejection propagates unchanged.
+// A rejected dispatch has no response, so the request record is finalized and
+// the rejection propagates unchanged.
 function releaseRequestOnFetchRejection(observation: RequestObservation, error: unknown): void {
   try {
-    const { record, spanHandle, ownSpan, startTimeMillis } = observation;
-    record.durationSeconds = (performance.now() - startTimeMillis) / 1000;
+    const { requestRecord, spanHandle, ownSpan, startTimeMillis } = observation;
+    requestRecord.durationSeconds = (performance.now() - startTimeMillis) / 1000;
     const span = spanHandle.span;
     if (span?.isRecording()) {
       span.recordException(coerceToException(error));
@@ -259,7 +244,7 @@ function releaseRequestOnFetchRejection(observation: RequestObservation, error: 
       ownSpan.setStatus({ code: SpanStatusCode.ERROR });
       ownSpan.end();
     }
-    getActiveSpanPipeline()?.handleTransportCompletion(record);
+    getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
   } catch (finalizeError) {
     logWarning(`Error in the Apitally middleware: ${String(finalizeError)}`);
   }

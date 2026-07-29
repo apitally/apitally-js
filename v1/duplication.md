@@ -26,6 +26,8 @@ The implementations already differ. The custom parser does not percent-decode at
 
 ### 2. Medium: Express and Hono repeat request observation bootstrap policy
 
+**Status:** Completed
+
 **References:** `src/express/middleware.ts:99-134`, `src/hono/middleware.ts:153-184`, `src/requestObservation.ts:26-99`
 
 Both adapters independently create the request record and span handle, inherit or create the consumer holder, mirror start attributes into the request record, adopt or start the SERVER span, and stop request-body buffering when the request is dropped.

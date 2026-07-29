@@ -7,10 +7,10 @@ import {
   trace,
 } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
-import { normalizeHeaders } from "./capture.js";
+import { type BodyCapture, normalizeHeaders } from "./capture.js";
 import { getConfig } from "./config.js";
 import {
-  type ConsumerHolder,
+  getConsumerHolder,
   type RequestRecord,
   type SpanHandle,
   withRequestHolders,
@@ -23,34 +23,30 @@ import {
   writeRequestAttribute,
 } from "./spanProcessor.js";
 
-export interface StartServerSpanOptions {
+interface StartRequestObservationOptions {
   activeContext: Context;
   extractedContext: Context;
   tracerName: string;
   method: string;
   startAttributes: Attributes;
-  spanHandle: SpanHandle;
-  record: RequestRecord;
-  consumerHolder: ConsumerHolder;
+  requestBodyCapture: BodyCapture;
 }
 
-export interface ServerSpanObservation {
-  requestContext: Context;
-  ownSpan?: Span;
-  rpcMetadata?: RPCMetadata;
-}
-
-export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerSpanObservation {
+export function startRequestObservation(options: StartRequestObservationOptions) {
   const {
     activeContext,
     extractedContext,
     tracerName,
     method,
     startAttributes,
-    spanHandle,
-    record,
-    consumerHolder,
+    requestBodyCapture,
   } = options;
+  const requestRecord: RequestRecord = { attributes: {} };
+  const spanHandle: SpanHandle = {};
+  const consumerHolder = getConsumerHolder(activeContext) ?? {};
+  // Metrics and the exported span copy read from the request record, so the
+  // start attributes are mirrored into it on every path, span or no span.
+  Object.assign(requestRecord.attributes, startAttributes);
   const activeSpan = trace.getSpan(activeContext);
   let requestContext: Context;
   let ownSpan: Span | undefined;
@@ -60,28 +56,33 @@ export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerS
     // A SERVER span produced by the user's own instrumentation is adopted:
     // no second span, and the request runs under the user's context.
     spanHandle.span = activeSpan;
-    record.serverSpanId = activeSpan.spanContext().spanId;
-    if (getActiveSpanPipeline()?.isRequestInFlight(record.serverSpanId) !== true) {
-      record.dropReason = "sampled-out";
+    requestRecord.serverSpanId = activeSpan.spanContext().spanId;
+    if (getActiveSpanPipeline()?.isRequestInFlight(requestRecord.serverSpanId) !== true) {
+      requestRecord.dropReason = "sampled-out";
     }
-    requestContext = withRequestHolders(activeContext, spanHandle, record, consumerHolder);
+    requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
   } else if (activeSpan && !activeSpan.isRecording()) {
     warnAboutNonRecordingServerSpan();
-    record.dropReason = "sampled-out";
-    requestContext = withRequestHolders(activeContext, spanHandle, record, consumerHolder);
+    requestRecord.dropReason = "sampled-out";
+    requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
   } else {
-    requestContext = withRequestHolders(extractedContext, spanHandle, record, consumerHolder);
+    requestContext = withRequestHolders(
+      extractedContext,
+      spanHandle,
+      requestRecord,
+      consumerHolder,
+    );
     ownSpan = trace
       .getTracer(tracerName)
       .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
     if (!ownSpan.isRecording()) {
       warnAboutNonRecordingServerSpan();
-      record.dropReason = "sampled-out";
+      requestRecord.dropReason = "sampled-out";
       ownSpan = undefined;
     } else {
       spanHandle.span = ownSpan;
-      if (isApitallySpanProcessorDeclared() && record.serverSpanId === undefined) {
-        record.dropReason = "sampled-out";
+      if (isApitallySpanProcessorDeclared() && requestRecord.serverSpanId === undefined) {
+        requestRecord.dropReason = "sampled-out";
         warnAboutUnattachedSpanProcessor();
       }
       requestContext = trace.setSpan(requestContext, ownSpan);
@@ -95,11 +96,14 @@ export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerS
     rpcMetadata = { type: RPCType.HTTP, span: spanHandle.span };
     requestContext = setRPCMetadata(requestContext, rpcMetadata);
   }
-  return { requestContext, ownSpan, rpcMetadata };
+  if (requestRecord.dropReason !== undefined) {
+    requestBodyCapture.stopBuffering();
+  }
+  return { requestRecord, requestContext, spanHandle, ownSpan, rpcMetadata };
 }
 
 export interface FinalizeRequestOptions {
-  record: RequestRecord;
+  requestRecord: RequestRecord;
   spanHandle: SpanHandle;
   ownSpan?: Span;
   rpcMetadata?: RPCMetadata;
@@ -116,18 +120,18 @@ export interface FinalizeRequestOptions {
 }
 
 export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions): void {
-  const { record, spanHandle, ownSpan, rpcMetadata, method, statusCode, route } = options;
-  record.durationSeconds = options.durationSeconds;
+  const { requestRecord, spanHandle, ownSpan, rpcMetadata, method, statusCode, route } = options;
+  requestRecord.durationSeconds = options.durationSeconds;
   const span = spanHandle.span;
-  writeRequestAttribute(span, record, "http.response.status_code", statusCode);
+  writeRequestAttribute(span, requestRecord, "http.response.status_code", statusCode);
   if (options.requestBodySize !== undefined) {
-    writeRequestAttribute(span, record, "http.request.body.size", options.requestBodySize);
+    writeRequestAttribute(span, requestRecord, "http.request.body.size", options.requestBodySize);
   }
   if (options.responseBodySize !== undefined) {
-    writeRequestAttribute(span, record, "http.response.body.size", options.responseBodySize);
+    writeRequestAttribute(span, requestRecord, "http.response.body.size", options.responseBodySize);
   }
   if (route !== undefined) {
-    writeRequestAttribute(span, record, "http.route", route);
+    writeRequestAttribute(span, requestRecord, "http.route", route);
     if (rpcMetadata) {
       rpcMetadata.route = route;
     }
@@ -137,14 +141,14 @@ export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions)
   } else {
     // An empty route clears one set by the producing instrumentation; request
     // metrics omit empty routes.
-    record.attributes["http.route"] = "";
+    requestRecord.attributes["http.route"] = "";
   }
   if (ownSpan && statusCode >= 500) {
     ownSpan.setStatus({ code: SpanStatusCode.ERROR });
   }
   // A dropped request's spans are never released, so a stash entry for it
   // would sit unconsumed until the cap evicts it.
-  if (record.serverSpanId !== undefined && record.dropReason === undefined) {
+  if (requestRecord.serverSpanId !== undefined && requestRecord.dropReason === undefined) {
     const config = getConfig();
     const stash: RequestStash = {};
     if (config.captureRequestHeaders) {
@@ -160,11 +164,11 @@ export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions)
       stash.responseBody = options.responseBody;
     }
     if (Object.keys(stash).length > 0) {
-      getActiveSpanPipeline()?.updateStash(record.serverSpanId, stash);
+      getActiveSpanPipeline()?.updateStash(requestRecord.serverSpanId, stash);
     }
   }
   ownSpan?.end();
-  getActiveSpanPipeline()?.handleTransportCompletion(record);
+  getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
 }
 
 function warnAboutNonRecordingServerSpan(): void {

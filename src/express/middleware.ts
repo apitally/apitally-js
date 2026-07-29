@@ -12,14 +12,9 @@ import type { Express, NextFunction, Request, Response } from "express";
 import { activate, getActivationHandles, isActivated } from "../activation.js";
 import { BodyCapture } from "../capture.js";
 import { getConfig } from "../config.js";
-import {
-  type ConsumerHolder,
-  getConsumerHolder,
-  type RequestRecord,
-  type SpanHandle,
-} from "../context.js";
+import type { RequestRecord, SpanHandle } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
-import { adoptOrStartServerSpan, finalizeRecordAndReleaseRequest } from "../requestObservation.js";
+import { finalizeRecordAndReleaseRequest, startRequestObservation } from "../requestObservation.js";
 import { captureException } from "../spanProcessor.js";
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
 
@@ -101,10 +96,7 @@ function observeRequest(
   const method = (req.method ?? "GET").toUpperCase();
   // The URL is captured before Express mutates req.url during routing.
   const requestUrl = req.url ?? "/";
-  const record: RequestRecord = { attributes: {} };
-  const spanHandle: SpanHandle = {};
   const activeContext = context.active();
-  const consumerHolder: ConsumerHolder = getConsumerHolder(activeContext) ?? {};
   const requestBodyCapture = new BodyCapture({
     captureBody: config.captureRequestBody,
     contentType: req.headers["content-type"],
@@ -114,28 +106,20 @@ function observeRequest(
   observeRequestBody(req, requestBodyCapture);
   beginRouteTracking(req);
   const startAttributes = resolveStartAttributes(req, method, requestUrl, requestBodyCapture);
-  // Metrics and the exported span copy read from the record, so the start
-  // attributes are mirrored into it on every path, span or no span.
-  Object.assign(record.attributes, startAttributes);
-
-  const { requestContext, ownSpan, rpcMetadata } = adoptOrStartServerSpan({
-    activeContext,
-    extractedContext: propagation.extract(ROOT_CONTEXT, req.headers),
-    tracerName: TRACER_NAME,
-    method,
-    startAttributes,
-    spanHandle,
-    record,
-    consumerHolder,
-  });
-  if (record.dropReason !== undefined) {
-    requestBodyCapture.stopBuffering();
-  }
+  const { requestRecord, requestContext, spanHandle, ownSpan, rpcMetadata } =
+    startRequestObservation({
+      activeContext,
+      extractedContext: propagation.extract(ROOT_CONTEXT, req.headers),
+      tracerName: TRACER_NAME,
+      method,
+      startAttributes,
+      requestBodyCapture,
+    });
 
   installResponseObservation({
     req,
     res,
-    record,
+    requestRecord,
     spanHandle,
     ownSpan,
     rpcMetadata,
@@ -150,7 +134,7 @@ function observeRequest(
 interface ResponseObservationOptions {
   req: IncomingMessage;
   res: ServerResponse;
-  record: RequestRecord;
+  requestRecord: RequestRecord;
   spanHandle: SpanHandle;
   ownSpan?: Span;
   rpcMetadata?: RPCMetadata;
@@ -163,13 +147,13 @@ interface ResponseObservationOptions {
 // Patching write and end before middleware lets compression wrappers feed their
 // final wire bytes through capture.
 function installResponseObservation(options: ResponseObservationOptions): void {
-  const { res, record } = options;
+  const { res, requestRecord } = options;
   const captureResponseBody = getConfig().captureResponseBody;
   let responseBodyCapture: BodyCapture | undefined;
   // Response headers are settled when the first write flushes them.
   const ensureResponseBodyCapture = (): BodyCapture => {
     responseBodyCapture ??= new BodyCapture({
-      captureBody: captureResponseBody && record.dropReason === undefined,
+      captureBody: captureResponseBody && requestRecord.dropReason === undefined,
       contentType: firstStringValue(res.getHeader("content-type")),
       contentLength: res.getHeader("content-length") as string | number | string[] | undefined,
       transferEncoding: res.getHeader("transfer-encoding") as string | string[] | undefined,
@@ -213,8 +197,8 @@ function installResponseObservation(options: ResponseObservationOptions): void {
     }
   };
   res.on("finish", () => finalizeRequest(true));
-  // Close without finish means the client aborted mid-response: the record is
-  // finalized with what is known and the partial body stays suppressed.
+  // Close without finish means the client aborted mid-response: the request
+  // record is finalized with what is known and the partial body stays suppressed.
   res.on("close", () => finalizeRequest(false));
 }
 
@@ -226,7 +210,7 @@ function finalizeRequestFromResponse(
   const {
     req,
     res,
-    record,
+    requestRecord,
     spanHandle,
     ownSpan,
     rpcMetadata,
@@ -245,9 +229,9 @@ function finalizeRequestFromResponse(
       'Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
   }
-  const shouldReadCapturedBodies = record.dropReason === undefined;
+  const shouldReadCapturedBodies = requestRecord.dropReason === undefined;
   finalizeRecordAndReleaseRequest({
-    record,
+    requestRecord,
     spanHandle,
     ownSpan,
     rpcMetadata,
