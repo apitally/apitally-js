@@ -174,27 +174,6 @@ describe("exportWorker", () => {
     expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces"]);
   });
 
-  it("retries a failed send next cycle with a byte-identical payload", async () => {
-    const statuses = [503];
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
-      async () =>
-        new Response(null, {
-          status: statuses.shift() ?? 200,
-        }),
-    );
-    const worker = createWorker();
-    await spool.append("traces", TRACE_PAYLOAD_ITEMS);
-    await worker.runCycle();
-    expect(spool.pendingFiles()).toHaveLength(1);
-    await worker.runCycle();
-    expect(spool.pendingFiles()).toEqual([]);
-    expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/traces"]);
-    const firstBody = fetchSpy.mock.calls[0][1]?.body as Buffer;
-    const secondBody = fetchSpy.mock.calls[1][1]?.body as Buffer;
-    expect(firstBody.equals(secondBody)).toBe(true);
-    expect(gunzipSync(firstBody)).toEqual(TRACE_PAYLOAD_ITEMS);
-  });
-
   it("sends one probe per cycle during an outage and delivers data byte-identically after recovery", async () => {
     let isFailing = true;
     const fetchSpy = vi

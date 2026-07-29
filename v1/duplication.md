@@ -64,6 +64,8 @@ Both expiry checkpoints are required. Eviction removes stale backlog, while the 
 
 ### 5. Low: Export worker retry behavior is covered twice
 
+**Status:** Completed
+
 **References:** `tests/exportWorker.test.ts:177-196`, `tests/exportWorker.test.ts:198-223`
 
 Both tests verify that a retryable failure retains the file, retries the same bytes in a later cycle, and removes the file after recovery. The broader outage and recovery test also covers probe pacing and payloads appended during the outage.
