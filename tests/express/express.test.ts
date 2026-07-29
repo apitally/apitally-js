@@ -137,7 +137,7 @@ describe("express adapter", () => {
     expect(lines).toEqual([]);
   });
 
-  it("warns when mounting a router with uncaptured registrations and exports its requests with a cleared route skipped by the request metrics", async () => {
+  it("exports requests from a router assembled before capture while warning that startup enumeration is incomplete", async () => {
     const lines = captureStderr();
     prepareFirstRequestActivation();
     const legacyApp = express();
@@ -151,11 +151,13 @@ describe("express adapter", () => {
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("GET");
-    expect(spans[0].attributes["http.route"]).toBe("");
-    expect(await readActivationDurationDataPoints()).toEqual([]);
+    expect(spans[0].name).toBe("GET /legacy/pre/:id");
+    expect(spans[0].attributes["http.route"]).toBe("/legacy/pre/:id");
+    const dataPoints = await readActivationDurationDataPoints();
+    expect(dataPoints).toHaveLength(1);
+    expect(dataPoints[0].attributes["http.route"]).toBe("/legacy/pre/:id");
     const registerWarnings = lines.filter((line) => line.includes("apitally/express/register"));
-    expect(registerWarnings).toHaveLength(2);
+    expect(registerWarnings).toHaveLength(1);
   });
 
   it("excludes health check requests from spans while counting them in the request metrics, and records OPTIONS requests in neither", async () => {

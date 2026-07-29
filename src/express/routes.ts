@@ -2,10 +2,10 @@ import { logDebug, logWarning } from "../logger.js";
 import type { RoutePath } from "../startup.js";
 
 const ROUTER_PATCH_MARKER = Symbol.for("apitally.expressRouterPatch");
-const ROUTE_PATCH_MARKER = Symbol.for("apitally.expressRoutePatch");
+const ROUTER_CAPTURE_TABLE_KEY = Symbol.for("apitally.expressRouterCaptureTable");
 const APP_USE_PATCH_MARKER = Symbol.for("apitally.expressAppUsePatch");
 // Request-scoped tracking state lives on the request object itself, so the
-// dispatch patches and the transport middleware share it across module copies.
+// mount patches and the transport middleware share it across module copies.
 const ROUTE_STATE_KEY = Symbol.for("apitally.expressRouteState");
 
 const INLINE_PARAM_REGEX_PATTERN = /(:\w+)\([^)]*\)/g;
@@ -30,7 +30,6 @@ interface RouteTrackingState {
   mountSegments: string[];
   mountBaseUrls: string[];
   assembledTemplate?: string;
-  sawCapturedRouteDispatch: boolean;
 }
 
 interface RouteTrackingResult {
@@ -38,13 +37,8 @@ interface RouteTrackingResult {
   matchedUncapturedRegistration: boolean;
 }
 
-const captureTables = new WeakMap<object, RouterCaptureTable>();
-// Dispatch assembles only routes captured after patching, independent of how
-// each Express version binds dispatch.
-const capturedRoutes = new WeakSet<object>();
-
-// Express stores templates in path-to-regexp closures, so a probe from the user's
-// Express module locates and patches the shared router prototypes.
+// Express stores templates in path-to-regexp closures, so capture patches the
+// router registration methods before routes are registered.
 export function installRouteCaptureFromExpress(expressModule: unknown): void {
   const routerFactory = (expressModule as { Router?: unknown } | undefined)?.Router;
   if (typeof routerFactory !== "function") {
@@ -73,7 +67,6 @@ export function beginRouteTracking(req: object): void {
   const state: RouteTrackingState = {
     mountSegments: [],
     mountBaseUrls: [],
-    sawCapturedRouteDispatch: false,
   };
   (req as Record<symbol, unknown>)[ROUTE_STATE_KEY] = state;
 }
@@ -82,10 +75,10 @@ export function beginRouteTracking(req: object): void {
 // registration.
 export function finishRouteTracking(req: object, requestPath: string): RouteTrackingResult {
   const state = (req as Record<symbol, unknown>)[ROUTE_STATE_KEY] as RouteTrackingState | undefined;
-  const matchedExpressRoute = (req as { route?: unknown }).route !== undefined;
   if (!state) {
     return { matchedUncapturedRegistration: false };
   }
+  assembleMatchedRoute(state, req);
   if (state.assembledTemplate !== undefined) {
     if (matchesTemplate(state.assembledTemplate, requestPath, "prefix")) {
       return {
@@ -97,11 +90,7 @@ export function finishRouteTracking(req: object, requestPath: string): RouteTrac
     // chain was made before the capture patch was installed.
     return { matchedUncapturedRegistration: true };
   }
-  if (state.sawCapturedRouteDispatch) {
-    // The dispatched route has no meaningful template, such as a pure catch-all.
-    return { matchedUncapturedRegistration: false };
-  }
-  return { matchedUncapturedRegistration: matchedExpressRoute };
+  return { matchedUncapturedRegistration: false };
 }
 
 export function resolveStartupPaths(app: unknown): RoutePath[] {
@@ -121,13 +110,13 @@ function collectStartupPaths(
   seenPaths: Set<string>,
   paths: RoutePath[],
 ): void {
-  const router = captureTables.has(routerOrSubApp)
+  const router = getCapturedTable(routerOrSubApp)
     ? routerOrSubApp
     : resolveSubAppRouter(routerOrSubApp);
   if (!router || visited.has(router)) {
     return;
   }
-  const table = captureTables.get(router);
+  const table = getCapturedTable(router);
   if (!table) {
     return;
   }
@@ -164,25 +153,25 @@ function collectStartupPaths(
 
 function installRouteCapturePatches(routerInstance: object): void {
   const routerPrototype = findOwnerOfProperty(routerInstance, "route");
-  if (!routerPrototype || typeof routerPrototype.route !== "function") {
+  const routeDescriptor = routerPrototype
+    ? Object.getOwnPropertyDescriptor(routerPrototype, "route")
+    : undefined;
+  const useDescriptor = routerPrototype
+    ? Object.getOwnPropertyDescriptor(routerPrototype, "use")
+    : undefined;
+  if (
+    !routerPrototype ||
+    typeof routeDescriptor?.value !== "function" ||
+    routeDescriptor.writable !== true ||
+    typeof useDescriptor?.value !== "function" ||
+    useDescriptor.writable !== true ||
+    !Object.isExtensible(routerPrototype)
+  ) {
     logDebug("The express router prototype was not recognized");
     return;
   }
   if (routerPrototype[ROUTER_PATCH_MARKER] !== true) {
     patchRouterPrototype(routerPrototype);
-  }
-  const probeRoute = createProbeRoute(routerPrototype);
-  if (!probeRoute) {
-    logDebug("The express route prototype was not recognized");
-    return;
-  }
-  const routePrototype = findOwnerOfProperty(probeRoute, "dispatch");
-  if (!routePrototype || typeof routePrototype.dispatch !== "function") {
-    logDebug("The express route prototype was not recognized");
-    return;
-  }
-  if (routePrototype[ROUTE_PATCH_MARKER] !== true) {
-    patchRoutePrototype(routePrototype);
   }
 }
 
@@ -192,7 +181,6 @@ function patchRouterPrototype(routerPrototype: Record<PropertyKey, unknown>): vo
     const route = originalRoute.apply(this, args);
     try {
       tableFor(this).routes.push(route);
-      capturedRoutes.add(route as unknown as object);
     } catch (error) {
       logDebug(`Error capturing an express route: ${String(error)}`);
     }
@@ -228,29 +216,8 @@ function patchRouterPrototype(routerPrototype: Record<PropertyKey, unknown>): vo
   routerPrototype[ROUTER_PATCH_MARKER] = true;
 }
 
-function patchRoutePrototype(routePrototype: Record<PropertyKey, unknown>): void {
-  const originalDispatch = routePrototype.dispatch as (...args: unknown[]) => unknown;
-  routePrototype.dispatch = function (this: { path?: unknown }, ...args: unknown[]): unknown {
-    try {
-      const req = args[0] as Record<symbol, unknown> & { url?: unknown };
-      const state = req[ROUTE_STATE_KEY] as RouteTrackingState | undefined;
-      if (state && capturedRoutes.has(this)) {
-        state.sawCapturedRouteDispatch = true;
-        state.assembledTemplate = assembleTemplate(
-          state.mountSegments,
-          resolveDispatchedRoutePath(this.path, req.url),
-        );
-      }
-    } catch (error) {
-      logDebug(`Error assembling an express route template: ${String(error)}`);
-    }
-    return originalDispatch.apply(this, args);
-  };
-  routePrototype[ROUTE_PATCH_MARKER] = true;
-}
-
 // Express replaces mounted sub-apps with closures before routing, so app.use is
-// patched while each sub-app remains visible. Dispatch tracking stays router-level.
+// patched while each sub-app remains visible. Mount tracking stays router-level.
 function patchApplicationUse(target: unknown): void {
   const targetObject = target as Record<PropertyKey, unknown> | undefined;
   const originalUse = targetObject?.use;
@@ -295,9 +262,9 @@ function wrapMountHandler(
   }
   table.mounts.push({ pathTemplates, handler });
   const stack = (handler as { stack?: unknown }).stack;
-  if (Array.isArray(stack) && stack.length > 0 && !captureTables.has(handler as object)) {
+  if (Array.isArray(stack) && stack.length > 0 && !getCapturedTable(handler as object)) {
     logWarning(
-      'The routes of a mounted router were registered before Apitally could capture them, so requests to that router are exported without route templates. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
+      'The routes of a mounted router were registered before Apitally could capture them, so they are omitted from startup path enumeration. To include them, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
   }
   if (handler.length >= 4) {
@@ -330,6 +297,7 @@ function wrapMountHandler(
     return mountHandler.call(this, req, res, (error?: unknown) => {
       if (!exited) {
         exited = true;
+        assembleMatchedRoute(state, req);
         state.mountSegments.pop();
         state.mountBaseUrls.pop();
       }
@@ -339,27 +307,18 @@ function wrapMountHandler(
 }
 
 function tableFor(router: object): RouterCaptureTable {
-  let table = captureTables.get(router);
+  let table = getCapturedTable(router);
   if (!table) {
     table = { routes: [], mounts: [] };
-    captureTables.set(router, table);
+    (router as Record<symbol, unknown>)[ROUTER_CAPTURE_TABLE_KEY] = table;
   }
   return table;
 }
 
-// Calling route() on a minimal prototype object creates a Route for prototype
-// discovery without registering a layer.
-function createProbeRoute(routerPrototype: Record<PropertyKey, unknown>): object | undefined {
-  try {
-    const stub = Object.create(routerPrototype) as Record<string, unknown>;
-    stub.caseSensitive = false;
-    stub.strict = false;
-    stub.stack = [];
-    const route = (routerPrototype.route as (path: string) => unknown).call(stub, "/");
-    return typeof route === "object" && route !== null ? route : undefined;
-  } catch {
-    return undefined;
-  }
+function getCapturedTable(router: object): RouterCaptureTable | undefined {
+  return (router as Record<symbol, unknown>)[ROUTER_CAPTURE_TABLE_KEY] as
+    | RouterCaptureTable
+    | undefined;
 }
 
 // A mounted Express sub-app carries routes on its own internal router. The shape
@@ -448,6 +407,15 @@ function selectMatchingTemplate(pathTemplates: string[], consumedPath: string): 
     pathTemplates.find((template) => matchesTemplate(template, consumedPath, "full")) ??
     pathTemplates[0]
   );
+}
+
+function assembleMatchedRoute(state: RouteTrackingState, req: object): void {
+  const request = req as { route?: { path?: unknown }; url?: unknown };
+  const routePath = resolveDispatchedRoutePath(request.route?.path, request.url);
+  if (routePath === undefined) {
+    return;
+  }
+  state.assembledTemplate ??= assembleTemplate(state.mountSegments, routePath);
 }
 
 // The dispatched route's registered path: arrays resolve to the member
