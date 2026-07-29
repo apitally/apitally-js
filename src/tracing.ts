@@ -12,13 +12,8 @@ import { coerceToException } from "./spanProcessor.js";
 
 const STACK_FRAME_PATTERN = /at (?:.*\()?(.*?):(\d+):\d+\)?$/;
 
-export function instrument<Args extends unknown[], Result>(
-  fn: (...args: Args) => Result,
-): (...args: Args) => Result;
-export function instrument<Args extends unknown[], Result>(
-  name: string,
-  fn: (...args: Args) => Result,
-): (...args: Args) => Result;
+export function instrument<Fn extends (...args: never[]) => unknown>(fn: Fn): Fn;
+export function instrument<Fn extends (...args: never[]) => unknown>(name: string, fn: Fn): Fn;
 export function instrument(
   nameOrFn: string | ((...args: unknown[]) => unknown),
   fnWhenNamed?: (...args: unknown[]) => unknown,

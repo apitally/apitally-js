@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { instrument, span } from "../src/tracing.js";
 import {
   createTracePipeline,
@@ -43,6 +43,31 @@ function callSiteOfNextLine(): { filePath: string; lineNumber: number } {
 }
 
 describe("tracing", () => {
+  it("preserves generic, overloaded, and explicit this call signatures", () => {
+    function identity<Value>(value: Value): Value {
+      return value;
+    }
+    function convert(value: string): number;
+    function convert(value: number): string;
+    function convert(value: string | number): string | number {
+      return typeof value === "string" ? value.length : String(value);
+    }
+    function add(this: { value: number }, amount: number): number {
+      return this.value + amount;
+    }
+
+    const instrumentedIdentity = instrument(identity);
+    const instrumentedConvert = instrument("convert", convert);
+    const instrumentedAdd = instrument(add);
+
+    expectTypeOf(instrumentedIdentity({ value: 1 })).toEqualTypeOf<{ value: number }>();
+    expectTypeOf(instrumentedConvert("1")).toEqualTypeOf<number>();
+    expectTypeOf(instrumentedConvert(1)).toEqualTypeOf<string>();
+    expectTypeOf<ThisParameterType<typeof instrumentedAdd>>().toEqualTypeOf<{
+      value: number;
+    }>();
+  });
+
   it("wraps a function in an INTERNAL child span named after it, with its code location from wrap time", async () => {
     const fixture = createTracingFixture();
     const wrapSite = callSiteOfNextLine();
