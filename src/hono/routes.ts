@@ -2,10 +2,6 @@ import type { Context, Hono } from "hono";
 import { logDebug } from "../logger.js";
 import type { RoutePath } from "../startup.js";
 
-export interface MatchedRouteResult {
-  route?: string;
-}
-
 interface MatchedRouteEntry {
   path?: unknown;
   method?: unknown;
@@ -18,22 +14,20 @@ const COMPOSED_HANDLER_PROPERTY = "__COMPOSED_HANDLER";
 
 // Hono match entries include app.route() mount prefixes. Handler arity
 // distinguishes route handlers from middleware.
-export function resolveMatchedRoute(c: Context): MatchedRouteResult {
+export function resolveMatchedRoute(c: Context): string | undefined {
   const entries = readMatchedRouteEntries(c);
   if (!entries) {
-    return {};
+    return undefined;
   }
   // Scanning from `routeIndex` finds the matched route when middleware responds
   // before its handler.
   for (let index = c.req.routeIndex; index < entries.length; index++) {
     const entry = entries[index];
     if (entry && isRouteHandler(entry.handler)) {
-      return {
-        route: typeof entry.path === "string" ? entry.path : undefined,
-      };
+      return typeof entry.path === "string" ? entry.path : undefined;
     }
   }
-  return {};
+  return undefined;
 }
 
 export function resolveStartupPaths(app: Hono): RoutePath[] {

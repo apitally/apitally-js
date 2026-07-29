@@ -17,7 +17,7 @@ import { getRequestRecord, type RequestRecord, type SpanHandle } from "../contex
 import { logDebug, logWarning } from "../logger.js";
 import { finalizeRecordAndReleaseRequest, startRequestObservation } from "../requestObservation.js";
 import { captureException, coerceToException, getActiveSpanPipeline } from "../spanProcessor.js";
-import { type MatchedRouteResult, resolveMatchedRoute } from "./routes.js";
+import { resolveMatchedRoute } from "./routes.js";
 
 const FETCH_WRAP_MARKER = Symbol.for("apitally.honoFetchWrap");
 const ERROR_HANDLER_WRAP_MARKER = Symbol.for("apitally.honoErrorHandlerWrap");
@@ -35,7 +35,7 @@ interface RequestObservation {
   startTimeMillis: number;
   method: string;
   honoContext?: HonoContext;
-  matchedRoute?: MatchedRouteResult;
+  route?: string;
 }
 
 // WeakMap associates route middleware with transport observation without
@@ -122,7 +122,7 @@ const recordMatchedRouteAfterNext: MiddlewareHandler = async (c, next) => {
     const observation = observationsByRequestRecord.get(requestRecord);
     if (observation) {
       observation.honoContext = c;
-      observation.matchedRoute = resolveMatchedRoute(c);
+      observation.route = resolveMatchedRoute(c);
     }
   } catch (error) {
     logDebug(`Error recording the matched hono route: ${String(error)}`);
@@ -216,7 +216,7 @@ async function finalizeRequestFromResponse(
     method: observation.method,
     durationSeconds,
     statusCode: response.status,
-    route: observation.matchedRoute?.route,
+    route: observation.route,
     requestHeaders: observation.requestHeaders,
     responseHeaders: response.headers,
     requestBodySize: observation.requestBodyCapture.size,

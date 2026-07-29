@@ -1,39 +1,35 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import {
-  type MatchedRouteResult,
-  resolveMatchedRoute,
-  resolveStartupPaths,
-} from "../../src/hono/routes.js";
+import { resolveMatchedRoute, resolveStartupPaths } from "../../src/hono/routes.js";
 
 interface RouteFixture {
   app: Hono;
-  routeResults: MatchedRouteResult[];
+  routes: (string | undefined)[];
 }
 
 // Mirrors the adapter's setup shape: the observing middleware registers first,
 // so routes registered after it compose behind it.
 function createRouteFixture(): RouteFixture {
   const app = new Hono();
-  const routeResults: MatchedRouteResult[] = [];
+  const routes: (string | undefined)[] = [];
   app.use(async (context, next) => {
     await next();
-    routeResults.push(resolveMatchedRoute(context));
+    routes.push(resolveMatchedRoute(context));
   });
-  return { app, routeResults };
+  return { app, routes };
 }
 
 async function sendRequestsAndResolveRoutes(
   fixture: RouteFixture,
   requestPaths: string[],
-): Promise<MatchedRouteResult[]> {
-  const firstRouteResultIndex = fixture.routeResults.length;
+): Promise<(string | undefined)[]> {
+  const firstRouteIndex = fixture.routes.length;
   for (const requestPath of requestPaths) {
     const response = await fixture.app.request(requestPath);
     await response.arrayBuffer();
   }
-  return fixture.routeResults.slice(firstRouteResultIndex);
+  return fixture.routes.slice(firstRouteIndex);
 }
 
 const respondOk = (context: Context) => context.json({ ok: true });
@@ -64,14 +60,11 @@ describe("hono routes", () => {
     child.route("/nested/:nid", grandchild);
     fixture.app.route("/api", child);
 
-    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
+    const routes = await sendRequestsAndResolveRoutes(fixture, [
       "/api/items/42",
       "/api/nested/9/deep/1",
     ]);
-    expect(routeResults).toEqual([
-      { route: "/api/items/:id" },
-      { route: "/api/nested/:nid/deep/:x" },
-    ]);
+    expect(routes).toEqual(["/api/items/:id", "/api/nested/:nid/deep/:x"]);
   });
 
   it("resolves route handler templates instead of middleware paths", async () => {
@@ -88,7 +81,7 @@ describe("hono routes", () => {
     const blockedResponse = await fixture.app.request("/blocked/7");
     await blockedResponse.arrayBuffer();
     expect(blockedResponse.status).toBe(401);
-    expect(fixture.routeResults).toEqual([{ route: "/things/:id" }, { route: "/blocked/:id" }]);
+    expect(fixture.routes).toEqual(["/things/:id", "/blocked/:id"]);
   });
 
   it("reports no match for unmatched and middleware-only requests", async () => {
@@ -98,10 +91,7 @@ describe("hono routes", () => {
     });
     fixture.app.get("/known", respondOk);
 
-    const routeResults = await sendRequestsAndResolveRoutes(fixture, [
-      "/unknown",
-      "/guarded/anything",
-    ]);
-    expect(routeResults).toEqual([{}, {}]);
+    const routes = await sendRequestsAndResolveRoutes(fixture, ["/unknown", "/guarded/anything"]);
+    expect(routes).toEqual([undefined, undefined]);
   });
 });

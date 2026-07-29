@@ -131,7 +131,7 @@ function observeRequest(
   return requestContext;
 }
 
-interface ResponseObservationOptions {
+interface RequestObservation {
   req: IncomingMessage;
   res: ServerResponse;
   requestRecord: RequestRecord;
@@ -146,8 +146,8 @@ interface ResponseObservationOptions {
 
 // Patching write and end before middleware lets compression wrappers feed their
 // final wire bytes through capture.
-function installResponseObservation(options: ResponseObservationOptions): void {
-  const { res, requestRecord } = options;
+function installResponseObservation(observation: RequestObservation): void {
+  const { res, requestRecord } = observation;
   const captureResponseBody = getConfig().captureResponseBody;
   let responseBodyCapture: BodyCapture | undefined;
   // Response headers are settled when the first write flushes them.
@@ -191,7 +191,7 @@ function installResponseObservation(options: ResponseObservationOptions): void {
     }
     finalized = true;
     try {
-      finalizeRequestFromResponse(options, ensureResponseBodyCapture(), responseFinished);
+      finalizeRequestFromResponse(observation, ensureResponseBodyCapture(), responseFinished);
     } catch (error) {
       logWarning(`Error in the Apitally middleware: ${String(error)}`);
     }
@@ -203,7 +203,7 @@ function installResponseObservation(options: ResponseObservationOptions): void {
 }
 
 function finalizeRequestFromResponse(
-  options: ResponseObservationOptions,
+  observation: RequestObservation,
   responseBodyCapture: BodyCapture,
   responseFinished: boolean,
 ): void {
@@ -218,7 +218,7 @@ function finalizeRequestFromResponse(
     startTimeMillis,
     method,
     requestUrl,
-  } = options;
+  } = observation;
   const durationSeconds = (performance.now() - startTimeMillis) / 1000;
   if (responseFinished) {
     responseBodyCapture.markComplete();
