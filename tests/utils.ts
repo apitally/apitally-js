@@ -156,6 +156,22 @@ export function spyOnSuccessfulFetch() {
     .mockImplementation(async () => new Response(null, { status: 200 }));
 }
 
+export function spyOnHeldFirstFetch() {
+  let observeFirstFetch = () => {};
+  const firstFetchObserved = new Promise<void>((resolve) => {
+    observeFirstFetch = resolve;
+  });
+  let releaseFirstFetch = () => {};
+  const heldResponse = new Promise<Response>((resolve) => {
+    releaseFirstFetch = () => resolve(new Response(null, { status: 200 }));
+  });
+  const fetchSpy = spyOnSuccessfulFetch().mockImplementationOnce(() => {
+    observeFirstFetch();
+    return heldResponse;
+  });
+  return { fetchSpy, firstFetchObserved, releaseFirstFetch };
+}
+
 export function readFetchPaths(fetchSpy: ReturnType<typeof spyOnSuccessfulFetch>): string[] {
   return fetchSpy.mock.calls.map(([url]) => new URL(String(url)).pathname);
 }

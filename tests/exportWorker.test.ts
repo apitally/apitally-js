@@ -14,6 +14,7 @@ import {
   enableAsyncContextManager,
   readFetchPaths,
   readPackageVersion,
+  spyOnHeldFirstFetch,
   spyOnSuccessfulFetch,
   WRITE_TOKEN,
   withServer,
@@ -152,24 +153,13 @@ describe("exportWorker", () => {
   });
 
   it("exports on its own timer shortly after start", async () => {
-    let observeFetch = () => {};
-    const fetchObserved = new Promise<void>((resolve) => {
-      observeFetch = resolve;
-    });
-    let releaseFetch = (_response: Response) => {};
-    const heldResponse = new Promise<Response>((resolve) => {
-      releaseFetch = resolve;
-    });
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementationOnce(() => {
-      observeFetch();
-      return heldResponse;
-    });
+    const { fetchSpy, firstFetchObserved, releaseFirstFetch } = spyOnHeldFirstFetch();
     const worker = createWorker({ initialExportDelayMillis: 0 });
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     worker.start();
-    await fetchObserved;
+    await firstFetchObserved;
     const joinedCycle = worker.runCycle();
-    releaseFetch(new Response(null, { status: 200 }));
+    releaseFirstFetch();
     await joinedCycle;
     expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces"]);
   });
@@ -247,30 +237,14 @@ describe("exportWorker", () => {
   });
 
   it("coalesces a flush requested mid-cycle with the running cycle so no file posts twice", async () => {
-    let observeFetch = () => {};
-    const fetchObserved = new Promise<void>((resolve) => {
-      observeFetch = resolve;
-    });
-    let releaseFetch = (_response: Response) => {};
-    const heldResponse = new Promise<Response>((resolve) => {
-      releaseFetch = resolve;
-    });
-    let callCount = 0;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
-      callCount += 1;
-      if (callCount === 1) {
-        observeFetch();
-        return heldResponse;
-      }
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const { fetchSpy, firstFetchObserved, releaseFirstFetch } = spyOnHeldFirstFetch();
     const worker = createWorker();
     await spool.append("traces", TRACE_PAYLOAD_ITEMS);
     await spool.append("logs", LOGS_PAYLOAD_HELLO);
     const runningCycle = worker.runCycle();
-    await fetchObserved;
+    await firstFetchObserved;
     const flush = worker.runCycle();
-    releaseFetch(new Response(null, { status: 200 }));
+    releaseFirstFetch();
     await runningCycle;
     await flush;
     expect(readFetchPaths(fetchSpy)).toEqual(["/v1/traces", "/v1/logs"]);

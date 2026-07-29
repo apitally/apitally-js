@@ -9,7 +9,7 @@ import { getRPCMetadata, type RPCMetadata, RPCType } from "@opentelemetry/core";
 import compression from "compression";
 import express, { type Express } from "express";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/express/index.js";
 import {
@@ -21,6 +21,7 @@ import {
   readFetchPaths,
   readSerializedSpans,
   requireActivationHandles,
+  spyOnHeldFirstFetch,
   WRITE_TOKEN,
   waitForNextRequestFinish,
   withServer,
@@ -462,32 +463,16 @@ describe("express adapter", () => {
   });
 
   it("flushes buffered telemetry when the server closes", async () => {
-    let observeFetch = () => {};
-    const fetchObserved = new Promise<void>((resolve) => {
-      observeFetch = resolve;
-    });
-    let releaseFetch = (_response: Response) => {};
-    const heldResponse = new Promise<Response>((resolve) => {
-      releaseFetch = resolve;
-    });
-    let callCount = 0;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
-      callCount += 1;
-      if (callCount === 1) {
-        observeFetch();
-        return heldResponse;
-      }
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const { fetchSpy, firstFetchObserved, releaseFirstFetch } = spyOnHeldFirstFetch();
     prepareFirstRequestActivation();
     await request(server).get("/items/6").expect(200);
     const worker = requireActivationHandles().worker;
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
     });
-    await fetchObserved;
+    await firstFetchObserved;
     const joinedCycle = worker.runCycle();
-    releaseFetch(new Response(null, { status: 200 }));
+    releaseFirstFetch();
     await joinedCycle;
     expect(readFetchPaths(fetchSpy).sort()).toEqual(["/v1/metrics", "/v1/traces"]);
   });

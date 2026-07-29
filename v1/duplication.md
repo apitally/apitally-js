@@ -74,6 +74,8 @@ Both tests verify that a retryable failure retains the file, retries the same by
 
 ### 6. Low: Held-fetch coordination is copied across tests
 
+**Status:** Completed
+
 **References:** `tests/exportWorker.test.ts:155-166`, `tests/exportWorker.test.ts:270-287`, `tests/express/express.test.ts:465-481`, `tests/utils.ts`
 
 The tests repeat the same observer promise, held response, release callback, call counter, and successful fallback setup.
