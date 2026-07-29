@@ -18,9 +18,8 @@ import { ApitallyLogRecordExporter, LogPipeline } from "./logPipeline.js";
 import { MetricsPipeline } from "./metrics.js";
 import {
   createLoggerProvider,
-  createResource,
   getDistroVersion,
-  resolveEnv,
+  resolveEnvAndCreateResource,
   setupTracerProvider,
 } from "./providers.js";
 import { Redaction } from "./redaction.js";
@@ -209,8 +208,7 @@ function startPipelines(
 ): ActivationHandles {
   const config = getConfig();
   let hasUserProvider = isApitallySpanProcessorDeclared();
-  const env = resolveEnv(hasUserProvider, triggeringSpan?.resource);
-  const resource = createResource(env);
+  const { env, resource } = resolveEnvAndCreateResource(hasUserProvider, triggeringSpan?.resource);
   const spool = activationFactories.createSpool();
   const spanExporter = new ApitallySpanExporter({
     redaction: new Redaction(),

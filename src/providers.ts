@@ -54,11 +54,33 @@ class RequestRootedSampler implements Sampler {
   }
 }
 
-// Apitally-Env and deployment.environment.name use the same resolution so they
-// cannot disagree.
-export function resolveEnv(
+// Apitally-Env and deployment.environment.name use the same detected resource
+// so they cannot disagree.
+export function resolveEnvAndCreateResource(
   hasUserProvider: boolean,
   triggeringResource?: Pick<Resource, "attributes">,
+): { env: string; resource: Resource } {
+  const environmentResource = detectResources({ detectors: [envDetector] });
+  const env = resolveEnv(hasUserProvider, triggeringResource, environmentResource);
+  // defaultResource() ignores environment variables. Apitally attributes merge
+  // last to keep the resource aligned with Apitally-Env.
+  const resource = defaultResource()
+    .merge(environmentResource)
+    .merge(
+      resourceFromAttributes({
+        "service.instance.id": randomUUID(),
+        [DEPLOYMENT_ENVIRONMENT_NAME]: env,
+        "telemetry.distro.name": "apitally-js",
+        "telemetry.distro.version": getDistroVersion(),
+      }),
+    );
+  return { env, resource };
+}
+
+function resolveEnv(
+  hasUserProvider: boolean,
+  triggeringResource: Pick<Resource, "attributes"> | undefined,
+  environmentResource: Pick<Resource, "attributes">,
 ): string {
   // The env option and APITALLY_ENV are already resolved into config.env; its
   // default also indicates that neither was configured.
@@ -72,7 +94,7 @@ export function resolveEnv(
     }
     return triggeringResourceEnv;
   }
-  const resourceAttributesEnv = readDeploymentEnvironmentNameFromEnv();
+  const resourceAttributesEnv = readDeploymentEnvironmentNameFromResource(environmentResource);
   if (!hasUserProvider) {
     return configuredEnv !== DEFAULT_ENV ? configuredEnv : (resourceAttributesEnv ?? DEFAULT_ENV);
   }
@@ -85,21 +107,6 @@ export function resolveEnv(
     );
   }
   return resourceAttributesEnv;
-}
-
-export function createResource(env: string): Resource {
-  // defaultResource() ignores environment variables, so envDetector supplies
-  // them. Apitally attributes merge last to keep the env aligned with Apitally-Env.
-  return defaultResource()
-    .merge(detectResources({ detectors: [envDetector] }))
-    .merge(
-      resourceFromAttributes({
-        "service.instance.id": randomUUID(),
-        [DEPLOYMENT_ENVIRONMENT_NAME]: env,
-        "telemetry.distro.name": "apitally-js",
-        "telemetry.distro.version": getDistroVersion(),
-      }),
-    );
 }
 
 export function setupTracerProvider(
@@ -160,29 +167,6 @@ function readDeploymentEnvironmentNameFromResource(
 ): string | undefined {
   const value = resource?.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function readDeploymentEnvironmentNameFromEnv(): string | undefined {
-  const raw = process.env.OTEL_RESOURCE_ATTRIBUTES;
-  if (!raw) {
-    return undefined;
-  }
-  for (const entry of raw.split(",")) {
-    const separatorIndex = entry.indexOf("=");
-    if (separatorIndex === -1) {
-      continue;
-    }
-    if (entry.slice(0, separatorIndex).trim() !== DEPLOYMENT_ENVIRONMENT_NAME) {
-      continue;
-    }
-    const value = entry.slice(separatorIndex + 1).trim();
-    try {
-      return decodeURIComponent(value) || undefined;
-    } catch {
-      return value || undefined;
-    }
-  }
-  return undefined;
 }
 
 // OTel exposes no context-manager getter, so a propagated probe verifies

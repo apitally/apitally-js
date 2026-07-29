@@ -20,8 +20,7 @@ import { setConfig } from "../src/config.js";
 import {
   createLoggerProvider,
   createMeterProvider,
-  createResource,
-  resolveEnv,
+  resolveEnvAndCreateResource,
   setupTracerProvider,
 } from "../src/providers.js";
 import {
@@ -32,6 +31,12 @@ import {
 } from "./utils.js";
 
 const UUID_V4_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function setupTracerProviderWithInMemoryExporter(): InMemorySpanExporter {
+  const exporter = new InMemorySpanExporter();
+  setupTracerProvider(resourceFromAttributes({}), [new SimpleSpanProcessor(exporter)]);
+  return exporter;
+}
 
 // Mimics a context manager that lost its backing registration, e.g. through
 // conflicting @opentelemetry/api copies: context.with() runs but propagates nothing.
@@ -60,8 +65,7 @@ class NonPropagatingContextManager implements ContextManager {
 
 describe("providers", () => {
   it("does not record non-SERVER roots or their children", () => {
-    const exporter = new InMemorySpanExporter();
-    setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
+    const exporter = setupTracerProviderWithInMemoryExporter();
     const tracer = trace.getTracer("test");
 
     const root = tracer.startSpan("background job");
@@ -74,8 +78,7 @@ describe("providers", () => {
   });
 
   it("records SERVER spans under unsampled remote parents with their children", () => {
-    const exporter = new InMemorySpanExporter();
-    setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
+    const exporter = setupTracerProviderWithInMemoryExporter();
     const tracer = trace.getTracer("test");
     const remoteParent = propagation.extract(context.active(), {
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
@@ -95,9 +98,10 @@ describe("providers", () => {
     process.env.OTEL_SERVICE_NAME = "test-service";
     process.env.OTEL_RESOURCE_ATTRIBUTES =
       "custom.key=custom%20value,deployment.environment.name=production";
+    setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
     const version = readPackageVersion();
 
-    const resource = createResource("staging");
+    const resource = resolveEnvAndCreateResource(false).resource;
 
     expect(resource.attributes["service.name"]).toBe("test-service");
     expect(resource.attributes["custom.key"]).toBe("custom value");
@@ -110,13 +114,13 @@ describe("providers", () => {
   it("prefers the configured env over the OTEL_RESOURCE_ATTRIBUTES entry when the SDK sets up the tracer provider", () => {
     process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production";
     setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
-    expect(resolveEnv(false)).toBe("staging");
+    expect(resolveEnvAndCreateResource(false).env).toBe("staging");
   });
 
   it("falls back to the OTEL_RESOURCE_ATTRIBUTES entry when no env is configured", () => {
     process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production%20eu";
     setConfig({ writeToken: WRITE_TOKEN });
-    expect(resolveEnv(false)).toBe("production eu");
+    expect(resolveEnvAndCreateResource(false).env).toBe("production eu");
   });
 
   it("prefers the triggering SERVER span resource and warns when a differing configured env loses", () => {
@@ -126,7 +130,7 @@ describe("providers", () => {
     const triggeringResource = resourceFromAttributes({
       "deployment.environment.name": "preview",
     });
-    expect(resolveEnv(true, triggeringResource)).toBe("preview");
+    expect(resolveEnvAndCreateResource(true, triggeringResource).env).toBe("preview");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('"staging"');
     expect(lines[0]).toContain("preview");
@@ -138,7 +142,7 @@ describe("providers", () => {
     const triggeringResource = resourceFromAttributes({
       "deployment.environment.name": "staging",
     });
-    expect(resolveEnv(true, triggeringResource)).toBe("staging");
+    expect(resolveEnvAndCreateResource(true, triggeringResource).env).toBe("staging");
     expect(lines).toHaveLength(0);
   });
 
@@ -146,17 +150,17 @@ describe("providers", () => {
     const lines = captureStderr();
     process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production";
     setConfig({ writeToken: WRITE_TOKEN });
-    expect(resolveEnv(true)).toBe("production");
+    expect(resolveEnvAndCreateResource(true).env).toBe("production");
     expect(lines).toHaveLength(0);
   });
 
   it("uses the configured env with a user tracer provider when OTEL_RESOURCE_ATTRIBUTES has no entry", () => {
     setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
-    expect(resolveEnv(true)).toBe("staging");
+    expect(resolveEnvAndCreateResource(true).env).toBe("staging");
   });
 
   it("keeps the meter and logger providers out of the OTel API globals", async () => {
-    const resource = createResource("prod");
+    const resource = resolveEnvAndCreateResource(false).resource;
     const metricReader = new CollectOnlyMetricReader();
     const meterProvider = createMeterProvider(resource, [metricReader]);
     meterProvider.getMeter("apitally").createCounter("test.counter").add(1);
@@ -181,8 +185,7 @@ describe("providers", () => {
   it("keeps long span attribute values intact when OTel attribute length limit env vars are set", () => {
     process.env.OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT = "100";
     process.env.OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT = "100";
-    const exporter = new InMemorySpanExporter();
-    setupTracerProvider(createResource("prod"), [new SimpleSpanProcessor(exporter)]);
+    const exporter = setupTracerProviderWithInMemoryExporter();
 
     const longUrl = `https://example.com/items?q=${"x".repeat(10_000)}`;
     const span = trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER });
@@ -200,7 +203,7 @@ describe("providers", () => {
     context.setGlobalContextManager(userContextManager);
     propagation.setGlobalPropagator(new W3CBaggagePropagator());
 
-    setupTracerProvider(createResource("prod"), []);
+    setupTracerProvider(resourceFromAttributes({}), []);
 
     const probeKey = createContextKey("test-probe");
     const seenValue = context.with(context.active().setValue(probeKey, "value"), () =>
@@ -215,7 +218,7 @@ describe("providers", () => {
     const lines = captureStderr();
     context.setGlobalContextManager(new NonPropagatingContextManager());
 
-    setupTracerProvider(createResource("prod"), []);
+    setupTracerProvider(resourceFromAttributes({}), []);
 
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("context propagation is not working");
