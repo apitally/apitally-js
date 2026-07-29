@@ -1,5 +1,10 @@
-import { SpanKind } from "@opentelemetry/api";
-import { AlwaysOnSampler } from "@opentelemetry/sdk-trace-base";
+import { SpanKind, trace } from "@opentelemetry/api";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import {
+  AlwaysOnSampler,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
 import { Hono } from "hono";
@@ -15,10 +20,11 @@ import {
   useApitally,
 } from "../src/index.js";
 import {
-  configureAndActivate,
+  captureStderr,
   prepareFirstRequestActivation,
   readActivationSpans,
   readResponseAndSettleTransport,
+  requireActivationHandles,
   startServerSpan,
   WRITE_TOKEN,
   withServer,
@@ -102,22 +108,50 @@ describe("root entry", () => {
     await expect(shutdown()).resolves.toBeUndefined();
   });
 
-  it("delivers spans from a user-constructed provider with ApitallySpanProcessor in its spanProcessors array", async () => {
-    const handles = configureAndActivate();
+  it("exports the first SERVER span from a user provider through ApitallySpanProcessor", async () => {
+    prepareFirstRequestActivation();
+    const userExporter = new InMemorySpanExporter();
     const userProvider = new NodeTracerProvider({
       sampler: new AlwaysOnSampler(),
-      spanProcessors: [new ApitallySpanProcessor()],
+      resource: resourceFromAttributes({ "deployment.environment.name": "staging" }),
+      spanProcessors: [new SimpleSpanProcessor(userExporter), new ApitallySpanProcessor()],
     });
+    trace.setGlobalTracerProvider(userProvider);
+
     const { span: serverSpan, request } = startServerSpan(
       userProvider.getTracer("user-instrumentation"),
     );
     serverSpan.end();
+    const handles = requireActivationHandles();
     handles.spanPipeline.handleTransportCompletion(request.record);
 
-    const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("GET /items");
-    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    const exportedSpans = await readActivationSpans();
+    expect(exportedSpans).toHaveLength(1);
+    expect(exportedSpans[0].name).toBe("GET /items");
+    expect(exportedSpans[0].kind).toBe(SpanKind.SERVER);
+    expect(exportedSpans[0].resource.attributes["deployment.environment.name"]).toBe("staging");
+    expect(userExporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
+  });
+
+  it("warns once when a declared ApitallySpanProcessor is not attached", async () => {
+    const lines = captureStderr();
+    prepareFirstRequestActivation();
+    const userProvider = new NodeTracerProvider({ sampler: new AlwaysOnSampler() });
+    trace.setGlobalTracerProvider(userProvider);
+    const unattachedProcessor = new ApitallySpanProcessor();
+    const app = new Hono();
+    useApitally(app, { writeToken: WRITE_TOKEN });
+    app.get("/items", (c) => c.json({ ok: true }));
+
+    for (let index = 0; index < 2; index += 1) {
+      const response = await app.request("/items");
+      await readResponseAndSettleTransport(response);
+    }
+    await unattachedProcessor.forceFlush();
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("did not reach ApitallySpanProcessor");
+    expect(await readActivationSpans()).toEqual([]);
   });
 
   it("throws an error naming the framework entry points for an unrecognized app", () => {

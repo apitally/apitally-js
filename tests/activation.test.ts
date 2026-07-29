@@ -95,11 +95,12 @@ describe("activation", () => {
   it("leaves client span production to the user when attaching to an existing tracer provider", async () => {
     const lines = captureStderr();
     const userExporter = new InMemorySpanExporter();
-    trace.setGlobalTracerProvider(
-      new BasicTracerProvider({
-        spanProcessors: [new SimpleSpanProcessor(userExporter)],
-      }),
-    );
+    const userProvider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(userExporter)],
+    });
+    trace.setGlobalTracerProvider({
+      getTracer: userProvider.getTracer.bind(userProvider),
+    });
     configureAndActivate();
     await withServer(
       (_request, response) => response.end(),

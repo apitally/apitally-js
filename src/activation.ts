@@ -1,7 +1,7 @@
 import { isMainThread } from "node:worker_threads";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { BatchLogRecordProcessor, type LoggerProvider } from "@opentelemetry/sdk-logs";
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { BatchSpanProcessor, type Span } from "@opentelemetry/sdk-trace-base";
 import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
   type ApitallyConfig,
@@ -20,13 +20,17 @@ import {
   createLoggerProvider,
   createResource,
   getDistroVersion,
-  hasUserTracerProvider,
   resolveEnv,
   setupTracerProvider,
 } from "./providers.js";
 import { Redaction } from "./redaction.js";
 import { installSentryEventIdRecording } from "./sentry.js";
-import { SpanPipeline, setActiveSpanPipeline } from "./spanProcessor.js";
+import {
+  isApitallySpanProcessorDeclared,
+  SpanPipeline,
+  setActiveSpanPipeline,
+  setServerSpanActivationCallback,
+} from "./spanProcessor.js";
 import { Spool } from "./spool.js";
 import { emitStartupEvent, type StartupEventInfo } from "./startup.js";
 
@@ -76,6 +80,7 @@ export function configure(options: ApitallyOptions = {}): ApitallyConfig {
   if (process.env.OTEL_SEMCONV_STABILITY_OPT_IN === undefined) {
     process.env.OTEL_SEMCONV_STABILITY_OPT_IN = "http/dup";
   }
+  setServerSpanActivationCallback(activate);
   return config;
 }
 
@@ -87,7 +92,7 @@ export function registerStartupEventInfo(info: StartupEventInfo): void {
 
 // Activation is synchronous and attempted once, so concurrent first requests
 // observe either no activation or completed activation.
-export function activate(): void {
+export function activate(triggeringSpan?: Span): void {
   const activationState = getActivationState();
   if (activationState.activationAttempted) {
     return;
@@ -97,7 +102,7 @@ export function activate(): void {
     return;
   }
   try {
-    const handles = startPipelines(activationState.startupEventInfo);
+    const handles = startPipelines(activationState.startupEventInfo, triggeringSpan);
     activationState.handles = handles;
     activationState.runShutdown = () => drainAndStop(handles);
     installBeforeExitHook(activationState);
@@ -198,10 +203,13 @@ function shouldSkipActivation(): boolean {
   );
 }
 
-function startPipelines(startupEventInfo: StartupEventInfo | undefined): ActivationHandles {
+function startPipelines(
+  startupEventInfo: StartupEventInfo | undefined,
+  triggeringSpan?: Span,
+): ActivationHandles {
   const config = getConfig();
-  const hasUserProvider = hasUserTracerProvider();
-  const env = resolveEnv(hasUserProvider);
+  let hasUserProvider = isApitallySpanProcessorDeclared();
+  const env = resolveEnv(hasUserProvider, triggeringSpan?.resource);
   const resource = createResource(env);
   const spool = activationFactories.createSpool();
   const spanExporter = new ApitallySpanExporter({
@@ -224,12 +232,14 @@ function startPipelines(startupEventInfo: StartupEventInfo | undefined): Activat
   });
   const spanPipeline = new SpanPipeline(batchSpanProcessor);
   let tracerProvider: NodeTracerProvider | undefined;
-  if (hasUserProvider) {
-    logWarning(
-      "An existing OpenTelemetry tracer provider was detected, and Apitally will not replace it. Only metrics and the startup event are sent to Apitally until you add ApitallySpanProcessor (exported by the apitally package) to your tracer provider's spanProcessors constructor option or the NodeSDK spanProcessors option.",
-    );
-  } else {
+  if (!hasUserProvider) {
     tracerProvider = setupTracerProvider(resource, [spanPipeline]);
+    if (!tracerProvider) {
+      hasUserProvider = true;
+      logWarning(
+        "Apitally could not register its OpenTelemetry tracer provider because another provider is already registered. Only metrics and the startup event are sent to Apitally until you add ApitallySpanProcessor (exported by the apitally package) to your tracer provider's spanProcessors constructor option or the NodeSDK spanProcessors option.",
+      );
+    }
   }
   setActiveSpanPipeline(spanPipeline);
   // BatchLogRecordProcessor requires its single-options-object form; positional
@@ -264,8 +274,6 @@ function startPipelines(startupEventInfo: StartupEventInfo | undefined): Activat
   installSentryEventIdRecording();
   let undiciInstrumentation: UndiciInstrumentation | undefined;
   if (!hasUserProvider) {
-    // With a user tracer provider, user instrumentation owns CLIENT span
-    // production; another Undici instrumentation would duplicate them.
     undiciInstrumentation = createUndiciInstrumentation(config.otlpEndpoint);
   }
   worker.start();

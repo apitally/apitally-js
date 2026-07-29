@@ -12,19 +12,15 @@ import {
 import { logs } from "@opentelemetry/api-logs";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { W3CBaggagePropagator } from "@opentelemetry/core";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { InMemoryLogRecordExporter, SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs";
-import {
-  BasicTracerProvider,
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 import { setConfig } from "../src/config.js";
 import {
   createLoggerProvider,
   createMeterProvider,
   createResource,
-  hasUserTracerProvider,
   resolveEnv,
   setupTracerProvider,
 } from "../src/providers.js";
@@ -123,14 +119,27 @@ describe("providers", () => {
     expect(resolveEnv(false)).toBe("production eu");
   });
 
-  it("prefers the OTEL_RESOURCE_ATTRIBUTES entry with a user tracer provider and warns when a differing configured env loses", () => {
+  it("prefers the triggering SERVER span resource and warns when a differing configured env loses", () => {
     const lines = captureStderr();
     process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=production";
     setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
-    expect(resolveEnv(true)).toBe("production");
+    const triggeringResource = resourceFromAttributes({
+      "deployment.environment.name": "preview",
+    });
+    expect(resolveEnv(true, triggeringResource)).toBe("preview");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('"staging"');
-    expect(lines[0]).toContain("production");
+    expect(lines[0]).toContain("preview");
+  });
+
+  it("uses the triggering SERVER span resource without warning when no differing env is configured", () => {
+    const lines = captureStderr();
+    setConfig({ writeToken: WRITE_TOKEN });
+    const triggeringResource = resourceFromAttributes({
+      "deployment.environment.name": "staging",
+    });
+    expect(resolveEnv(true, triggeringResource)).toBe("staging");
+    expect(lines).toHaveLength(0);
   });
 
   it("uses the OTEL_RESOURCE_ATTRIBUTES entry without a warning when no differing env is configured", () => {
@@ -144,12 +153,6 @@ describe("providers", () => {
   it("uses the configured env with a user tracer provider when OTEL_RESOURCE_ATTRIBUTES has no entry", () => {
     setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
     expect(resolveEnv(true)).toBe("staging");
-  });
-
-  it("detects a user-registered tracer provider", () => {
-    expect(hasUserTracerProvider()).toBe(false);
-    trace.setGlobalTracerProvider(new BasicTracerProvider());
-    expect(hasUserTracerProvider()).toBe(true);
   });
 
   it("keeps the meter and logger providers out of the OTel API globals", async () => {

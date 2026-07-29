@@ -18,6 +18,7 @@ import {
 import { logWarning } from "./logger.js";
 import {
   getActiveSpanPipeline,
+  isApitallySpanProcessorDeclared,
   type RequestStash,
   writeRequestAttribute,
 } from "./spanProcessor.js";
@@ -79,6 +80,10 @@ export function adoptOrStartServerSpan(options: StartServerSpanOptions): ServerS
       ownSpan = undefined;
     } else {
       spanHandle.span = ownSpan;
+      if (isApitallySpanProcessorDeclared() && record.serverSpanId === undefined) {
+        record.dropReason = "sampled-out";
+        warnAboutUnattachedSpanProcessor();
+      }
       requestContext = trace.setSpan(requestContext, ownSpan);
     }
   }
@@ -165,5 +170,11 @@ export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions)
 function warnAboutNonRecordingServerSpan(): void {
   logWarning(
     "The OpenTelemetry sampler did not sample the SERVER span of a request. Only sampled requests are exported to Apitally as traces and request logs. Request metrics include all requests.",
+  );
+}
+
+function warnAboutUnattachedSpanProcessor(): void {
+  logWarning(
+    "The recording OpenTelemetry SERVER span created for a request did not reach ApitallySpanProcessor. Traces and request logs are unavailable while request metrics continue. To resolve this, add the ApitallySpanProcessor instance to your tracer provider's spanProcessors constructor option or the NodeSDK spanProcessors option.",
   );
 }

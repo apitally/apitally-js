@@ -7,7 +7,6 @@ import {
   propagation,
   SpanKind,
   TraceFlags,
-  type TracerProvider,
   trace,
 } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
@@ -29,7 +28,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { DEFAULT_ENV, getConfig } from "./config.js";
-import { logWarning } from "./logger.js";
+import { logDebug, logWarning } from "./logger.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 65_536;
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
@@ -55,24 +54,24 @@ class RequestRootedSampler implements Sampler {
   }
 }
 
-// User providers can come from another OTel package copy, so detection uses API
-// shape. A proxy with no delegate or only getTracer represents no provider setup.
-export function hasUserTracerProvider(): boolean {
-  const globalProvider = trace.getTracerProvider() as TracerProvider & {
-    getDelegate?: () => TracerProvider;
-  };
-  const delegate = (
-    typeof globalProvider.getDelegate === "function" ? globalProvider.getDelegate() : globalProvider
-  ) as TracerProvider & { forceFlush?: unknown; shutdown?: unknown };
-  return typeof delegate.forceFlush === "function" || typeof delegate.shutdown === "function";
-}
-
 // Apitally-Env and deployment.environment.name use the same resolution so they
 // cannot disagree.
-export function resolveEnv(hasUserProvider: boolean): string {
+export function resolveEnv(
+  hasUserProvider: boolean,
+  triggeringResource?: Pick<Resource, "attributes">,
+): string {
   // The env option and APITALLY_ENV are already resolved into config.env; its
   // default also indicates that neither was configured.
   const configuredEnv = getConfig().env;
+  const triggeringResourceEnv = readDeploymentEnvironmentNameFromResource(triggeringResource);
+  if (triggeringResourceEnv !== undefined) {
+    if (configuredEnv !== DEFAULT_ENV && configuredEnv !== triggeringResourceEnv) {
+      logWarning(
+        `The configured Apitally env "${configuredEnv}" conflicts with deployment.environment.name=${triggeringResourceEnv} on the OpenTelemetry SERVER span; using "${triggeringResourceEnv}". To resolve this, remove the env option from useApitally() or configure the provider resource with "${configuredEnv}".`,
+      );
+    }
+    return triggeringResourceEnv;
+  }
   const resourceAttributesEnv = readDeploymentEnvironmentNameFromEnv();
   if (!hasUserProvider) {
     return configuredEnv !== DEFAULT_ENV ? configuredEnv : (resourceAttributesEnv ?? DEFAULT_ENV);
@@ -106,7 +105,7 @@ export function createResource(env: string): Resource {
 export function setupTracerProvider(
   resource: Resource,
   spanProcessors: SpanProcessor[],
-): NodeTracerProvider {
+): NodeTracerProvider | undefined {
   // Explicit sampler and length limits prevent OTel environment variables from
   // dropping upstream-unsampled SERVER spans or truncating long attributes.
   const provider = new NodeTracerProvider({
@@ -118,12 +117,20 @@ export function setupTracerProvider(
   });
   // OTel global setters reject duplicate or version-mismatched registrations,
   // preserving existing registrations.
-  trace.setGlobalTracerProvider(provider);
+  if (!trace.setGlobalTracerProvider(provider)) {
+    return undefined;
+  }
   const contextManager = new AsyncLocalStorageContextManager();
   contextManager.enable();
-  context.setGlobalContextManager(contextManager);
+  if (!context.setGlobalContextManager(contextManager)) {
+    try {
+      contextManager.disable();
+    } catch (error) {
+      logDebug(`Error disabling an unused OpenTelemetry context manager: ${String(error)}`);
+    }
+    warnIfContextDoesNotPropagate();
+  }
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
-  warnIfContextDoesNotPropagate();
   return provider;
 }
 
@@ -146,6 +153,13 @@ export function getDistroVersion(): string {
   distroVersion ??= (createRequire(import.meta.url)("../package.json") as { version: string })
     .version;
   return distroVersion;
+}
+
+function readDeploymentEnvironmentNameFromResource(
+  resource: Pick<Resource, "attributes"> | undefined,
+): string | undefined {
+  const value = resource?.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function readDeploymentEnvironmentNameFromEnv(): string | undefined {
@@ -174,11 +188,16 @@ function readDeploymentEnvironmentNameFromEnv(): string | undefined {
 // OTel exposes no context-manager getter, so a propagated probe verifies
 // registration. Without propagation, request contexts and suppression fail without an error.
 function warnIfContextDoesNotPropagate(): void {
-  const probeKey = createContextKey("apitally-context-probe");
-  const isPropagated = context.with(
-    context.active().setValue(probeKey, true),
-    () => context.active().getValue(probeKey) === true,
-  );
+  let isPropagated = false;
+  try {
+    const probeKey = createContextKey("apitally-context-probe");
+    isPropagated = context.with(
+      context.active().setValue(probeKey, true),
+      () => context.active().getValue(probeKey) === true,
+    );
+  } catch (error) {
+    logDebug(`Error probing OpenTelemetry context propagation: ${String(error)}`);
+  }
   if (!isPropagated) {
     logWarning(
       "OpenTelemetry context propagation is not working, so Apitally cannot associate telemetry with requests. This can happen when conflicting versions of @opentelemetry/api are installed.",

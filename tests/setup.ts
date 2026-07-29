@@ -9,7 +9,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { resetActivation } from "../src/activation.js";
 import { uninstallLogCapture } from "../src/logCapture.js";
 import { resetEmittedWarnings } from "../src/logger.js";
-import { setActiveSpanPipeline } from "../src/spanProcessor.js";
+import { resetSpanProcessorState } from "../src/spanProcessor.js";
 import { resetStartupEventEmitted } from "../src/startup.js";
 
 // Ambient Apitally, OTel, and proxy env vars must not leak into tests.
@@ -46,7 +46,7 @@ afterEach(async () => {
   delete (globalThis as Record<symbol, unknown>)[Symbol.for("apitally.config")];
   resetEmittedWarnings();
   resetStartupEventEmitted();
-  setActiveSpanPipeline(undefined);
+  resetSpanProcessorState();
   trace.disable();
   context.disable();
   propagation.disable();

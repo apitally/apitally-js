@@ -65,11 +65,20 @@ export type SpanCopy = {
   -readonly [Key in keyof ReadableSpan]: ReadableSpan[Key];
 } & { apitallyData?: ApitallySpanData };
 
-// The public processor delegates to the process-global pipeline, so construction
-// has no side effects and callbacks before activation are no-ops.
+// The public processor delegates to the process-global pipeline. Construction
+// only declares that the application owns the tracer provider.
 export class ApitallySpanProcessor implements SpanProcessor {
+  constructor() {
+    setApitallySpanProcessorDeclared();
+  }
+
   onStart(span: Span, parentContext: Context): void {
-    getActiveSpanPipeline()?.onStart(span, parentContext);
+    let pipeline = getActiveSpanPipeline();
+    if (!pipeline && span.kind === SpanKind.SERVER) {
+      getServerSpanActivationCallback()?.(span);
+      pipeline = getActiveSpanPipeline();
+    }
+    pipeline?.onStart(span, parentContext);
   }
 
   onEnd(span: ReadableSpan): void {
@@ -94,8 +103,12 @@ export class ApitallySpanProcessor implements SpanProcessor {
   }
 }
 
-// A Symbol.for key lets ESM and CJS builds share the active pipeline.
+type ServerSpanActivationCallback = (span: Span) => void;
+
+// Symbol.for keys let ESM and CJS builds share processor coordination.
 const ACTIVE_SPAN_PIPELINE_KEY = Symbol.for("apitally.activeSpanPipeline");
+const APITALLY_SPAN_PROCESSOR_DECLARED_KEY = Symbol.for("apitally.spanProcessorDeclared");
+const SERVER_SPAN_ACTIVATION_CALLBACK_KEY = Symbol.for("apitally.serverSpanActivationCallback");
 
 export function setActiveSpanPipeline(pipeline: SpanPipeline | undefined): void {
   (globalThis as Record<symbol, SpanPipeline | undefined>)[ACTIVE_SPAN_PIPELINE_KEY] = pipeline;
@@ -103,6 +116,35 @@ export function setActiveSpanPipeline(pipeline: SpanPipeline | undefined): void 
 
 export function getActiveSpanPipeline(): SpanPipeline | undefined {
   return (globalThis as Record<symbol, SpanPipeline | undefined>)[ACTIVE_SPAN_PIPELINE_KEY];
+}
+
+export function setServerSpanActivationCallback(callback: ServerSpanActivationCallback): void {
+  const holder = globalThis as Record<symbol, ServerSpanActivationCallback | undefined>;
+  holder[SERVER_SPAN_ACTIVATION_CALLBACK_KEY] ??= callback;
+}
+
+export function isApitallySpanProcessorDeclared(): boolean {
+  return (
+    (globalThis as Record<symbol, boolean | undefined>)[APITALLY_SPAN_PROCESSOR_DECLARED_KEY] ===
+    true
+  );
+}
+
+export function resetSpanProcessorState(): void {
+  const holder = globalThis as Record<symbol, unknown>;
+  delete holder[ACTIVE_SPAN_PIPELINE_KEY];
+  delete holder[APITALLY_SPAN_PROCESSOR_DECLARED_KEY];
+  delete holder[SERVER_SPAN_ACTIVATION_CALLBACK_KEY];
+}
+
+function setApitallySpanProcessorDeclared(): void {
+  (globalThis as Record<symbol, boolean>)[APITALLY_SPAN_PROCESSOR_DECLARED_KEY] = true;
+}
+
+function getServerSpanActivationCallback(): ServerSpanActivationCallback | undefined {
+  return (globalThis as Record<symbol, ServerSpanActivationCallback | undefined>)[
+    SERVER_SPAN_ACTIVATION_CALLBACK_KEY
+  ];
 }
 
 export function setConsumer(consumer: ApitallyConsumer | string): void {

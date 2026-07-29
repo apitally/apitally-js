@@ -429,7 +429,7 @@ describe("spanProcessor", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
-  it("tolerates spans and flushes before the SDK is active and drops the pre-activation request", async () => {
+  it("tolerates spans and flushes before the SDK is configured", async () => {
     const shell = new ApitallySpanProcessor();
     const exporter = new InMemorySpanExporter();
     const provider = new NodeTracerProvider({
