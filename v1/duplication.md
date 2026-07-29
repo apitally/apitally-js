@@ -50,6 +50,8 @@ A transport-completion fallback is necessary for adopted SERVER spans whose requ
 
 ### 4. Low: Expired spool-file disposal is repeated
 
+**Status:** Completed
+
 **References:** `src/spool.ts:151-157`, `src/exportWorker.ts:191-199`, `src/spool.ts:266-275`
 
 Spool eviction and send-time processing both check whether a file is expired, emit the same warning, remove the file from the spool, and delete it.

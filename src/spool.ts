@@ -104,6 +104,15 @@ export class Spool {
     await file.delete();
   }
 
+  // Apitally ingest deduplicates for one hour; a later retry could ingest the file twice.
+  deleteIfExpired(file: SpoolFile): Promise<void> | undefined {
+    if (!file.isExpired()) {
+      return undefined;
+    }
+    logWarning(`Buffered ${file.signal} could not be delivered within an hour and were dropped`);
+    return this.deleteFile(file);
+  }
+
   // Refresh mtimes so orphan cleanup in another process preserves live files.
   touchFiles(): void {
     for (const file of [...this.current.values(), ...this.closed]) {
@@ -149,12 +158,7 @@ export class Spool {
   }
 
   private async evict(): Promise<void> {
-    const deletions: Promise<void>[] = [];
-    for (const file of this.closed.filter((file) => file.isExpired())) {
-      logWarning(`Buffered ${file.signal} could not be delivered within an hour and were dropped`);
-      this.closed.splice(this.closed.indexOf(file), 1);
-      deletions.push(file.delete());
-    }
+    const deletions = [...this.closed].map((file) => this.deleteIfExpired(file));
     while (this.totalSize() > this.maxSize) {
       // Prefer retaining metrics, but enforce the size limit when only metrics remain.
       const oldest = this.closed.find((file) => file.signal !== "metrics") ?? this.closed[0];
@@ -162,8 +166,7 @@ export class Spool {
         break;
       }
       logWarning(`Buffer size limit reached, dropping oldest buffered ${oldest.signal}`);
-      this.closed.splice(this.closed.indexOf(oldest), 1);
-      deletions.push(oldest.delete());
+      deletions.push(this.deleteFile(oldest));
     }
     await Promise.all(deletions);
   }

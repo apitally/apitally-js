@@ -188,13 +188,9 @@ export class ExportWorker {
           return;
         }
       }
-      if (file.isExpired()) {
-        // Apitally ingest deduplicates for one hour; a later retry could ingest
-        // the file twice.
-        logWarning(
-          `Buffered ${file.signal} could not be delivered within an hour and were dropped`,
-        );
-        await this.spool.deleteFile(file);
+      const expirationDeletion = this.spool.deleteIfExpired(file);
+      if (expirationDeletion) {
+        await expirationDeletion;
         continue;
       }
       sent += 1;
