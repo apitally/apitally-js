@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { ApitallyOptions } from "../../src/config.js";
 import { useApitally } from "../../src/hono/index.js";
-import { setConsumer } from "../../src/spanProcessor.js";
+import { setConsumer } from "../../src/index.js";
 import { WRITE_TOKEN } from "../utils.js";
 
 // These fixtures must remain behaviorally aligned across adapter suites.

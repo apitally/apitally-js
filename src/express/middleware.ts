@@ -3,6 +3,7 @@ import { type Context, context } from "@opentelemetry/api";
 import type { Express, NextFunction, Request, Response } from "express";
 import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
+import { captureException } from "../exceptions.js";
 import { logWarning } from "../logger.js";
 import {
   captureNodeResponse,
@@ -12,7 +13,6 @@ import {
   startNodeRequestObservation,
 } from "../nodeRequestObservation.js";
 import { finalizeRecordAndReleaseRequest } from "../requestObservation.js";
-import { captureException } from "../spanProcessor.js";
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
 
 const HANDLE_WRAP_MARKER = Symbol.for("apitally.expressHandleWrap");

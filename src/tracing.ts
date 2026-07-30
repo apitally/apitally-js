@@ -7,8 +7,8 @@ import {
   SpanStatusCode,
   trace,
 } from "@opentelemetry/api";
+import { coerceToException } from "./exceptions.js";
 import { logDebug } from "./logger.js";
-import { coerceToException } from "./spanProcessor.js";
 
 const STACK_FRAME_PATTERN = /at (?:.*\()?(.*?):(\d+):\d+\)?$/;
 

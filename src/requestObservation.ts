@@ -8,13 +8,13 @@ import {
   type SpanHandle,
   withRequestHolders,
 } from "./context.js";
+import { coerceToException } from "./exceptions.js";
 import { logWarning } from "./logger.js";
+import { writeRequestAttribute } from "./requestAttributes.js";
 import {
-  coerceToException,
   getActiveSpanPipeline,
   isApitallySpanProcessorDeclared,
   type RequestStash,
-  writeRequestAttribute,
 } from "./spanProcessor.js";
 
 interface StartRequestObservationOptions {

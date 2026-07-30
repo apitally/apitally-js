@@ -3,12 +3,12 @@ import type { Hono, Context as HonoContext, MiddlewareHandler } from "hono";
 import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
 import { getRequestRecord, type RequestRecord } from "../context.js";
+import { captureException } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import {
   finalizeFailedRequestDispatch,
   finalizeRecordAndReleaseRequest,
 } from "../requestObservation.js";
-import { captureException } from "../spanProcessor.js";
 import {
   captureWebResponse,
   startWebRequestObservation,

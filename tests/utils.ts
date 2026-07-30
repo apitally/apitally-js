@@ -55,12 +55,10 @@ import {
 } from "../src/activation.js";
 import type { ApitallyOptions } from "../src/config.js";
 import {
-  CONSUMER_HOLDER_KEY,
   type ConsumerHolder,
-  REQUEST_RECORD_KEY,
   type RequestRecord,
-  SPAN_HANDLE_KEY,
   type SpanHandle,
+  withRequestHolders,
 } from "../src/context.js";
 import { ExportWorker } from "../src/exportWorker.js";
 import { LogPipeline } from "../src/logPipeline.js";
@@ -291,15 +289,12 @@ export interface RequestContext {
   consumerHolder: ConsumerHolder;
 }
 
-export function createRequestContext(base: Context = ROOT_CONTEXT): RequestContext {
+function createRequestContext(base: Context = ROOT_CONTEXT): RequestContext {
   const record: RequestRecord = { attributes: {} };
   const spanHandle: SpanHandle = {};
   const consumerHolder: ConsumerHolder = {};
   return {
-    context: base
-      .setValue(REQUEST_RECORD_KEY, record)
-      .setValue(SPAN_HANDLE_KEY, spanHandle)
-      .setValue(CONSUMER_HOLDER_KEY, consumerHolder),
+    context: withRequestHolders(base, spanHandle, record, consumerHolder),
     record,
     spanHandle,
     consumerHolder,

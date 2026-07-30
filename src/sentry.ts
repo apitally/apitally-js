@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { getRequestRecord, getServerSpan } from "./context.js";
 import { logDebug } from "./logger.js";
 import { resolvePackageEntryPath } from "./packageVersion.js";
-import { writeRequestAttribute } from "./spanProcessor.js";
+import { writeRequestAttribute } from "./requestAttributes.js";
 
 // Minimal structural types: @sentry/node is an optional peer that is resolved
 // at runtime and never imported.

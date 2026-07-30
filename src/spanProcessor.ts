@@ -1,11 +1,4 @@
-import {
-  type Span as ApiSpan,
-  type Attributes,
-  type AttributeValue,
-  type Context,
-  type Exception,
-  SpanKind,
-} from "@opentelemetry/api";
+import { type Attributes, type Context, SpanKind } from "@opentelemetry/api";
 import { hrTime, hrTimeDuration } from "@opentelemetry/core";
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import {
@@ -17,13 +10,8 @@ import {
   matchesAny,
   type SamplingCallback,
 } from "./config.js";
-import { type ApitallyConsumer, consumerFromStringOrObject } from "./consumer.js";
+import { writeConsumerAttributesFromContext } from "./consumer.js";
 import {
-  CONSUMER_HOLDER_KEY,
-  type ConsumerHolder,
-  getConsumerHolder,
-  getRequestRecord,
-  getServerSpan,
   REQUEST_RECORD_KEY,
   type RequestDropReason,
   type RequestRecord,
@@ -36,13 +24,6 @@ const MAX_BUFFERED_SPANS = 1_000;
 const MAX_TRACKED_SPAN_IDS = MAX_BUFFERED_SPANS + 1;
 const MAX_STASHED_REQUESTS = 2_048;
 const MAX_KEPT_SPAN_IDS = 10_000;
-
-const PER_MESSAGE_SPAN_NAME_SUFFIXES = [
-  " http send",
-  " http receive",
-  " websocket send",
-  " websocket receive",
-];
 const EXCLUDE_USER_AGENT_PATTERNS = compilePatterns(EXCLUDE_USER_AGENTS);
 
 // Transport-captured headers and bodies are attached only to Apitally's export
@@ -146,58 +127,6 @@ function getServerSpanActivationCallback(): ServerSpanActivationCallback | undef
   return (globalThis as Record<symbol, ServerSpanActivationCallback | undefined>)[
     SERVER_SPAN_ACTIVATION_CALLBACK_KEY
   ];
-}
-
-export function setConsumer(consumer: ApitallyConsumer | string): void {
-  try {
-    const holder = getConsumerHolder();
-    const normalized = consumerFromStringOrObject(consumer);
-    if (!holder || !normalized) {
-      return;
-    }
-    holder.identifier = normalized.identifier;
-    holder.name = normalized.name;
-    holder.group = normalized.group;
-    writeConsumerAttributes(getServerSpan(), getRequestRecord(), normalized);
-  } catch (error) {
-    logDebug(`Error setting consumer: ${String(error)}`);
-  }
-}
-
-export function setRequestAttribute(key: string, value: AttributeValue): void {
-  try {
-    writeRequestAttribute(getServerSpan(), getRequestRecord(), key, value);
-  } catch (error) {
-    logDebug(`Error setting request attribute: ${String(error)}`);
-  }
-}
-
-export function captureException(error: unknown): void {
-  try {
-    const span = getServerSpan();
-    if (!span?.isRecording()) {
-      return;
-    }
-    span.recordException(coerceToException(error));
-  } catch (captureError) {
-    logDebug(`Error capturing exception: ${String(captureError)}`);
-  }
-}
-
-// Mirroring attributes into the request record preserves values learned after
-// the live span stops recording.
-export function writeRequestAttribute(
-  span: ApiSpan | undefined,
-  record: RequestRecord | undefined,
-  key: string,
-  value: AttributeValue,
-): void {
-  if (span?.isRecording()) {
-    span.setAttribute(key, value);
-  }
-  if (record) {
-    record.attributes[key] = value;
-  }
 }
 
 interface RequestEntry {
@@ -437,17 +366,7 @@ export class SpanPipeline implements SpanProcessor {
     if (record) {
       record.serverSpanId = spanId;
     }
-    const holder = parentContext.getValue(CONSUMER_HOLDER_KEY) as ConsumerHolder | undefined;
-    if (holder?.identifier) {
-      const consumer = consumerFromStringOrObject({
-        identifier: holder.identifier,
-        name: holder.name,
-        group: holder.group,
-      });
-      if (consumer) {
-        writeConsumerAttributes(span, record, consumer);
-      }
-    }
+    writeConsumerAttributesFromContext(parentContext, span, record);
     writeUrlAttributesFromFullUrl(span);
     const dropReason = this.resolveDropReasonAtStart(span);
     if (dropReason) {
@@ -625,20 +544,6 @@ function resolveTransportDropReason(attributes: Attributes): RequestDropReason |
   return scheme === "ws" || scheme === "wss" ? "scheme" : undefined;
 }
 
-function writeConsumerAttributes(
-  span: ApiSpan | undefined,
-  record: RequestRecord | undefined,
-  consumer: ApitallyConsumer,
-): void {
-  writeRequestAttribute(span, record, "apitally.consumer.identifier", consumer.identifier);
-  if (consumer.name) {
-    writeRequestAttribute(span, record, "apitally.consumer.name", consumer.name);
-  }
-  if (consumer.group) {
-    writeRequestAttribute(span, record, "apitally.consumer.group", consumer.group);
-  }
-}
-
 // Missing path, query, and target attributes are derived from the full URL
 // because exclusion, display, and redaction require them.
 function writeUrlAttributesFromFullUrl(span: Span): void {
@@ -705,37 +610,13 @@ function resolveCallbackSampleRate(
   return 1;
 }
 
-export function coerceToException(error: unknown): Exception {
-  if (typeof error === "string") {
-    return error;
-  }
-  if (error instanceof Error) {
-    if (
-      error.name === "Error" &&
-      error.constructor.name !== "" &&
-      error.constructor.name !== error.name
-    ) {
-      return {
-        ...error,
-        message: error.message,
-        name: error.constructor.name,
-        stack: error.stack,
-      };
-    }
-    return error;
-  }
-  if (typeof error === "object" && error !== null) {
-    return error as Exception;
-  }
-  return String(error);
-}
-
-// The scope check keeps user-owned socket spans whose names happen to match.
 function isContribPerMessageSpan(span: Span): boolean {
   const scopeName = span.instrumentationScope?.name ?? "";
   return (
     span.kind === SpanKind.INTERNAL &&
-    PER_MESSAGE_SPAN_NAME_SUFFIXES.some((suffix) => span.name.endsWith(suffix)) &&
+    [" http send", " http receive", " websocket send", " websocket receive"].some((suffix) =>
+      span.name.endsWith(suffix),
+    ) &&
     (scopeName.startsWith("@opentelemetry/instrumentation") ||
       scopeName.startsWith("opentelemetry.instrumentation."))
   );

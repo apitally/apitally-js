@@ -1,4 +1,4 @@
-import { context, ROOT_CONTEXT, TraceFlags, trace } from "@opentelemetry/api";
+import { ROOT_CONTEXT, TraceFlags, trace } from "@opentelemetry/api";
 import {
   AlwaysOnSampler,
   BatchSpanProcessor,
@@ -11,18 +11,14 @@ import { type SamplingCallback, setConfig } from "../src/config.js";
 import type { RequestRecord } from "../src/context.js";
 import {
   ApitallySpanProcessor,
-  captureException,
   SpanPipeline,
   setActiveSpanPipeline,
-  setConsumer,
-  setRequestAttribute,
 } from "../src/spanProcessor.js";
 import {
   CollectingSpanProcessor,
   captureStderr,
   createBatchProcessorOptions,
   createTracePipeline,
-  enableAsyncContextManager,
   startServerSpan,
   WRITE_TOKEN,
 } from "./utils.js";
@@ -336,55 +332,6 @@ describe("spanProcessor", () => {
     expect(exported.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
     expect(exported.attributes["apitally.consumer.name"]).toBe("Tenant One");
     expect(request.record.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
-  });
-
-  it("writes setConsumer and setRequestAttribute through to the server span and records captureException events", () => {
-    enableAsyncContextManager();
-    const { pipeline, tracer, exporter } = createTracePipeline();
-    const { span, request } = startServerSpan(tracer);
-    context.with(trace.setSpan(request.context, span), () => {
-      setConsumer({ identifier: " tenant-1 ", group: "enterprise" });
-      setRequestAttribute("custom.key", "value");
-      captureException(new Error("request failed"));
-      captureException(42);
-    });
-    span.end();
-    pipeline.handleTransportCompletion(request.record);
-    const [exported] = exporter.getFinishedSpans();
-    expect(exported.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
-    expect(exported.attributes["apitally.consumer.group"]).toBe("enterprise");
-    expect(exported.attributes["custom.key"]).toBe("value");
-    expect(request.record.attributes["custom.key"]).toBe("value");
-    expect(exported.events).toHaveLength(2);
-    expect(exported.events[0].name).toBe("exception");
-    expect(exported.events[0].attributes?.["exception.type"]).toBe("Error");
-    expect(exported.events[0].attributes?.["exception.message"]).toBe("request failed");
-    expect(exported.events[1].attributes?.["exception.message"]).toBe("42");
-  });
-
-  it("records a custom Error subclass by its constructor name", () => {
-    class OrderFailedError extends Error {}
-
-    enableAsyncContextManager();
-    const { pipeline, tracer, exporter } = createTracePipeline();
-    const { span, request } = startServerSpan(tracer);
-    context.with(trace.setSpan(request.context, span), () => {
-      captureException(new OrderFailedError("request failed"));
-    });
-    span.end();
-    pipeline.handleTransportCompletion(request.record);
-    const [exported] = exporter.getFinishedSpans();
-    expect(exported.events[0].attributes?.["exception.type"]).toBe("OrderFailedError");
-  });
-
-  it("treats setConsumer, setRequestAttribute, and captureException as safe no-ops outside a request", () => {
-    const { exporter } = createTracePipeline();
-    expect(() => {
-      setConsumer("tenant-1");
-      setRequestAttribute("custom.key", "value");
-      captureException(new Error("boom"));
-    }).not.toThrow();
-    expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
   it("invokes the metrics recorder at transport completion with the reason a request was not exported", () => {

@@ -9,12 +9,10 @@ export type {
   SamplingCallback,
 } from "./config.js";
 export type { ApitallyConsumer } from "./consumer.js";
-export {
-  ApitallySpanProcessor,
-  captureException,
-  setConsumer,
-  setRequestAttribute,
-} from "./spanProcessor.js";
+export { setConsumer } from "./consumer.js";
+export { captureException } from "./exceptions.js";
+export { setRequestAttribute } from "./requestAttributes.js";
+export { ApitallySpanProcessor } from "./spanProcessor.js";
 export { instrument, span } from "./tracing.js";
 
 export function useApitally(app: unknown, options?: ApitallyOptions): void {
