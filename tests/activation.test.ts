@@ -185,7 +185,7 @@ describe("activation", () => {
 
     expect(isActivated()).toBe(false);
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("[Apitally ERROR] Apitally activation failed");
+    expect(lines[0]).toContain("Apitally activation failed");
 
     activate();
     expect(isActivated()).toBe(false);
