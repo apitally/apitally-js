@@ -10,11 +10,11 @@ import {
   isApitallyDisabledViaEnv,
   setConfig,
 } from "./config.js";
-import { ApitallySpanExporter } from "./exporter.js";
 import { ExportWorker, type ExportWorkerOptions } from "./exportWorker.js";
 import { installConsoleCapture, installPinoCapture, installWinstonCapture } from "./logCapture.js";
 import { logDebug, logError, logWarning } from "./logger.js";
-import { ApitallyLogRecordExporter, LogPipeline } from "./logPipeline.js";
+import { ApitallyLogRecordExporter } from "./logRecordExporter.js";
+import { ApitallyLogRecordProcessor } from "./logRecordProcessor.js";
 import { MetricsPipeline } from "./metrics.js";
 import {
   createLoggerProvider,
@@ -24,6 +24,7 @@ import {
 } from "./providers.js";
 import { Redaction } from "./redaction.js";
 import { installSentryEventIdRecording } from "./sentry.js";
+import { ApitallySpanExporter } from "./spanExporter.js";
 import {
   isApitallySpanProcessorDeclared,
   SpanPipeline,
@@ -249,8 +250,8 @@ function startPipelines(
     maxQueueSize: BATCH_MAX_QUEUE_SIZE,
     maxExportBatchSize: BATCH_MAX_EXPORT_BATCH_SIZE,
   });
-  const logPipeline = new LogPipeline(batchLogProcessor, spanPipeline);
-  const loggerProvider = createLoggerProvider(resource, [logPipeline]);
+  const logRecordProcessor = new ApitallyLogRecordProcessor(batchLogProcessor, spanPipeline);
+  const loggerProvider = createLoggerProvider(resource, [logRecordProcessor]);
   const metricsPipeline = new MetricsPipeline(resource, spool);
   spanPipeline.metricsRecorder = (record) => metricsPipeline.recordFromRequest(record);
   const worker = activationFactories.createExportWorker({

@@ -1,21 +1,20 @@
 import type { Attributes } from "@opentelemetry/api";
 import { SpanKind } from "@opentelemetry/api";
-import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
+import type { ExportResult } from "@opentelemetry/core";
 import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BODY_TOO_LARGE, BODY_TOO_LARGE_BUFFER, MAX_BODY_SIZE } from "./bodyCapture.js";
 import { type BodyMaskingCallback, DEFAULT_ENV } from "./config.js";
-import { logDebug, logWarning } from "./logger.js";
+import { logWarning } from "./logger.js";
 import { REDACTED, type Redaction } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";
-import type { Signal, Spool } from "./spool.js";
+import { type Spool, serializeInChunksToSpool } from "./spool.js";
 
 const QUERY_ATTRIBUTES = new Set(["url.query", "url.full", "http.target", "http.url"]);
 const REQUEST_HEADER_ATTRIBUTE_PREFIX = "http.request.header.";
 const RESPONSE_HEADER_ATTRIBUTE_PREFIX = "http.response.header.";
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
-const SERIALIZATION_CHUNK_SIZE = 32;
 
 export interface ApitallySpanExporterOptions {
   redaction: Redaction;
@@ -221,36 +220,6 @@ export class ApitallySpanExporter implements SpanExporter {
   }
 }
 
-export function serializeInChunksToSpool<Item>(
-  items: Item[],
-  serializeChunk: (chunk: Item[]) => Uint8Array | undefined,
-  spool: Spool,
-  signal: Signal,
-  resultCallback: (result: ExportResult) => void,
-): void {
-  const appends: Promise<void>[] = [];
-  try {
-    for (let start = 0; start < items.length; start += SERIALIZATION_CHUNK_SIZE) {
-      const payload = serializeChunk(items.slice(start, start + SERIALIZATION_CHUNK_SIZE));
-      if (payload) {
-        appends.push(spool.append(signal, payload));
-      }
-    }
-  } catch (error) {
-    logDebug(`Error exporting ${signal}: ${String(error)}`);
-    resultCallback({ code: ExportResultCode.FAILED, error: toError(error) });
-    return;
-  }
-  Promise.all(appends).then(
-    () => resultCallback({ code: ExportResultCode.SUCCESS }),
-    (error: unknown) =>
-      resultCallback({
-        code: ExportResultCode.FAILED,
-        error: toError(error),
-      }),
-  );
-}
-
 function writeCapturedHeaderAttributes(
   attributes: Record<string, unknown>,
   prefix: string,
@@ -261,8 +230,4 @@ function writeCapturedHeaderAttributes(
     const redactedValues = redaction.redactHeaderValue(name, values);
     attributes[prefix + name] = Array.isArray(redactedValues) ? redactedValues : [redactedValues];
   }
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

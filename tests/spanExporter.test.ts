@@ -10,8 +10,8 @@ import {
 import { describe, expect, it } from "vitest";
 import { MAX_BODY_SIZE } from "../src/bodyCapture.js";
 import { type BodyMaskingCallback, getConfig, setConfig } from "../src/config.js";
-import { ApitallySpanExporter } from "../src/exporter.js";
 import { Redaction } from "../src/redaction.js";
+import { ApitallySpanExporter } from "../src/spanExporter.js";
 import {
   captureStderr,
   createBatchProcessorOptions,
@@ -53,7 +53,7 @@ function attributesOfSpan(spans: ReadableSpan[], name: string): Record<string, u
   return span.attributes;
 }
 
-describe("exporter", () => {
+describe("spanExporter", () => {
   it("redacts query and HTTP header attributes on every span, leaving the original untouched", async () => {
     const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer, {

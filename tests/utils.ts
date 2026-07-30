@@ -61,7 +61,7 @@ import {
   withRequestHolders,
 } from "../src/context.js";
 import { ExportWorker } from "../src/exportWorker.js";
-import { LogPipeline } from "../src/logPipeline.js";
+import { ApitallyLogRecordProcessor } from "../src/logRecordProcessor.js";
 import { SpanPipeline } from "../src/spanProcessor.js";
 import { Spool } from "../src/spool.js";
 
@@ -257,23 +257,23 @@ export function createTracePipeline(
 }
 
 export interface LogTestPipeline {
-  logPipeline: LogPipeline;
+  logRecordProcessor: ApitallyLogRecordProcessor;
   loggerProvider: LoggerProvider;
   logExporter: InMemoryLogRecordExporter;
 }
 
 // A private logger provider connects to the span pipeline for request association.
-export function createLogPipeline(
+export function createLogRecordProcessor(
   spanPipeline: SpanPipeline,
   downstream?: LogRecordProcessor,
 ): LogTestPipeline {
   const logExporter = new InMemoryLogRecordExporter();
-  const logPipeline = new LogPipeline(
+  const logRecordProcessor = new ApitallyLogRecordProcessor(
     downstream ?? new SimpleLogRecordProcessor({ exporter: logExporter }),
     spanPipeline,
   );
-  const loggerProvider = new LoggerProvider({ processors: [logPipeline] });
-  return { logPipeline, loggerProvider, logExporter };
+  const loggerProvider = new LoggerProvider({ processors: [logRecordProcessor] });
+  return { logRecordProcessor, loggerProvider, logExporter };
 }
 
 export function enableAsyncContextManager(): void {

@@ -18,7 +18,7 @@ import { logWarning } from "../src/logger.js";
 import type { SpanPipeline } from "../src/spanProcessor.js";
 import {
   captureStderr,
-  createLogPipeline,
+  createLogRecordProcessor,
   createTracePipeline,
   enableAsyncContextManager,
   mockPackageResolutionFailure,
@@ -35,7 +35,7 @@ interface CaptureFixture {
 function createCaptureFixture(): CaptureFixture {
   enableAsyncContextManager();
   const { pipeline, tracer } = createTracePipeline();
-  const { loggerProvider, logExporter } = createLogPipeline(pipeline);
+  const { loggerProvider, logExporter } = createLogRecordProcessor(pipeline);
   return { pipeline, tracer, loggerProvider, logExporter };
 }
 
