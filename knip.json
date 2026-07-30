@@ -1,0 +1,4 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreDependencies": ["@opentelemetry/instrumentation-http", "@opentelemetry/sdk-node"]
+}

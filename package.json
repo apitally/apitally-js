@@ -41,7 +41,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "check": "biome check . && tsc --noEmit",
+    "check": "biome check . && tsc --noEmit && knip",
     "check:package": "attw --pack . --profile node16",
     "format": "biome check --write .",
     "test": "vitest run",
@@ -149,6 +149,7 @@
     "esbuild-fix-imports-plugin": "^1.0.23",
     "express": "^5.2.1",
     "hono": "^4.12.31",
+    "knip": "^6.29.0",
     "pino": "^10.3.1",
     "supertest": "^7.2.2",
     "tsup": "^8.5.1",
