@@ -137,8 +137,6 @@
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.4",
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/instrumentation-http": "^0.220.0",
-    "@opentelemetry/sdk-node": "^0.220.0",
     "@sentry/node": "^10.67.0",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",
