@@ -1,6 +1,14 @@
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
+let distroVersion: string | undefined;
+
+export function getDistroVersion(): string {
+  distroVersion ??= (createRequire(import.meta.url)("../package.json") as { version: string })
+    .version;
+  return distroVersion;
+}
+
 // createRequire resolves peer libraries from the user's installation.
 export function resolvePackageEntryPath(packageName: string): string {
   return createRequire(import.meta.url).resolve(packageName);

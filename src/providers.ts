@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { createRequire } from "node:module";
 import {
   type Context,
   context,
@@ -29,6 +28,7 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { DEFAULT_ENV, getConfig } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
+import { getDistroVersion } from "./packageVersion.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 65_536;
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
@@ -152,14 +152,6 @@ export function createLoggerProvider(
   processors: LogRecordProcessor[],
 ): LoggerProvider {
   return new LoggerProvider({ resource, processors });
-}
-
-let distroVersion: string | undefined;
-
-export function getDistroVersion(): string {
-  distroVersion ??= (createRequire(import.meta.url)("../package.json") as { version: string })
-    .version;
-  return distroVersion;
 }
 
 function readDeploymentEnvironmentNameFromResource(

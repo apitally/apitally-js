@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { context } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import { logDebug, logWarning } from "./logger.js";
-import { getDistroVersion } from "./providers.js";
+import { getDistroVersion } from "./packageVersion.js";
 import type { Spool, SpoolFile } from "./spool.js";
 
 const MAX_SENDS_PER_CYCLE = 10;

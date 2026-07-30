@@ -6,10 +6,11 @@ import { type Resource, resourceFromAttributes } from "@opentelemetry/resources"
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BODY_TOO_LARGE, BODY_TOO_LARGE_BUFFER, MAX_BODY_SIZE } from "./bodyCapture.js";
 import { type BodyMaskingCallback, DEFAULT_ENV } from "./config.js";
+import { serializeInChunksToSpool } from "./exportSerialization.js";
 import { logWarning } from "./logger.js";
 import { REDACTED, type Redaction } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";
-import { type Spool, serializeInChunksToSpool } from "./spool.js";
+import type { Spool } from "./spool.js";
 
 const QUERY_ATTRIBUTES = new Set(["url.query", "url.full", "http.target", "http.url"]);
 const REQUEST_HEADER_ATTRIBUTE_PREFIX = "http.request.header.";

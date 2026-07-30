@@ -25,5 +25,5 @@ export function resetEmittedWarnings(): void {
 // The console methods are a log capture surface, so SDK diagnostics write to stderr
 // directly and can never feed back into capture.
 function writeToStderr(level: string, message: string): void {
-  process.stderr.write(`[Apitally ${level}] ${message}\n`);
+  process.stderr.write(`[apitally] ${level}: ${message}\n`);
 }

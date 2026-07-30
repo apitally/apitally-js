@@ -16,9 +16,9 @@ import { logDebug, logError, logWarning } from "./logger.js";
 import { ApitallyLogRecordExporter } from "./logRecordExporter.js";
 import { ApitallyLogRecordProcessor } from "./logRecordProcessor.js";
 import { MetricsPipeline } from "./metrics.js";
+import { getDistroVersion } from "./packageVersion.js";
 import {
   createLoggerProvider,
-  getDistroVersion,
   resolveEnvAndCreateResource,
   setupTracerProvider,
 } from "./providers.js";

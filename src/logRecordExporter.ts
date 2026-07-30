@@ -2,7 +2,8 @@ import type { AnyValue, LogAttributes } from "@opentelemetry/api-logs";
 import type { ExportResult } from "@opentelemetry/core";
 import { ProtobufLogsSerializer } from "@opentelemetry/otlp-transformer";
 import type { LogRecordExporter, ReadableLogRecord } from "@opentelemetry/sdk-logs";
-import { type Spool, serializeInChunksToSpool } from "./spool.js";
+import { serializeInChunksToSpool } from "./exportSerialization.js";
+import type { Spool } from "./spool.js";
 
 const APITALLY_SCOPE_NAME = "apitally";
 const MAX_STRING_LENGTH = 2_048;
