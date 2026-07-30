@@ -1,22 +1,20 @@
-import {
-  type Attributes,
-  type Context,
-  context,
-  propagation,
-  ROOT_CONTEXT,
-  type Span,
-  SpanStatusCode,
-  type TextMapGetter,
-} from "@opentelemetry/api";
-import type { RPCMetadata } from "@opentelemetry/core";
+import { type Context, context } from "@opentelemetry/api";
 import type { Hono, Context as HonoContext, MiddlewareHandler } from "hono";
 import { activate, isActivated } from "../activation.js";
-import { BodyCapture, type CapturedBody, captureResponse } from "../capture.js";
 import { getConfig } from "../config.js";
-import { getRequestRecord, type RequestRecord, type SpanHandle } from "../context.js";
+import { getRequestRecord, type RequestRecord } from "../context.js";
 import { logDebug, logWarning } from "../logger.js";
-import { finalizeRecordAndReleaseRequest, startRequestObservation } from "../requestObservation.js";
-import { captureException, coerceToException, getActiveSpanPipeline } from "../spanProcessor.js";
+import {
+  finalizeFailedRequestDispatch,
+  finalizeRecordAndReleaseRequest,
+} from "../requestObservation.js";
+import { captureException } from "../spanProcessor.js";
+import {
+  captureWebResponse,
+  startWebRequestObservation,
+  type WebRequestObservation,
+  type WebResponseCompletion,
+} from "../webRequestObservation.js";
 import { resolveMatchedRoute } from "./routes.js";
 
 const FETCH_WRAP_MARKER = Symbol.for("apitally.honoFetchWrap");
@@ -25,15 +23,7 @@ const TRACER_NAME = "apitally.hono";
 
 type FetchFunction = (request: Request, ...rest: unknown[]) => Response | Promise<Response>;
 
-interface RequestObservation {
-  requestRecord: RequestRecord;
-  spanHandle: SpanHandle;
-  ownSpan?: Span;
-  rpcMetadata?: RPCMetadata;
-  requestBodyCapture: BodyCapture;
-  requestHeaders: Headers;
-  startTimeMillis: number;
-  method: string;
+interface RequestObservation extends WebRequestObservation {
   honoContext?: HonoContext;
   route?: string;
 }
@@ -41,11 +31,6 @@ interface RequestObservation {
 // WeakMap associates route middleware with transport observation without
 // retaining completed request records.
 const observationsByRequestRecord = new WeakMap<RequestRecord, RequestObservation>();
-
-const WEB_HEADERS_GETTER: TextMapGetter<Headers> = {
-  get: (carrier, key) => carrier.get(key) ?? undefined,
-  keys: (carrier) => [...carrier.keys()],
-};
 
 // Wrapping app.fetch covers every response, including onError. Route middleware
 // precedes later registrations, and the marker prevents duplicate observation.
@@ -144,57 +129,30 @@ function observeRequest(
     return undefined;
   }
   wrapErrorHandlerOnce();
-  const config = getConfig();
-  const startTimeMillis = performance.now();
-  const method = request.method.toUpperCase();
-  const activeContext = context.active();
-  const requestBodyCapture = new BodyCapture({
-    captureBody: config.captureRequestBody,
-    contentType: request.headers.get("content-type"),
-    contentLength: request.headers.get("content-length"),
-    transferEncoding: request.headers.get("transfer-encoding"),
+  const started = startWebRequestObservation({
+    request,
+    tracerName: TRACER_NAME,
+    clientAddress: resolveNodeServerClientAddress(env),
   });
-  const startAttributes = resolveStartAttributes(request, env, method, requestBodyCapture);
-  const { requestRecord, requestContext, spanHandle, ownSpan, rpcMetadata } =
-    startRequestObservation({
-      activeContext,
-      extractedContext: propagation.extract(ROOT_CONTEXT, request.headers, WEB_HEADERS_GETTER),
-      tracerName: TRACER_NAME,
-      method,
-      startAttributes,
-      requestBodyCapture,
-    });
-
-  const observation: RequestObservation = {
-    requestRecord,
-    spanHandle,
-    ownSpan,
-    rpcMetadata,
-    requestBodyCapture,
-    requestHeaders: request.headers,
-    startTimeMillis,
-    method,
-  };
-  observationsByRequestRecord.set(requestRecord, observation);
-  return { observation, requestContext };
+  const observation: RequestObservation = started.observation;
+  observationsByRequestRecord.set(observation.requestRecord, observation);
+  return { observation, requestContext: started.requestContext };
 }
 
 // A tee after compression observes bytes sent to the client. Finalization follows
 // tee completion, and bodiless responses complete immediately.
 function observeResponse(response: Response, observation: RequestObservation): Response {
   try {
-    const [teedResponse, capturedBodyPromise] = captureResponse(
+    const captured = captureWebResponse(
       response,
       getConfig().captureResponseBody && observation.requestRecord.dropReason === undefined,
     );
-    capturedBodyPromise
-      .then((capturedResponseBody) =>
-        finalizeRequestFromResponse(observation, response, capturedResponseBody),
-      )
+    captured.completion
+      .then((completion) => finalizeRequestFromResponse(observation, response, completion))
       .catch((error: unknown) => {
         logWarning(`Error in the Apitally middleware: ${String(error)}`);
       });
-    return teedResponse;
+    return captured.response;
   } catch (error) {
     logWarning(`Error in the Apitally middleware: ${String(error)}`);
     return response;
@@ -204,14 +162,14 @@ function observeResponse(response: Response, observation: RequestObservation): R
 async function finalizeRequestFromResponse(
   observation: RequestObservation,
   response: Response,
-  capturedResponseBody: CapturedBody,
+  capturedResponseBody: WebResponseCompletion,
 ): Promise<void> {
-  const durationSeconds = (performance.now() - observation.startTimeMillis) / 1000;
+  const durationSeconds =
+    (capturedResponseBody.completedAtMillis - observation.startTimeMillis) / 1000;
   await captureRequestBodyFromCache(observation);
   finalizeRecordAndReleaseRequest({
     requestRecord: observation.requestRecord,
     spanHandle: observation.spanHandle,
-    ownSpan: observation.ownSpan,
     rpcMetadata: observation.rpcMetadata,
     method: observation.method,
     durationSeconds,
@@ -234,17 +192,12 @@ async function finalizeRequestFromResponse(
 // the rejection propagates unchanged.
 function releaseRequestOnFetchRejection(observation: RequestObservation, error: unknown): void {
   try {
-    const { requestRecord, spanHandle, ownSpan, startTimeMillis } = observation;
-    requestRecord.durationSeconds = (performance.now() - startTimeMillis) / 1000;
-    const span = spanHandle.span;
-    if (span?.isRecording()) {
-      span.recordException(coerceToException(error));
-    }
-    if (ownSpan) {
-      ownSpan.setStatus({ code: SpanStatusCode.ERROR });
-      ownSpan.end();
-    }
-    getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
+    finalizeFailedRequestDispatch({
+      requestRecord: observation.requestRecord,
+      spanHandle: observation.spanHandle,
+      error,
+      durationSeconds: (performance.now() - observation.startTimeMillis) / 1000,
+    });
   } catch (finalizeError) {
     logWarning(`Error in the Apitally middleware: ${String(finalizeError)}`);
   }
@@ -314,43 +267,6 @@ function wrapErrorHandler(app: Hono): void {
   } catch (error) {
     logDebug(`Error wrapping the hono onError handler: ${String(error)}`);
   }
-}
-
-function resolveStartAttributes(
-  request: Request,
-  env: unknown,
-  method: string,
-  requestBodyCapture: BodyCapture,
-): Attributes {
-  const attributes: Attributes = { "http.request.method": method };
-  try {
-    const url = new URL(request.url);
-    attributes["url.path"] = url.pathname;
-    const query = url.search.replace(/^\?/, "");
-    if (query) {
-      attributes["url.query"] = query;
-    }
-    attributes["url.scheme"] = url.protocol.replace(/:$/, "");
-    attributes["server.address"] = url.hostname;
-    attributes["url.full"] = request.url;
-  } catch {
-    // An unparseable request URL leaves only the method attribute.
-  }
-  const clientAddress = resolveNodeServerClientAddress(env);
-  if (clientAddress !== undefined) {
-    attributes["client.address"] = clientAddress;
-  }
-  const userAgent = request.headers.get("user-agent");
-  if (userAgent !== null) {
-    attributes["user_agent.original"] = userAgent;
-  }
-  // A trusted Content-Length is available immediately; otherwise completion
-  // supplies the cached body byte count.
-  const requestBodySize = requestBodyCapture.size;
-  if (requestBodySize !== undefined) {
-    attributes["http.request.body.size"] = requestBodySize;
-  }
-  return attributes;
 }
 
 // @hono/node-server passes the Node request as env.incoming; runtimes without

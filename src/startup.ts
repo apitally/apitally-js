@@ -34,7 +34,7 @@ export function emitStartupEvent(loggerProvider: LoggerProvider, info: StartupEv
   }
   let paths: RoutePath[] | undefined;
   try {
-    paths = info.resolvePaths();
+    paths = normalizeStartupPaths(info.resolvePaths());
   } catch (error) {
     logDebug(`Error resolving the app's routes for the startup event: ${String(error)}`);
   }
@@ -56,6 +56,23 @@ export function emitStartupEvent(loggerProvider: LoggerProvider, info: StartupEv
 
 export function resetStartupEventEmitted(): void {
   startupEventEmitted = false;
+}
+
+function normalizeStartupPaths(candidates: RoutePath[]): RoutePath[] {
+  const paths: RoutePath[] = [];
+  const seenPaths = new Set<string>();
+  for (const candidate of candidates) {
+    const method = candidate.method.toUpperCase();
+    if (method === "ALL" || method === "HEAD" || method === "OPTIONS") {
+      continue;
+    }
+    const key = `${method}\0${candidate.path}`;
+    if (!seenPaths.has(key)) {
+      seenPaths.add(key);
+      paths.push({ ...candidate, method });
+    }
+  }
+  return paths;
 }
 
 function serializePayload(payload: {

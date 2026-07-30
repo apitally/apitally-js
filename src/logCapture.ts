@@ -7,6 +7,7 @@ import {
   SeverityNumber,
 } from "@opentelemetry/api-logs";
 import { logDebug } from "./logger.js";
+import { resolvePackageEntryPath } from "./packageVersion.js";
 
 // Patch markers are Symbol.for-keyed on the patched objects themselves, so a
 // second install never double-wraps or double-attaches, even across SDK copies.
@@ -105,7 +106,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   let createProbeLogger: () => object;
   let TransportBase: new () => object;
   try {
-    const winstonEntryPath = resolvePeerEntryPath("winston");
+    const winstonEntryPath = resolvePackageEntryPath("winston");
     const requireFromWinston = createRequire(winstonEntryPath);
     const winston = requireFromWinston(winstonEntryPath) as {
       createLogger: () => object;
@@ -191,7 +192,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
 export function installPinoCapture(loggerProvider: LoggerProvider): void {
   let pino: PinoModule;
   try {
-    const pinoEntryPath = resolvePeerEntryPath("pino");
+    const pinoEntryPath = resolvePackageEntryPath("pino");
     pino = createRequire(pinoEntryPath)(pinoEntryPath) as PinoModule;
   } catch {
     return;
@@ -303,11 +304,6 @@ export function uninstallLogCapture(): void {
   restoreWinstonCapture = undefined;
   restorePinoCapture?.();
   restorePinoCapture = undefined;
-}
-
-// createRequire resolves peer libraries from the user's installation.
-export function resolvePeerEntryPath(id: string): string {
-  return createRequire(import.meta.url).resolve(id);
 }
 
 // The active context lets the log pipeline resolve the emitting request.

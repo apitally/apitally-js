@@ -32,16 +32,9 @@ export function resolveMatchedRoute(c: Context): string | undefined {
 
 export function resolveStartupPaths(app: Hono): RoutePath[] {
   const paths: RoutePath[] = [];
-  const seenPaths = new Set<string>();
   for (const route of app.routes) {
-    const method = route.method.toUpperCase();
-    if (method === "ALL" || !isRouteHandler(route.handler)) {
-      continue;
-    }
-    const key = `${method} ${route.path}`;
-    if (!seenPaths.has(key)) {
-      seenPaths.add(key);
-      paths.push({ method, path: route.path });
+    if (isRouteHandler(route.handler)) {
+      paths.push({ method: route.method, path: route.path });
     }
   }
   return paths;

@@ -93,9 +93,10 @@ describe("express routes", () => {
     app.use("/api", child);
 
     expect(resolveStartupPaths(app)).toEqual([
-      { method: "GET", path: "/items/:id" },
-      { method: "POST", path: "/items" },
-      { method: "GET", path: "/api/deep" },
+      { method: "get", path: "/items/:id" },
+      { method: "get", path: "/items/:id" },
+      { method: "post", path: "/items" },
+      { method: "get", path: "/api/deep" },
     ]);
   });
 
@@ -140,11 +141,11 @@ describe("express routes", () => {
     app.use("/sub", subApp);
 
     expect(resolveStartupPaths(app)).toEqual([
-      { method: "GET", path: "/batch" },
-      { method: "POST", path: "/batch" },
-      { method: "GET", path: "/parent/child/deep" },
-      { method: "GET", path: "/parent/direct" },
-      { method: "GET", path: "/sub/things/:id" },
+      { method: "get", path: "/batch" },
+      { method: "post", path: "/batch" },
+      { method: "get", path: "/parent/child/deep" },
+      { method: "get", path: "/parent/direct" },
+      { method: "get", path: "/sub/things/:id" },
     ]);
   });
 

@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { getRequestRecord, getServerSpan } from "./context.js";
-import { resolvePeerEntryPath } from "./logCapture.js";
 import { logDebug } from "./logger.js";
+import { resolvePackageEntryPath } from "./packageVersion.js";
 import { writeRequestAttribute } from "./spanProcessor.js";
 
 // Minimal structural types: @sentry/node is an optional peer that is resolved
@@ -48,7 +48,7 @@ export function installSentryEventIdRecording(): void {
 // transitive dependency of a Sentry wrapper package on npm-style layouts.
 function getClientThroughPeerResolution(): SentryClient | undefined {
   try {
-    const entryPath = resolvePeerEntryPath("@sentry/node");
+    const entryPath = resolvePackageEntryPath("@sentry/node");
     const sentry = createRequire(entryPath)(entryPath) as {
       getClient?: () => unknown;
     };

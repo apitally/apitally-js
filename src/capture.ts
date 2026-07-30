@@ -1,7 +1,5 @@
 import { BODY_TOO_LARGE_BUFFER, isAllowedContentType, MAX_BODY_SIZE } from "./config.js";
 
-const READ_TIMEOUT_MILLIS = 5_000;
-
 export interface BodyCaptureOptions {
   captureBody: boolean;
   contentType?: string | null;
@@ -91,59 +89,6 @@ export class BodyCapture {
 export interface CapturedBody {
   body?: Buffer;
   size?: number;
-}
-
-// The response is teed so capture does not consume or delay the application's
-// copy. Observation ends on completion, abort, or read timeout.
-export function captureResponse(
-  response: Response,
-  captureBody: boolean,
-  readTimeoutMillis: number = READ_TIMEOUT_MILLIS,
-): [Response, Promise<CapturedBody>] {
-  const bodyCapture = new BodyCapture({
-    captureBody,
-    contentType: response.headers.get("content-type"),
-    contentLength: response.headers.get("content-length"),
-    transferEncoding: response.headers.get("transfer-encoding"),
-  });
-  if (!response.body) {
-    bodyCapture.markComplete();
-    return [response, Promise.resolve({ body: bodyCapture.body, size: bodyCapture.size })];
-  }
-  let readStarted = false;
-  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
-    transform: (chunk, controller) => {
-      readStarted = true;
-      bodyCapture.addChunk(chunk);
-      controller.enqueue(chunk);
-    },
-  });
-  const pipePromise = response.body
-    .pipeTo(writable)
-    .then(() => {
-      bodyCapture.markComplete();
-      return { body: bodyCapture.body, size: bodyCapture.size };
-    })
-    .catch(() => ({}));
-  // A response nobody ever reads would leave the pipe promise pending forever.
-  let readTimeout: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<CapturedBody>((resolve) => {
-    readTimeout = setTimeout(() => {
-      if (!readStarted) {
-        resolve({});
-      }
-    }, readTimeoutMillis);
-    readTimeout.unref();
-  });
-  const teedResponse = new Response(readable, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-  const capturedBodyPromise = Promise.race([pipePromise, timeoutPromise]).finally(() =>
-    clearTimeout(readTimeout),
-  );
-  return [teedResponse, capturedBodyPromise];
 }
 
 // Values remain raw so all redaction happens at the export boundary.

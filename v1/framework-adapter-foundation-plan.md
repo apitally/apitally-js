@@ -325,15 +325,17 @@ Use a response contract equivalent to:
 export interface NodeResponseCompletion extends CapturedBody {
   completedAtMillis: number;
   responseFinished: boolean;
+  requestBody: CapturedBody;
 }
 
 export function captureNodeResponse(
   response: ServerResponse,
   shouldCaptureBody: boolean,
+  requestBodyCapture?: BodyCapture,
 ): Promise<NodeResponseCompletion>;
 ```
 
-`captureNodeResponse()` patches the response immediately and resolves exactly once:
+`captureNodeResponse()` patches the response immediately and resolves exactly once. It snapshots request-body capture at the same synchronous completion boundary so request bytes arriving before the promise continuation cannot change the finalized request body or size.
 
 - `finish` resolves with `responseFinished: true` and a complete body.
 - `close` before `finish` resolves with `responseFinished: false` and suppresses any partial body.
@@ -355,14 +357,14 @@ Preserve the current `WeakSet` idempotency and fire-and-forget rejection handlin
 Create `src/packageVersion.ts`:
 
 ```ts
-export function resolvePeerEntryPath(packageName: string): string;
+export function resolvePackageEntryPath(packageName: string): string;
 
 export function resolvePeerPackageVersion(
   packageName: string,
 ): string | undefined;
 ```
 
-`resolvePeerEntryPath()` retains the current `createRequire(import.meta.url).resolve()` behavior and throws when resolution fails. Existing logger installation paths continue to catch that failure.
+`resolvePackageEntryPath()` retains the current `createRequire(import.meta.url).resolve()` behavior and throws when resolution fails. Existing logger installation paths continue to catch that failure.
 
 `resolvePeerPackageVersion()`:
 
@@ -489,7 +491,7 @@ The private helper trusts the existing `RoutePath` boundary. Framework route mod
 3. Normalize native values through `resolveHttpRequestStartAttributes()`.
 4. Move response `write()` and `end()` patching into `captureNodeResponse()`.
 5. Keep response body capture lazy so response headers are settled before `BodyCapture` is configured.
-6. Capture `completedAtMillis` synchronously in the `finish` or first aborting `close` listener.
+6. Snapshot request-body capture and `completedAtMillis` synchronously in the `finish` or first aborting `close` listener.
 7. Move server-close worker-cycle registration into `registerServerCloseFlush()`.
 8. Move `firstStringValue()` with Node response capture and keep it private.
 
@@ -508,7 +510,7 @@ The private helper trusts the existing `RoutePath` boundary. Framework route mod
     - Derive duration from `completedAtMillis` before route resolution.
     - Resolve the Express route and registration-order warning.
     - Call `finalizeRecordAndReleaseRequest()` with raw request and response headers.
-    - Pass the captured body result, which suppresses partial bytes while preserving existing `BodyCapture` sentinel behavior.
+    - Pass the request and response body snapshots, which suppress partial bytes while preserving existing `BodyCapture` sentinel behavior.
 11. Continue dispatch inside the returned request context.
 12. Do not add shared callbacks for Express route resolution or warnings.
 
@@ -537,7 +539,7 @@ The private helper trusts the existing `RoutePath` boundary. Framework route mod
 
 #### Steps
 
-1. Move `resolvePeerEntryPath()` from `src/logCapture.ts` to the new module.
+1. Move `resolvePackageEntryPath()` from `src/logCapture.ts` to the new module.
 2. Update every existing consumer to import it from `src/packageVersion.ts`: Winston and Pino capture, Sentry peer lookup, Express registration capture, and any adapter code that still needs entry resolution.
 3. Implement exports-map-safe parent traversal in `resolvePeerPackageVersion()`.
 4. Replace Express's direct `express/package.json` require.

@@ -1,40 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BodyCapture, captureResponse, normalizeHeaders } from "../src/capture.js";
-
-function createChunkedResponse(): {
-  response: Response;
-  pushChunk: (text: string) => void;
-  closeStream: () => void;
-  errorStream: (error: Error) => void;
-} {
-  let streamController: ReadableStreamDefaultController<Uint8Array>;
-  const source = new ReadableStream<Uint8Array>({
-    start: (controller) => {
-      streamController = controller;
-    },
-  });
-  return {
-    response: new Response(source, {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    }),
-    pushChunk: (text) => streamController.enqueue(new TextEncoder().encode(text)),
-    closeStream: () => streamController.close(),
-    errorStream: (error) => streamController.error(error),
-  };
-}
-
-function readerFrom(response: Response): ReadableStreamDefaultReader<Uint8Array> {
-  if (!response.body) {
-    throw new Error("The response has no body stream");
-  }
-  return response.body.getReader();
-}
-
-async function readText(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<string> {
-  const { value } = await reader.read();
-  return Buffer.from(value ?? []).toString();
-}
+import { BodyCapture, normalizeHeaders } from "../../src/capture.js";
 
 describe("capture", () => {
   it("captures a complete allowed body and resolves the size from the running count", () => {
@@ -61,27 +26,6 @@ describe("capture", () => {
 
     expect(capture.body).toBeUndefined();
     expect(capture.size).toBe(7);
-  });
-
-  it("tees a web response stream without consuming or delaying it", async () => {
-    const { response, pushChunk, closeStream } = createChunkedResponse();
-    const [teedResponse, captured] = captureResponse(response, true);
-    expect(teedResponse.status).toBe(200);
-    expect(teedResponse.headers.get("content-type")).toBe("application/json");
-
-    // The first chunk reaches the app while the source stream is still open,
-    // so the tee cannot be buffering the body before forwarding it.
-    const reader = readerFrom(teedResponse);
-    pushChunk('{"items":');
-    expect(await readText(reader)).toBe('{"items":');
-    pushChunk("[1,2,3]}");
-    closeStream();
-    expect(await readText(reader)).toBe("[1,2,3]}");
-    expect((await reader.read()).done).toBe(true);
-
-    const result = await captured;
-    expect(result.body).toEqual(Buffer.from('{"items":[1,2,3]}'));
-    expect(result.size).toBe(17);
   });
 
   it("normalizes header records and web headers to lowercase names keeping multi-value semantics", () => {
@@ -179,28 +123,5 @@ describe("capture", () => {
     capture.addChunk(Buffer.from('{"partial":'));
     expect(capture.body).toBeUndefined();
     expect(capture.size).toBeUndefined();
-  });
-
-  it("resolves the capture promise without a body when the response stream aborts", async () => {
-    const { response, pushChunk, errorStream } = createChunkedResponse();
-    const [teedResponse, captured] = captureResponse(response, true);
-    const reader = readerFrom(teedResponse);
-    pushChunk('{"partial":');
-    expect(await readText(reader)).toBe('{"partial":');
-    errorStream(new Error("connection reset"));
-    await expect(reader.read()).rejects.toThrow("connection reset");
-    const result = await captured;
-    expect(result.body).toBeUndefined();
-    expect(result.size).toBeUndefined();
-  });
-
-  it("resolves the capture promise without a body when the response is never read", async () => {
-    const response = new Response('{"ok":true}', {
-      headers: { "content-type": "application/json" },
-    });
-    const [, captured] = captureResponse(response, true, 0);
-    const result = await captured;
-    expect(result.body).toBeUndefined();
-    expect(result.size).toBeUndefined();
   });
 });

@@ -2,7 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { compress } from "hono/compress";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/hono/index.js";
 import {
@@ -150,6 +150,41 @@ describe("hono adapter", () => {
     expect(eventAttributes["exception.type"]).toBe("Error");
     expect(eventAttributes["exception.message"]).toBe("boom");
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
+  });
+
+  it("rethrows a synchronous dispatch failure unchanged and releases its span", async () => {
+    const handles = configureAndActivate();
+    const failure = new Error("sync dispatch failed");
+    const failedApp = new Hono();
+    (failedApp as unknown as { fetch: () => Response }).fetch = () => {
+      throw failure;
+    };
+    useApitally(failedApp, { writeToken: WRITE_TOKEN });
+    const released = waitForNextRequestFinish(handles.spanPipeline);
+
+    expect(() => failedApp.fetch(new Request("http://localhost/fail"))).toThrow(failure);
+    await released;
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("sync dispatch failed");
+  });
+
+  it("rethrows an asynchronous dispatch failure unchanged and releases its span", async () => {
+    const handles = configureAndActivate();
+    const failure = new Error("async dispatch failed");
+    const failedApp = new Hono();
+    (failedApp as unknown as { fetch: () => Promise<Response> }).fetch = () =>
+      Promise.reject(failure);
+    useApitally(failedApp, { writeToken: WRITE_TOKEN });
+    const released = waitForNextRequestFinish(handles.spanPipeline);
+
+    await expect(failedApp.fetch(new Request("http://localhost/fail"))).rejects.toBe(failure);
+    await released;
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("async dispatch failed");
   });
 
   it("adopts an active SERVER span from user instrumentation without producing a duplicate and layers capture and metrics on top", async () => {
@@ -459,6 +494,39 @@ describe("hono adapter", () => {
     expect(jsonAttributes["http.request.body.size"]).toBe(Buffer.byteLength(wireBody));
     const formAttributes = spans[1].attributes;
     expect(formAttributes["apitally.request.body"]).toBeUndefined();
+  });
+
+  it("excludes asynchronous request-body cache recovery from request duration", async () => {
+    const handles = configureAndActivate({ captureRequestBody: true });
+    const durationApp = new Hono();
+    useApitally(durationApp, {
+      writeToken: WRITE_TOKEN,
+      captureRequestBody: true,
+    });
+    let releaseCachedBody = (_body: ArrayBuffer) => {};
+    const cachedBody = new Promise<ArrayBuffer>((resolve) => {
+      releaseCachedBody = resolve;
+    });
+    durationApp.post("/duration", (c) => {
+      (c.req.bodyCache as Record<string, unknown>).arrayBuffer = cachedBody;
+      return c.json({ ok: true });
+    });
+    const released = waitForNextRequestFinish(handles.spanPipeline);
+
+    const response = await durationApp.request("/duration", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: '{"name":"Widget"}',
+    });
+    await readResponseAndSettleTransport(response);
+    const delayedNow = performance.now() + 60_000;
+    vi.spyOn(performance, "now").mockReturnValue(delayedNow);
+    releaseCachedBody(new TextEncoder().encode('{"name":"Widget"}').buffer);
+    await released;
+
+    const dataPoints = await readActivationDurationDataPoints();
+    expect(dataPoints).toHaveLength(1);
+    expect(dataPoints[0].value.sum).toBeLessThan(30);
   });
 
   it("clears the route for a custom notFound response and skips the request in the metrics", async () => {

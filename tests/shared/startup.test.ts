@@ -5,9 +5,9 @@ import {
   SimpleLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
 import { describe, expect, it } from "vitest";
-import { setConfig } from "../src/config.js";
-import { emitStartupEvent } from "../src/startup.js";
-import { enableAsyncContextManager, WRITE_TOKEN } from "./utils.js";
+import { setConfig } from "../../src/config.js";
+import { emitStartupEvent } from "../../src/startup.js";
+import { enableAsyncContextManager, WRITE_TOKEN } from "../utils.js";
 
 const PATHS = [
   { method: "GET", path: "/users" },
@@ -56,6 +56,27 @@ describe("startup", () => {
       },
       paths: PATHS,
     });
+  });
+
+  it("normalizes, filters, and deduplicates paths in first-seen order", () => {
+    const { loggerProvider, logExporter } = createLoggerProvider();
+    emitStartupEvent(loggerProvider, {
+      framework: "hono",
+      resolvePaths: () => [
+        { method: "get", path: "/items" },
+        { method: "ALL", path: "/items" },
+        { method: "GET", path: "/items" },
+        { method: "post", path: "/items" },
+        { method: "head", path: "/items" },
+        { method: "options", path: "/items" },
+      ],
+    });
+
+    const [record] = logExporter.getFinishedLogRecords();
+    expect(JSON.parse(record.body as string).paths).toEqual([
+      { method: "GET", path: "/items" },
+      { method: "POST", path: "/items" },
+    ]);
   });
 
   it("sets the event name natively on the emitted record, not as an attribute", () => {

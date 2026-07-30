@@ -1,9 +1,7 @@
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
 import type { Hono } from "hono";
 import { configure, registerStartupEventInfo } from "../activation.js";
 import type { ApitallyOptions } from "../config.js";
-import { resolvePeerEntryPath } from "../logCapture.js";
+import { resolvePackageVersion } from "../packageVersion.js";
 import { wrapAppFetch } from "./middleware.js";
 import { resolveStartupPaths } from "./routes.js";
 
@@ -14,38 +12,8 @@ export function useApitally(app: Hono, options?: ApitallyOptions): void {
   configure(options);
   registerStartupEventInfo({
     framework: "hono",
-    frameworkVersion: resolveHonoVersion(),
+    frameworkVersion: resolvePackageVersion("hono"),
     resolvePaths: () => resolveStartupPaths(app),
   });
   wrapAppFetch(app);
-}
-
-// Hono's exports map hides its package.json, so version lookup walks from the
-// resolved `hono` entry to its owning package.
-function resolveHonoVersion(): string | undefined {
-  try {
-    const entryPath = resolvePeerEntryPath("hono");
-    const entryRequire = createRequire(entryPath);
-    for (
-      let directory = dirname(entryPath);
-      dirname(directory) !== directory;
-      directory = dirname(directory)
-    ) {
-      let packageJson: { name?: unknown; version?: unknown };
-      try {
-        packageJson = entryRequire(join(directory, "package.json")) as {
-          name?: unknown;
-          version?: unknown;
-        };
-      } catch {
-        continue;
-      }
-      if (packageJson.name === "hono" && typeof packageJson.version === "string") {
-        return packageJson.version;
-      }
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
 }

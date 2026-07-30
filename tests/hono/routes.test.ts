@@ -40,13 +40,16 @@ describe("hono routes", () => {
     app.get("/items/:id", respondOk);
     app.get("/items/:id", respondOk);
     app.post("/items", respondOk);
+    app.all("/all", respondOk);
     const child = new Hono();
     child.get("/deep", respondOk);
     app.route("/api", child);
 
     expect(resolveStartupPaths(app)).toEqual([
       { method: "GET", path: "/items/:id" },
+      { method: "GET", path: "/items/:id" },
       { method: "POST", path: "/items" },
+      { method: "ALL", path: "/all" },
       { method: "GET", path: "/api/deep" },
     ]);
   });

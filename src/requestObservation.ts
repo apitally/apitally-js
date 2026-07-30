@@ -1,11 +1,4 @@
-import {
-  type Attributes,
-  type Context,
-  type Span,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-} from "@opentelemetry/api";
+import { type Attributes, type Context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import { type BodyCapture, normalizeHeaders } from "./capture.js";
 import { getConfig } from "./config.js";
@@ -17,6 +10,7 @@ import {
 } from "./context.js";
 import { logWarning } from "./logger.js";
 import {
+  coerceToException,
   getActiveSpanPipeline,
   isApitallySpanProcessorDeclared,
   type RequestStash,
@@ -32,7 +26,50 @@ interface StartRequestObservationOptions {
   requestBodyCapture: BodyCapture;
 }
 
-export function startRequestObservation(options: StartRequestObservationOptions) {
+export interface StartedRequestObservation {
+  requestRecord: RequestRecord;
+  requestContext: Context;
+  spanHandle: SpanHandle;
+  rpcMetadata?: RPCMetadata;
+}
+
+export interface HttpRequestStartAttributeInput {
+  method: string;
+  path?: string;
+  query?: string;
+  scheme?: string;
+  serverAddress?: string;
+  fullUrl?: string;
+  clientAddress?: string;
+  userAgent?: string;
+  requestBodySize?: number;
+}
+
+export function resolveHttpRequestStartAttributes(
+  input: HttpRequestStartAttributeInput,
+): Attributes {
+  const attributes: Attributes = { "http.request.method": input.method };
+  const optionalAttributes: [string, string | number | undefined][] = [
+    ["url.path", input.path],
+    ["url.query", input.query],
+    ["url.scheme", input.scheme],
+    ["server.address", input.serverAddress],
+    ["url.full", input.fullUrl],
+    ["client.address", input.clientAddress],
+    ["user_agent.original", input.userAgent],
+    ["http.request.body.size", input.requestBodySize],
+  ];
+  for (const [name, value] of optionalAttributes) {
+    if (value !== undefined) {
+      attributes[name] = value;
+    }
+  }
+  return attributes;
+}
+
+export function startRequestObservation(
+  options: StartRequestObservationOptions,
+): StartedRequestObservation {
   const {
     activeContext,
     extractedContext,
@@ -49,7 +86,6 @@ export function startRequestObservation(options: StartRequestObservationOptions)
   Object.assign(requestRecord.attributes, startAttributes);
   const activeSpan = trace.getSpan(activeContext);
   let requestContext: Context;
-  let ownSpan: Span | undefined;
   // Span kind is not part of the OTel API surface, so read the SDK-level
   // property from whichever package copy produced the span.
   if (activeSpan?.isRecording() && (activeSpan as { kind?: unknown }).kind === SpanKind.SERVER) {
@@ -72,15 +108,15 @@ export function startRequestObservation(options: StartRequestObservationOptions)
       requestRecord,
       consumerHolder,
     );
-    ownSpan = trace
+    const ownSpan = trace
       .getTracer(tracerName)
       .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
     if (!ownSpan.isRecording()) {
       warnAboutNonRecordingServerSpan();
       requestRecord.dropReason = "sampled-out";
-      ownSpan = undefined;
     } else {
       spanHandle.span = ownSpan;
+      spanHandle.ownSpan = ownSpan;
       if (isApitallySpanProcessorDeclared() && requestRecord.serverSpanId === undefined) {
         requestRecord.dropReason = "sampled-out";
         warnAboutUnattachedSpanProcessor();
@@ -99,13 +135,12 @@ export function startRequestObservation(options: StartRequestObservationOptions)
   if (requestRecord.dropReason !== undefined) {
     requestBodyCapture.stopBuffering();
   }
-  return { requestRecord, requestContext, spanHandle, ownSpan, rpcMetadata };
+  return { requestRecord, requestContext, spanHandle, rpcMetadata };
 }
 
 export interface FinalizeRequestOptions {
   requestRecord: RequestRecord;
   spanHandle: SpanHandle;
-  ownSpan?: Span;
   rpcMetadata?: RPCMetadata;
   method: string;
   durationSeconds: number;
@@ -120,9 +155,9 @@ export interface FinalizeRequestOptions {
 }
 
 export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions): void {
-  const { requestRecord, spanHandle, ownSpan, rpcMetadata, method, statusCode, route } = options;
+  const { requestRecord, spanHandle, rpcMetadata, method, statusCode, route } = options;
   requestRecord.durationSeconds = options.durationSeconds;
-  const span = spanHandle.span;
+  const { span, ownSpan } = spanHandle;
   writeRequestAttribute(span, requestRecord, "http.response.status_code", statusCode);
   if (options.requestBodySize !== undefined) {
     writeRequestAttribute(span, requestRecord, "http.request.body.size", options.requestBodySize);
@@ -168,6 +203,26 @@ export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions)
     }
   }
   ownSpan?.end();
+  getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
+}
+
+export interface FinalizeFailedRequestDispatchOptions {
+  requestRecord: RequestRecord;
+  spanHandle: SpanHandle;
+  error: unknown;
+  durationSeconds: number;
+}
+
+export function finalizeFailedRequestDispatch(options: FinalizeFailedRequestDispatchOptions): void {
+  const { requestRecord, spanHandle, error, durationSeconds } = options;
+  requestRecord.durationSeconds = durationSeconds;
+  if (spanHandle.span?.isRecording()) {
+    spanHandle.span.recordException(coerceToException(error));
+  }
+  if (spanHandle.ownSpan) {
+    spanHandle.ownSpan.setStatus({ code: SpanStatusCode.ERROR });
+    spanHandle.ownSpan.end();
+  }
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
 }
 

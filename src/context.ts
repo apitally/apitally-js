@@ -10,6 +10,8 @@ import {
 // span, the active span is not the SERVER span, and OTel has no public upward walk.
 export interface SpanHandle {
   span?: Span;
+  // This set-once reference preserves lifecycle ownership if span later changes.
+  ownSpan?: Span;
 }
 
 export interface ConsumerHolder {

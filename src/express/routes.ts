@@ -99,7 +99,7 @@ export function resolveStartupPaths(app: unknown): RoutePath[] {
     return [];
   }
   const paths: RoutePath[] = [];
-  collectStartupPaths(router, "", new Set(), new Set(), paths);
+  collectStartupPaths(router, "", new Set(), paths);
   return paths;
 }
 
@@ -107,7 +107,6 @@ function collectStartupPaths(
   routerOrSubApp: object,
   prefix: string,
   visited: Set<object>,
-  seenPaths: Set<string>,
   paths: RoutePath[],
 ): void {
   const router = getCapturedTable(routerOrSubApp)
@@ -121,17 +120,11 @@ function collectStartupPaths(
     return;
   }
   for (const route of table.routes) {
-    const methods = Object.keys(route.methods ?? {})
-      .filter((method) => method !== "_all")
-      .map((method) => method.toUpperCase());
+    const methods = Object.keys(route.methods ?? {}).filter((method) => method !== "_all");
     for (const template of routePathTemplates(route.path)) {
       const fullPath = joinTemplateParts(prefix, template);
       for (const method of methods) {
-        const key = `${method} ${fullPath}`;
-        if (!seenPaths.has(key)) {
-          seenPaths.add(key);
-          paths.push({ method, path: fullPath });
-        }
+        paths.push({ method, path: fullPath });
       }
     }
   }
@@ -144,7 +137,6 @@ function collectStartupPaths(
         mount.handler as object,
         joinTemplateParts(prefix, pathTemplate),
         new Set([...visited, router]),
-        seenPaths,
         paths,
       );
     }
