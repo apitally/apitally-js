@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { BodyCapture, normalizeHeaders } from "../src/capture.js";
+import { BodyCapture } from "../src/bodyCapture.js";
 
-describe("capture", () => {
+describe("bodyCapture", () => {
   it("captures a complete allowed body and resolves the size from the running count", () => {
     const capture = new BodyCapture({
       captureBody: true,
@@ -28,27 +28,21 @@ describe("capture", () => {
     expect(capture.size).toBe(7);
   });
 
-  it("normalizes header records and web headers to lowercase names keeping multi-value semantics", () => {
-    expect(
-      normalizeHeaders({
-        "Content-Type": "application/json",
-        "Content-Length": 42,
-        "Set-Cookie": ["a=1", "b=2"],
-        "X-Undefined": undefined,
-      }),
-    ).toEqual({
-      "content-type": "application/json",
-      "content-length": "42",
-      "set-cookie": ["a=1", "b=2"],
-    });
-
-    const webHeaders = new Headers({ "Content-Type": "application/json" });
-    webHeaders.append("Set-Cookie", "a=1");
-    webHeaders.append("Set-Cookie", "b=2");
-    expect(normalizeHeaders(webHeaders)).toEqual({
-      "content-type": "application/json",
-      "set-cookie": ["a=1", "b=2"],
-    });
+  it.each([
+    "application/json",
+    "application/problem+json",
+    "application/vnd.api+json",
+    "application/ld+json",
+    "application/x-ndjson",
+    "text/markdown",
+    "text/plain",
+    "application/json; charset=utf-8",
+    "Application/JSON",
+  ])("captures bodies with content type %j", (contentType) => {
+    const capture = new BodyCapture({ captureBody: true, contentType });
+    capture.addChunk("body");
+    capture.markComplete();
+    expect(capture.body).toEqual(Buffer.from("body"));
   });
 
   it("yields the [BODY_TOO_LARGE] sentinel when the body crosses the size cap", () => {
@@ -74,15 +68,20 @@ describe("capture", () => {
     expect(capture.size).toBe(60_000);
   });
 
-  it("does not capture a body with a disallowed content type but still counts the size", () => {
-    const capture = new BodyCapture({
-      captureBody: true,
-      contentType: "text/html",
-    });
-    capture.addChunk(Buffer.from("<html></html>"));
+  it.each([
+    "text/html",
+    "application/xml",
+    "application/octet-stream",
+    "image/png",
+    "",
+    null,
+    undefined,
+  ])("does not capture bodies with content type %j but still counts their size", (contentType) => {
+    const capture = new BodyCapture({ captureBody: true, contentType });
+    capture.addChunk("body");
     capture.markComplete();
     expect(capture.body).toBeUndefined();
-    expect(capture.size).toBe(13);
+    expect(capture.size).toBe(4);
   });
 
   it("does not capture an empty body", () => {

@@ -1,11 +1,19 @@
 import { type Span, SpanStatusCode } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
+import { setConfig } from "../src/config.js";
 import type { RequestRecord, SpanHandle } from "../src/context.js";
 import {
   finalizeFailedRequestDispatch,
   finalizeRecordAndReleaseRequest,
   resolveHttpRequestStartAttributes,
 } from "../src/requestObservation.js";
+import { type SpanCopy, setActiveSpanPipeline } from "../src/spanProcessor.js";
+import {
+  CollectingSpanProcessor,
+  createTracePipeline,
+  startServerSpan,
+  WRITE_TOKEN,
+} from "./utils.js";
 
 describe("requestObservation", () => {
   it("maps normalized HTTP request metadata and omits only undefined values", () => {
@@ -31,6 +39,50 @@ describe("requestObservation", () => {
       "client.address": "",
       "user_agent.original": "",
       "http.request.body.size": 0,
+    });
+  });
+
+  it("preserves Node and Web header values for export", () => {
+    setConfig({
+      writeToken: WRITE_TOKEN,
+      captureRequestHeaders: true,
+      captureResponseHeaders: true,
+    });
+    const downstream = new CollectingSpanProcessor();
+    const { pipeline, tracer } = createTracePipeline({ downstream });
+    setActiveSpanPipeline(pipeline);
+    const { span, request } = startServerSpan(tracer);
+    const requestHeaders = new Headers({ "Content-Type": "application/json" });
+    requestHeaders.append("Set-Cookie", "a=1");
+    requestHeaders.append("Set-Cookie", "b=2");
+
+    finalizeRecordAndReleaseRequest({
+      requestRecord: request.record,
+      spanHandle: request.spanHandle,
+      method: "GET",
+      durationSeconds: 0.25,
+      statusCode: 200,
+      requestHeaders,
+      responseHeaders: {
+        "Content-Type": "application/json",
+        "Content-Length": 42,
+        "Set-Cookie": ["a=1", "b=2"],
+        "X-Undefined": undefined,
+      },
+    });
+    span.end();
+
+    expect(downstream.spans).toHaveLength(1);
+    expect((downstream.spans[0] as SpanCopy).apitallyData?.stash).toEqual({
+      requestHeaders: {
+        "content-type": "application/json",
+        "set-cookie": ["a=1", "b=2"],
+      },
+      responseHeaders: {
+        "content-type": "application/json",
+        "content-length": "42",
+        "set-cookie": ["a=1", "b=2"],
+      },
     });
   });
 

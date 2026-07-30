@@ -38,22 +38,6 @@ export type ApitallyConfig = Required<Omit<ApitallyOptions, OptionalConfigKeys>>
 const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
 export const DEFAULT_ENV = "prod";
 
-// Captured bodies above the cap are never exported; the attribute carries the
-// sentinel instead, and a body must never be exported truncated.
-export const MAX_BODY_SIZE = 50_000;
-export const BODY_TOO_LARGE = "[BODY_TOO_LARGE]";
-export const BODY_TOO_LARGE_BUFFER = Buffer.from(BODY_TOO_LARGE);
-
-const ALLOWED_CONTENT_TYPES = [
-  "application/json",
-  "application/problem+json",
-  "application/vnd.api+json",
-  "application/ld+json",
-  "application/x-ndjson",
-  "text/markdown",
-  "text/plain",
-];
-
 // User-supplied patterns extend these defaults, never replace them.
 export const DEFAULT_MASK_QUERY_PARAMS = ["auth", "api-?key", "secret", "token", "password", "pwd"];
 export const DEFAULT_MASK_HEADERS = ["auth", "api-?key", "secret", "token", "cookie"];
@@ -125,14 +109,6 @@ export function getConfig(): ApitallyConfig {
 // even over an explicit disabled: false option.
 export function isApitallyDisabledViaEnv(): boolean {
   return isTruthyEnvValue(process.env.APITALLY_DISABLED);
-}
-
-export function isAllowedContentType(contentType: string | null | undefined): boolean {
-  if (!contentType) {
-    return false;
-  }
-  const normalized = contentType.trim().toLowerCase();
-  return ALLOWED_CONTENT_TYPES.some((allowed) => normalized.startsWith(allowed));
 }
 
 export function matchesAny(patterns: RegExp[], value: string): boolean {

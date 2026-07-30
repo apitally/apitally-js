@@ -3,7 +3,7 @@ import { IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
-import { BodyCapture } from "../src/capture.js";
+import { BodyCapture } from "../src/bodyCapture.js";
 import {
   captureNodeResponse,
   registerServerCloseFlush,

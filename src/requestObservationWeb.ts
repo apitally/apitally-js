@@ -6,7 +6,7 @@ import {
   type TextMapGetter,
 } from "@opentelemetry/api";
 import type { RPCMetadata } from "@opentelemetry/core";
-import { BodyCapture, type CapturedBody } from "./capture.js";
+import { BodyCapture, type CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
 import type { RequestRecord, SpanHandle } from "./context.js";
 import {

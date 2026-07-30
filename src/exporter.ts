@@ -4,13 +4,8 @@ import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
-import {
-  BODY_TOO_LARGE,
-  BODY_TOO_LARGE_BUFFER,
-  type BodyMaskingCallback,
-  DEFAULT_ENV,
-  MAX_BODY_SIZE,
-} from "./config.js";
+import { BODY_TOO_LARGE, BODY_TOO_LARGE_BUFFER, MAX_BODY_SIZE } from "./bodyCapture.js";
+import { type BodyMaskingCallback, DEFAULT_ENV } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
 import { REDACTED, type Redaction } from "./redaction.js";
 import { copySpan, type SpanCopy } from "./spanProcessor.js";

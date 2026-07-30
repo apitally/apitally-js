@@ -8,7 +8,8 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
-import { type BodyMaskingCallback, getConfig, MAX_BODY_SIZE, setConfig } from "../src/config.js";
+import { MAX_BODY_SIZE } from "../src/bodyCapture.js";
+import { type BodyMaskingCallback, getConfig, setConfig } from "../src/config.js";
 import { ApitallySpanExporter } from "../src/exporter.js";
 import { Redaction } from "../src/redaction.js";
 import {

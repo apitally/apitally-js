@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ApitallyOptions, isAllowedContentType, setConfig } from "../src/config.js";
+import { type ApitallyOptions, setConfig } from "../src/config.js";
 import { captureStderr, WRITE_TOKEN } from "./utils.js";
 
 describe("config", () => {
@@ -165,31 +165,5 @@ describe("config", () => {
     expect(second.env).toBe("staging");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("called again with different options");
-  });
-
-  it.each([
-    "application/json",
-    "application/problem+json",
-    "application/vnd.api+json",
-    "application/ld+json",
-    "application/x-ndjson",
-    "text/markdown",
-    "text/plain",
-    "application/json; charset=utf-8",
-    "Application/JSON",
-  ])("admits content-type %j for body capture", (contentType) => {
-    expect(isAllowedContentType(contentType)).toBe(true);
-  });
-
-  it.each([
-    "text/html",
-    "application/xml",
-    "application/octet-stream",
-    "image/png",
-    "",
-    null,
-    undefined,
-  ])("rejects content-type %j for body capture", (contentType) => {
-    expect(isAllowedContentType(contentType)).toBe(false);
   });
 });

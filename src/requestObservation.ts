@@ -1,6 +1,6 @@
 import { type Attributes, type Context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
-import { type BodyCapture, normalizeHeaders } from "./capture.js";
+import type { BodyCapture } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
 import {
   getConsumerHolder,
@@ -224,6 +224,39 @@ export function finalizeFailedRequestDispatch(options: FinalizeFailedRequestDisp
     spanHandle.ownSpan.end();
   }
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
+}
+
+// Values remain raw so all redaction happens at the export boundary.
+function normalizeHeaders(
+  headers: Headers | Record<string, string | number | string[] | undefined>,
+): Record<string, string | string[]> {
+  const normalized: Record<string, string | string[]> = {};
+  if (isWebHeaders(headers)) {
+    // The Headers API combines repeated values except Set-Cookie.
+    for (const [name, value] of headers) {
+      const existing = normalized[name];
+      if (existing === undefined) {
+        normalized[name] = value;
+      } else if (Array.isArray(existing)) {
+        existing.push(value);
+      } else {
+        normalized[name] = [existing, value];
+      }
+    }
+    return normalized;
+  }
+  for (const [name, value] of Object.entries(headers)) {
+    if (value !== undefined) {
+      normalized[name.toLowerCase()] = Array.isArray(value) ? value : String(value);
+    }
+  }
+  return normalized;
+}
+
+// Duck-typed on iterability: a plain header record has no Symbol.iterator, and
+// the Headers instance may come from another realm's implementation.
+function isWebHeaders(headers: object): headers is Headers {
+  return typeof (headers as Headers)[Symbol.iterator] === "function";
 }
 
 function warnAboutNonRecordingServerSpan(): void {

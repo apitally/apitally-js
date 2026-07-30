@@ -1,6 +1,20 @@
-import { BODY_TOO_LARGE_BUFFER, isAllowedContentType, MAX_BODY_SIZE } from "./config.js";
+// Captured bodies above the cap are represented by a sentinel and never
+// exported truncated.
+export const MAX_BODY_SIZE = 50_000;
+export const BODY_TOO_LARGE = "[BODY_TOO_LARGE]";
+export const BODY_TOO_LARGE_BUFFER = Buffer.from(BODY_TOO_LARGE);
 
-export interface BodyCaptureOptions {
+const ALLOWED_CONTENT_TYPES = [
+  "application/json",
+  "application/problem+json",
+  "application/vnd.api+json",
+  "application/ld+json",
+  "application/x-ndjson",
+  "text/markdown",
+  "text/plain",
+];
+
+interface BodyCaptureOptions {
   captureBody: boolean;
   contentType?: string | null;
   contentLength?: string | number | string[] | null;
@@ -91,37 +105,12 @@ export interface CapturedBody {
   size?: number;
 }
 
-// Values remain raw so all redaction happens at the export boundary.
-export function normalizeHeaders(
-  headers: Headers | Record<string, string | number | string[] | undefined>,
-): Record<string, string | string[]> {
-  const normalized: Record<string, string | string[]> = {};
-  if (isWebHeaders(headers)) {
-    // The Headers API combines repeated values except Set-Cookie.
-    for (const [name, value] of headers) {
-      const existing = normalized[name];
-      if (existing === undefined) {
-        normalized[name] = value;
-      } else if (Array.isArray(existing)) {
-        existing.push(value);
-      } else {
-        normalized[name] = [existing, value];
-      }
-    }
-    return normalized;
+function isAllowedContentType(contentType: string | null | undefined): boolean {
+  if (!contentType) {
+    return false;
   }
-  for (const [name, value] of Object.entries(headers)) {
-    if (value !== undefined) {
-      normalized[name.toLowerCase()] = Array.isArray(value) ? value : String(value);
-    }
-  }
-  return normalized;
-}
-
-// Duck-typed on iterability: a plain header record has no Symbol.iterator, and
-// the Headers instance may come from another realm's implementation.
-function isWebHeaders(headers: object): headers is Headers {
-  return typeof (headers as Headers)[Symbol.iterator] === "function";
+  const normalized = contentType.trim().toLowerCase();
+  return ALLOWED_CONTENT_TYPES.some((allowed) => normalized.startsWith(allowed));
 }
 
 function parseContentLength(
