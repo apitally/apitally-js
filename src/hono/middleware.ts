@@ -14,7 +14,7 @@ import {
   startWebRequestObservation,
   type WebRequestObservation,
   type WebResponseCompletion,
-} from "../webRequestObservation.js";
+} from "../requestObservationWeb.js";
 import { resolveMatchedRoute } from "./routes.js";
 
 const FETCH_WRAP_MARKER = Symbol.for("apitally.honoFetchWrap");

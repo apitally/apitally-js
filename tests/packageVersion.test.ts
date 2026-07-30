@@ -3,7 +3,7 @@ import { Module } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { resolvePackageEntryPath, resolvePackageVersion } from "../../src/packageVersion.js";
+import { resolvePackageEntryPath, resolvePackageVersion } from "../src/packageVersion.js";
 
 describe("packageVersion", () => {
   it("resolves installed package entry paths and peer package versions", () => {

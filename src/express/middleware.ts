@@ -5,14 +5,14 @@ import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
 import { captureException } from "../exceptions.js";
 import { logWarning } from "../logger.js";
+import { finalizeRecordAndReleaseRequest } from "../requestObservation.js";
 import {
   captureNodeResponse,
   type NodeRequestObservation,
   type NodeResponseCompletion,
   registerServerCloseFlush,
   startNodeRequestObservation,
-} from "../nodeRequestObservation.js";
-import { finalizeRecordAndReleaseRequest } from "../requestObservation.js";
+} from "../requestObservationNode.js";
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
 
 const HANDLE_WRAP_MARKER = Symbol.for("apitally.expressHandleWrap");

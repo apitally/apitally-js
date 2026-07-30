@@ -1,11 +1,11 @@
 import { type Span, SpanStatusCode } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import type { RequestRecord, SpanHandle } from "../../src/context.js";
+import type { RequestRecord, SpanHandle } from "../src/context.js";
 import {
   finalizeFailedRequestDispatch,
   finalizeRecordAndReleaseRequest,
   resolveHttpRequestStartAttributes,
-} from "../../src/requestObservation.js";
+} from "../src/requestObservation.js";
 
 describe("requestObservation", () => {
   it("maps normalized HTTP request metadata and omits only undefined values", () => {

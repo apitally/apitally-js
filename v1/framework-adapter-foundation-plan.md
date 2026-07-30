@@ -106,8 +106,8 @@ The refactor must preserve these contracts.
 src/
   context.ts                   # Request holders, including SERVER span access and ownership
   requestObservation.ts        # Core span and request-record lifecycle, HTTP attribute policy
-  webRequestObservation.ts     # Fetch Request and Response observation
-  nodeRequestObservation.ts    # IncomingMessage and ServerResponse observation
+  requestObservationWeb.ts     # Fetch Request and Response observation
+  requestObservationNode.ts    # IncomingMessage and ServerResponse observation
   packageVersion.ts            # Peer entry and package ownership lookup
   startup.ts                   # Startup payload and private route normalization
   express/
@@ -203,7 +203,7 @@ Use this function only when outer transport dispatch fails without producing a r
 
 ### Fetch API observation
 
-Create `src/webRequestObservation.ts` with these responsibilities:
+Create `src/requestObservationWeb.ts` with these responsibilities:
 
 - Standard `Headers` propagation getter
 - Request body `BodyCapture` creation
@@ -278,7 +278,7 @@ Preserve the current response behavior exactly:
 
 ### Node HTTP observation
 
-Create `src/nodeRequestObservation.ts` with these responsibilities:
+Create `src/requestObservationNode.ts` with these responsibilities:
 
 - Node request URL, header, socket, and propagation parsing
 - Request body `BodyCapture` creation
@@ -428,11 +428,11 @@ The private helper trusts the existing `RoutePath` boundary. Framework route mod
 
 #### Files
 
-- Add `src/webRequestObservation.ts`.
+- Add `src/requestObservationWeb.ts`.
 - Modify `src/capture.ts` only as needed to relocate or reuse the existing response tee.
 - Modify `src/hono/middleware.ts`.
 - Keep `BodyCapture` coverage in `tests/shared/capture.test.ts`.
-- Move Fetch response coverage into `tests/shared/webRequestObservation.test.ts`.
+- Move Fetch response coverage into `tests/shared/requestObservationWeb.test.ts`.
 - Keep Hono-specific behavior in `tests/hono/hono.test.ts` and `tests/hono/routes.test.ts`.
 
 #### Shared extraction
@@ -479,9 +479,9 @@ The private helper trusts the existing `RoutePath` boundary. Framework route mod
 
 #### Files
 
-- Add `src/nodeRequestObservation.ts`.
+- Add `src/requestObservationNode.ts`.
 - Modify `src/express/middleware.ts`.
-- Add `tests/shared/nodeRequestObservation.test.ts`.
+- Add `tests/shared/requestObservationNode.test.ts`.
 - Keep Express-specific behavior in `tests/express/express.test.ts` and `tests/express/routes.test.ts`.
 
 #### Shared extraction
@@ -633,7 +633,7 @@ Keep these concerns in `src/hono/`:
 - Hono `errorHandler` wrapping
 - `env.incoming` client-address extraction
 
-Do not move Hono field names or matched-route internals into `webRequestObservation.ts`.
+Do not move Hono field names or matched-route internals into `requestObservationWeb.ts`.
 
 ### Small helpers
 
@@ -647,8 +647,8 @@ Shared tests own transport and core contracts once extraction is complete:
 
 - `tests/shared/capture.test.ts`: `BodyCapture` eligibility, size, completion, and sentinel behavior
 - `tests/shared/requestObservation.test.ts`: emitted start attributes and failed-dispatch telemetry completion
-- `tests/shared/webRequestObservation.test.ts`: Fetch propagation, response tee, settlement, timeout, and partial-body suppression
-- `tests/shared/nodeRequestObservation.test.ts`: passive request capture, response patching, completion, abort, and server-close behavior
+- `tests/shared/requestObservationWeb.test.ts`: Fetch propagation, response tee, settlement, timeout, and partial-body suppression
+- `tests/shared/requestObservationNode.test.ts`: passive request capture, response patching, completion, abort, and server-close behavior
 - `tests/shared/packageVersion.test.ts`: entry resolution and matching package ownership
 - `tests/shared/startup.test.ts`: normalization, filtering, deduplication, ordering, and failure fallback
 

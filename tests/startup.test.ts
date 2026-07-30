@@ -5,9 +5,9 @@ import {
   SimpleLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
 import { describe, expect, it } from "vitest";
-import { setConfig } from "../../src/config.js";
-import { emitStartupEvent } from "../../src/startup.js";
-import { enableAsyncContextManager, WRITE_TOKEN } from "../utils.js";
+import { setConfig } from "../src/config.js";
+import { emitStartupEvent } from "../src/startup.js";
+import { enableAsyncContextManager, WRITE_TOKEN } from "./utils.js";
 
 const PATHS = [
   { method: "GET", path: "/users" },

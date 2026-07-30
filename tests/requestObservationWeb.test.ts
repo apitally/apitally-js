@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captureWebResponse } from "../../src/webRequestObservation.js";
+import { captureWebResponse } from "../src/requestObservationWeb.js";
 
 function createChunkedResponse(): {
   response: Response;
@@ -36,7 +36,7 @@ async function readText(reader: ReadableStreamDefaultReader<Uint8Array>): Promis
   return Buffer.from(value ?? []).toString();
 }
 
-describe("webRequestObservation", () => {
+describe("requestObservationWeb", () => {
   it("tees a response stream without consuming or delaying it", async () => {
     const { response, pushChunk, closeStream } = createChunkedResponse();
     const captured = captureWebResponse(response, true);

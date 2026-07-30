@@ -3,13 +3,13 @@ import { IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
-import { BodyCapture } from "../../src/capture.js";
+import { BodyCapture } from "../src/capture.js";
 import {
   captureNodeResponse,
   registerServerCloseFlush,
   startNodeRequestObservation,
-} from "../../src/nodeRequestObservation.js";
-import { captureStderr, configureAndActivate } from "../utils.js";
+} from "../src/requestObservationNode.js";
+import { captureStderr, configureAndActivate } from "./utils.js";
 
 function createResponse(headers: Record<string, string> = {}): ServerResponse {
   const response = new EventEmitter() as EventEmitter & {
@@ -23,7 +23,7 @@ function createResponse(headers: Record<string, string> = {}): ServerResponse {
   return response as unknown as ServerResponse;
 }
 
-describe("nodeRequestObservation", () => {
+describe("requestObservationNode", () => {
   it("starts observation without changing request stream flow", () => {
     captureStderr();
     const connection = new PassThrough();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BodyCapture, normalizeHeaders } from "../../src/capture.js";
+import { BodyCapture, normalizeHeaders } from "../src/capture.js";
 
 describe("capture", () => {
   it("captures a complete allowed body and resolves the size from the running count", () => {
