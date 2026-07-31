@@ -12,7 +12,7 @@ interface SentryEvent {
 }
 
 interface SentryClient {
-  on(hook: "beforeSendEvent", callback: (event: SentryEvent) => void): unknown;
+  on(hook: "preprocessEvent", callback: (event: SentryEvent) => void): unknown;
 }
 
 // An initialized Sentry client opts in to recording exception event IDs on
@@ -24,7 +24,8 @@ export function installSentryEventIdRecording(): void {
       logDebug("No Sentry client was detected");
       return;
     }
-    client.on("beforeSendEvent", (event) => {
+    // preprocessEvent runs before asynchronous event processors can outlive the request.
+    client.on("preprocessEvent", (event) => {
       try {
         if (typeof event.event_id !== "string" || !event.exception?.values?.length) {
           return;

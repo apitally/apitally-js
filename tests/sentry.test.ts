@@ -45,8 +45,7 @@ function createSentryFixture(): {
   return { fixture, client };
 }
 
-// Resolves once the next event has passed through the client's event pipeline,
-// after the SDK's own subscriber ran.
+// Resolves once the next event has passed through the client's event pipeline.
 function nextEventSent(client: Sentry.NodeClient): Promise<void> {
   return new Promise((resolve) => {
     client.on("beforeSendEvent", () => resolve());
@@ -79,6 +78,33 @@ describe("sentry", () => {
     expect(serverSpan.attributes).toEqual({
       "apitally.exception.sentry_event_id": eventId,
     });
+  });
+
+  it("records the event id before asynchronous Sentry event processing completes", async () => {
+    const { fixture, client } = createSentryFixture();
+    let continueEventProcessing = () => {};
+    const eventProcessingPaused = new Promise<void>((resolve) => {
+      continueEventProcessing = resolve;
+    });
+    client.addEventProcessor(async (event) => {
+      await eventProcessingPaused;
+      return event;
+    });
+    installSentryEventIdRecording();
+    const eventSent = nextEventSent(client);
+    let eventId: string | undefined;
+    try {
+      await runInsideRequest(fixture, () => {
+        eventId = Sentry.captureException(new Error("boom"));
+      });
+      expect(fixture.exporter.getFinishedSpans()).toHaveLength(1);
+      expect(fixture.exporter.getFinishedSpans()[0]?.attributes).toEqual({
+        "apitally.exception.sentry_event_id": eventId,
+      });
+    } finally {
+      continueEventProcessing();
+      await eventSent;
+    }
   });
 
   it("detects the client through the global carrier when peer resolution fails", async () => {
