@@ -1,4 +1,5 @@
 import { Writable } from "node:stream";
+import { ConsoleLogger } from "@nestjs/common";
 import { diag, type Tracer } from "@opentelemetry/api";
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import {
@@ -11,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import winston from "winston";
 import {
   installConsoleCapture,
+  installNestLoggerCapture,
   installPinoCapture,
   installWinstonCapture,
 } from "../src/logCapture.js";
@@ -47,6 +49,12 @@ function mockConsoleMethods() {
     warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
     error: vi.spyOn(console, "error").mockImplementation(() => {}),
   };
+}
+
+function mockNestOutput(): void {
+  mockConsoleMethods();
+  vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 }
 
 // winston delivers entries to transports through a stream pipe that completes
@@ -139,6 +147,53 @@ describe("logCapture", () => {
         console.info("logged once");
       });
       expect(fixture.logExporter.getFinishedLogRecords()).toHaveLength(1);
+    });
+  });
+
+  describe("NestJS", () => {
+    it("captures enabled messages once with their Nest severity, context, and boundaries", async () => {
+      const fixture = createCaptureFixture();
+      mockNestOutput();
+      installNestLoggerCapture(fixture.loggerProvider);
+      installNestLoggerCapture(fixture.loggerProvider);
+      const logger = new ConsoleLogger("Billing", { logLevels: ["warn"] });
+      await runInsideRequest(fixture, () => {
+        logger.log("suppressed");
+        logger.warn("accepted", 42);
+      });
+
+      const records = fixture.logExporter.getFinishedLogRecords();
+      expect(
+        records.map((record) => [record.body, record.severityNumber, record.severityText]),
+      ).toEqual([
+        ["accepted", SeverityNumber.WARN, "warn"],
+        ["42", SeverityNumber.WARN, "warn"],
+      ]);
+      expect(records.map((record) => record.instrumentationScope.name)).toEqual([
+        "nestjs",
+        "nestjs",
+      ]);
+      expect(records.map((record) => record.attributes["nestjs.context"])).toEqual([
+        "Billing",
+        "Billing",
+      ]);
+    });
+
+    it("captures forceConsole messages once through the Nest wrapper", async () => {
+      const fixture = createCaptureFixture();
+      mockNestOutput();
+      installConsoleCapture(fixture.loggerProvider);
+      installNestLoggerCapture(fixture.loggerProvider);
+      const logger = new ConsoleLogger("Billing", { forceConsole: true });
+      await runInsideRequest(fixture, () => {
+        logger.log("logged once");
+      });
+
+      const records = fixture.logExporter.getFinishedLogRecords();
+      expect(records).toHaveLength(1);
+      expect(records[0].body).toBe("logged once");
+      expect(records[0].instrumentationScope.name).toBe("nestjs");
+      expect(records[0].attributes["nestjs.context"]).toBe("Billing");
     });
   });
 

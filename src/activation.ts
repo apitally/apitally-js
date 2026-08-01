@@ -11,7 +11,12 @@ import {
   setConfig,
 } from "./config.js";
 import { ExportWorker, type ExportWorkerOptions } from "./exportWorker.js";
-import { installConsoleCapture, installPinoCapture, installWinstonCapture } from "./logCapture.js";
+import {
+  installConsoleCapture,
+  installNestLoggerCapture,
+  installPinoCapture,
+  installWinstonCapture,
+} from "./logCapture.js";
 import { logDebug, logError, logWarning } from "./logger.js";
 import { ApitallyLogRecordExporter } from "./logRecordExporter.js";
 import { ApitallyLogRecordProcessor } from "./logRecordProcessor.js";
@@ -275,6 +280,7 @@ function startPipelines(
   );
   if (config.captureLogs) {
     installConsoleCapture(loggerProvider);
+    installNestLoggerCapture(loggerProvider);
     installWinstonCapture(loggerProvider);
     installPinoCapture(loggerProvider);
   }

@@ -12,6 +12,7 @@ import { resolvePackageEntryPath } from "./packageVersion.js";
 // Patch markers are Symbol.for-keyed on the patched objects themselves, so a
 // second install never double-wraps or double-attaches, even across SDK copies.
 const CONSOLE_PATCH_MARKER = Symbol.for("apitally.consolePatch");
+const NEST_PATCH_MARKER = Symbol.for("apitally.nestPatch");
 const WINSTON_PATCH_MARKER = Symbol.for("apitally.winstonPatch");
 const WINSTON_TRANSPORT_MARKER = Symbol.for("apitally.winstonTransport");
 const PINO_PATCH_MARKER = Symbol.for("apitally.pinoPatch");
@@ -23,6 +24,15 @@ const CONSOLE_METHOD_SEVERITIES = {
   info: SeverityNumber.INFO,
   warn: SeverityNumber.WARN,
   error: SeverityNumber.ERROR,
+} as const;
+
+const NEST_LEVEL_SEVERITIES = {
+  log: SeverityNumber.INFO,
+  error: SeverityNumber.ERROR,
+  warn: SeverityNumber.WARN,
+  debug: SeverityNumber.DEBUG,
+  verbose: SeverityNumber.TRACE,
+  fatal: SeverityNumber.FATAL,
 } as const;
 
 // Union of `winston` npm, syslog, and CLI level vocabularies.
@@ -45,6 +55,15 @@ const WINSTON_LEVEL_SEVERITIES: Record<string, SeverityNumber> = {
   silly: SeverityNumber.TRACE,
 };
 
+interface NestConsoleLogger {
+  printMessages(
+    messages: unknown[],
+    context?: string,
+    logLevel?: string,
+    ...optionalParams: unknown[]
+  ): void;
+}
+
 interface WinstonLoggerInstance {
   transports: object[];
   add(transport: object): unknown;
@@ -61,8 +80,10 @@ type PinoModule = {
 };
 
 let restoreConsoleCapture: (() => void) | undefined;
+let restoreNestLoggerCapture: (() => void) | undefined;
 let restoreWinstonCapture: (() => void) | undefined;
 let restorePinoCapture: (() => void) | undefined;
+let nestConsoleCallDepth = 0;
 
 // Console has no transport or filter hook, so capture wraps each method. The
 // wrappers call the original first and never throw into the application.
@@ -79,6 +100,9 @@ export function installConsoleCapture(loggerProvider: LoggerProvider): void {
     const original = console[method];
     console[method] = (...args: unknown[]) => {
       original.apply(console, args);
+      if (nestConsoleCallDepth !== 0) {
+        return;
+      }
       if (logger.enabled({ severityNumber })) {
         emitCapturedLogRecord(logger, {
           severityNumber,
@@ -97,6 +121,75 @@ export function installConsoleCapture(loggerProvider: LoggerProvider): void {
       restore();
     }
     clearPatchMarker(console, CONSOLE_PATCH_MARKER);
+  };
+}
+
+export function installNestLoggerCapture(loggerProvider: LoggerProvider): void {
+  let commonEntryPath: string;
+  try {
+    commonEntryPath = resolvePackageEntryPath("@nestjs/common");
+  } catch {
+    return;
+  }
+  let ConsoleLogger: { prototype: NestConsoleLogger };
+  try {
+    const common = createRequire(commonEntryPath)(commonEntryPath) as {
+      ConsoleLogger?: { prototype?: Partial<NestConsoleLogger> };
+    };
+    if (!common.ConsoleLogger?.prototype) {
+      logDebug("The NestJS ConsoleLogger prototype was not recognized");
+      return;
+    }
+    ConsoleLogger = common.ConsoleLogger as { prototype: NestConsoleLogger };
+  } catch {
+    logDebug("The NestJS ConsoleLogger module could not be loaded");
+    return;
+  }
+  const prototype = ConsoleLogger.prototype;
+  if (typeof prototype.printMessages !== "function") {
+    logDebug("The NestJS ConsoleLogger prototype was not recognized");
+    return;
+  }
+  if (hasPatchMarker(prototype, NEST_PATCH_MARKER)) {
+    return;
+  }
+  const logger = loggerProvider.getLogger("nestjs");
+  const originalPrintMessages = prototype.printMessages;
+  prototype.printMessages = function (
+    this: NestConsoleLogger,
+    messages: unknown[],
+    context?: string,
+    logLevel?: string,
+    ...optionalParams: unknown[]
+  ): void {
+    nestConsoleCallDepth += 1;
+    try {
+      originalPrintMessages.call(this, messages, context, logLevel, ...optionalParams);
+    } finally {
+      nestConsoleCallDepth -= 1;
+    }
+    try {
+      const severityNumber = NEST_LEVEL_SEVERITIES[logLevel as keyof typeof NEST_LEVEL_SEVERITIES];
+      if (severityNumber === undefined || !logger.enabled({ severityNumber })) {
+        return;
+      }
+      const attributes = context ? { "nestjs.context": context } : undefined;
+      for (const message of messages) {
+        emitCapturedLogRecord(logger, {
+          severityNumber,
+          severityText: logLevel ?? "",
+          body: format(message),
+          attributes,
+        });
+      }
+    } catch {
+      // Capture must never throw into the application's logging path.
+    }
+  };
+  setPatchMarker(prototype, NEST_PATCH_MARKER);
+  restoreNestLoggerCapture = () => {
+    prototype.printMessages = originalPrintMessages;
+    clearPatchMarker(prototype, NEST_PATCH_MARKER);
   };
 }
 
@@ -300,6 +393,8 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
 export function uninstallLogCapture(): void {
   restoreConsoleCapture?.();
   restoreConsoleCapture = undefined;
+  restoreNestLoggerCapture?.();
+  restoreNestLoggerCapture = undefined;
   restoreWinstonCapture?.();
   restoreWinstonCapture = undefined;
   restorePinoCapture?.();
@@ -313,6 +408,7 @@ function emitCapturedLogRecord(
     severityNumber: SeverityNumber;
     severityText: string;
     body: AnyValue;
+    attributes?: Record<string, AnyValue>;
     timestamp?: number;
   },
 ): void {

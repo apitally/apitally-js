@@ -25,7 +25,7 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
     useApitallyHono(app, options);
   } else {
     throw new TypeError(
-      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, or from "apitally/hono" for Hono.',
+      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/hono" for Hono, or from "apitally/nestjs" for NestJS.',
     );
   }
 }
