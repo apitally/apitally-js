@@ -1,6 +1,6 @@
 import { type Attributes, type Context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
-import type { BodyCapture } from "./bodyCapture.js";
+import type { BodyCapture, CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
 import {
   getConsumerHolder,
@@ -138,32 +138,38 @@ export function startRequestObservation(
   return { requestRecord, requestContext, spanHandle, rpcMetadata };
 }
 
-export interface FinalizeRequestOptions {
+export interface RequestObservation {
   requestRecord: RequestRecord;
   spanHandle: SpanHandle;
   rpcMetadata?: RPCMetadata;
   method: string;
-  durationSeconds: number;
+  startTimeMillis: number;
+}
+
+export interface FinalizeRequestObservationOptions {
+  observation: RequestObservation;
+  completedAtMillis: number;
   statusCode: number;
   route?: string;
   requestHeaders: Headers | Record<string, string | string[] | undefined>;
   responseHeaders: Headers | Record<string, string | number | string[] | undefined>;
-  requestBodySize?: number;
-  responseBodySize?: number;
-  requestBody?: Buffer;
-  responseBody?: Buffer;
+  capturedRequestBody?: CapturedBody;
+  capturedResponseBody?: CapturedBody;
 }
 
-export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions): void {
-  const { requestRecord, spanHandle, rpcMetadata, method, statusCode, route } = options;
-  requestRecord.durationSeconds = options.durationSeconds;
+export function finalizeRequestObservation(options: FinalizeRequestObservationOptions): void {
+  const { observation, statusCode, route } = options;
+  const { requestRecord, spanHandle, rpcMetadata, method } = observation;
+  requestRecord.durationSeconds = (options.completedAtMillis - observation.startTimeMillis) / 1000;
   const { span, ownSpan } = spanHandle;
   writeRequestAttribute(span, requestRecord, "http.response.status_code", statusCode);
-  if (options.requestBodySize !== undefined) {
-    writeRequestAttribute(span, requestRecord, "http.request.body.size", options.requestBodySize);
+  const requestBodySize = options.capturedRequestBody?.size;
+  if (requestBodySize !== undefined) {
+    writeRequestAttribute(span, requestRecord, "http.request.body.size", requestBodySize);
   }
-  if (options.responseBodySize !== undefined) {
-    writeRequestAttribute(span, requestRecord, "http.response.body.size", options.responseBodySize);
+  const responseBodySize = options.capturedResponseBody?.size;
+  if (responseBodySize !== undefined) {
+    writeRequestAttribute(span, requestRecord, "http.response.body.size", responseBodySize);
   }
   if (route !== undefined) {
     writeRequestAttribute(span, requestRecord, "http.route", route);
@@ -192,11 +198,13 @@ export function finalizeRecordAndReleaseRequest(options: FinalizeRequestOptions)
     if (config.captureResponseHeaders) {
       stash.responseHeaders = normalizeHeaders(options.responseHeaders);
     }
-    if (options.requestBody) {
-      stash.requestBody = options.requestBody;
+    const requestBody = options.capturedRequestBody?.body;
+    if (requestBody) {
+      stash.requestBody = requestBody;
     }
-    if (options.responseBody) {
-      stash.responseBody = options.responseBody;
+    const responseBody = options.capturedResponseBody?.body;
+    if (responseBody) {
+      stash.responseBody = responseBody;
     }
     if (Object.keys(stash).length > 0) {
       getActiveSpanPipeline()?.updateStash(requestRecord.serverSpanId, stash);

@@ -4,7 +4,7 @@ import { setConfig } from "../src/config.js";
 import type { RequestRecord, SpanHandle } from "../src/context.js";
 import {
   finalizeFailedRequestDispatch,
-  finalizeRecordAndReleaseRequest,
+  finalizeRequestObservation,
   resolveHttpRequestStartAttributes,
 } from "../src/requestObservation.js";
 import { type SpanCopy, setActiveSpanPipeline } from "../src/spanProcessor.js";
@@ -56,11 +56,14 @@ describe("requestObservation", () => {
     requestHeaders.append("Set-Cookie", "a=1");
     requestHeaders.append("Set-Cookie", "b=2");
 
-    finalizeRecordAndReleaseRequest({
-      requestRecord: request.record,
-      spanHandle: request.spanHandle,
-      method: "GET",
-      durationSeconds: 0.25,
+    finalizeRequestObservation({
+      observation: {
+        requestRecord: request.record,
+        spanHandle: request.spanHandle,
+        method: "GET",
+        startTimeMillis: 0,
+      },
+      completedAtMillis: 250,
       statusCode: 200,
       requestHeaders,
       responseHeaders: {
@@ -128,11 +131,14 @@ describe("requestObservation", () => {
       end: endOwnedSpan,
     } as unknown as Span;
 
-    finalizeRecordAndReleaseRequest({
-      requestRecord: { attributes: {} },
-      spanHandle: { span: currentSpan, ownSpan },
-      method: "GET",
-      durationSeconds: 0.25,
+    finalizeRequestObservation({
+      observation: {
+        requestRecord: { attributes: {} },
+        spanHandle: { span: currentSpan, ownSpan },
+        method: "GET",
+        startTimeMillis: 0,
+      },
+      completedAtMillis: 250,
       statusCode: 500,
       route: "/items/:id",
       requestHeaders: {},

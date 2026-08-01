@@ -1,14 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { type Context, context, propagation, ROOT_CONTEXT } from "@opentelemetry/api";
-import type { RPCMetadata } from "@opentelemetry/core";
 import { flushTelemetry } from "./activation.js";
 import { BodyCapture, type CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
-import type { RequestRecord, SpanHandle } from "./context.js";
 import { logDebug } from "./logger.js";
 import {
-  type FinalizeRequestOptions,
-  finalizeRecordAndReleaseRequest,
+  type RequestObservation,
   resolveHttpRequestStartAttributes,
   startRequestObservation,
 } from "./requestObservation.js";
@@ -20,13 +17,8 @@ export interface StartNodeRequestObservationOptions {
   tracerName: string;
 }
 
-export interface NodeRequestObservation {
-  requestRecord: RequestRecord;
-  spanHandle: SpanHandle;
-  rpcMetadata?: RPCMetadata;
+export interface NodeRequestObservation extends RequestObservation {
   requestBodyCapture: BodyCapture;
-  startTimeMillis: number;
-  method: string;
   requestUrl: string;
 }
 
@@ -101,37 +93,6 @@ export interface NodeResponseCompletion extends CapturedBody {
   completedAtMillis: number;
   responseFinished: boolean;
   requestBody: CapturedBody;
-}
-
-interface FinalizeNodeRequestObservationOptions {
-  observation: NodeRequestObservation;
-  completion: NodeResponseCompletion;
-  statusCode: number;
-  route?: string;
-  requestHeaders: FinalizeRequestOptions["requestHeaders"];
-  responseHeaders: FinalizeRequestOptions["responseHeaders"];
-}
-
-export function finalizeNodeRequestObservation(
-  options: FinalizeNodeRequestObservationOptions,
-): void {
-  const { observation, completion } = options;
-  const shouldReadCapturedBodies = observation.requestRecord.dropReason === undefined;
-  finalizeRecordAndReleaseRequest({
-    requestRecord: observation.requestRecord,
-    spanHandle: observation.spanHandle,
-    rpcMetadata: observation.rpcMetadata,
-    method: observation.method,
-    durationSeconds: (completion.completedAtMillis - observation.startTimeMillis) / 1000,
-    statusCode: options.statusCode,
-    route: options.route,
-    requestHeaders: options.requestHeaders,
-    responseHeaders: options.responseHeaders,
-    requestBodySize: completion.requestBody.size,
-    responseBodySize: completion.size,
-    requestBody: shouldReadCapturedBodies ? completion.requestBody.body : undefined,
-    responseBody: shouldReadCapturedBodies ? completion.body : undefined,
-  });
 }
 
 // Patching write and end before framework dispatch lets compression wrappers

@@ -5,9 +5,9 @@ import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
 import { captureException } from "../exceptions.js";
 import { logWarning } from "../logger.js";
+import { finalizeRequestObservation } from "../requestObservation.js";
 import {
   captureNodeResponse,
-  finalizeNodeRequestObservation,
   type NodeRequestObservation,
   type NodeResponseCompletion,
   registerServerCloseFlush,
@@ -104,7 +104,7 @@ function observeRequest(
 
 function finalizeRequestFromResponse(
   observation: ExpressRequestObservation,
-  responseBody: NodeResponseCompletion,
+  completion: NodeResponseCompletion,
 ): void {
   const { request, response } = observation;
   const routeResult = finishRouteTracking(request, observation.requestUrl.split("?")[0]);
@@ -113,12 +113,14 @@ function finalizeRequestFromResponse(
       'Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
   }
-  finalizeNodeRequestObservation({
+  finalizeRequestObservation({
     observation,
-    completion: responseBody,
+    completedAtMillis: completion.completedAtMillis,
     statusCode: response.statusCode,
     route: routeResult.route,
     requestHeaders: request.headers,
     responseHeaders: response.getHeaders(),
+    capturedRequestBody: completion.requestBody,
+    capturedResponseBody: completion,
   });
 }

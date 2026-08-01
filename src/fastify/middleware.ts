@@ -4,9 +4,9 @@ import { activate, flushTelemetry, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
 import { captureException } from "../exceptions.js";
 import { logWarning } from "../logger.js";
+import { finalizeRequestObservation } from "../requestObservation.js";
 import {
   captureNodeResponse,
-  finalizeNodeRequestObservation,
   type StartedNodeRequestObservation,
   startNodeRequestObservation,
 } from "../requestObservationNode.js";
@@ -52,13 +52,15 @@ export function installFastifyHooks(app: FastifyInstance, startupPaths: RoutePat
       )
         .then((completion) => {
           try {
-            finalizeNodeRequestObservation({
+            finalizeRequestObservation({
               observation: state.observation,
-              completion,
+              completedAtMillis: completion.completedAtMillis,
               statusCode: reply.statusCode,
               route: resolveRequestRoute(request),
               requestHeaders: request.raw.headers,
               responseHeaders: reply.getHeaders(),
+              capturedRequestBody: completion.requestBody,
+              capturedResponseBody: completion,
             });
           } finally {
             observations.delete(request);

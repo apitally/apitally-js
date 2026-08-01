@@ -7,7 +7,7 @@ import { captureException } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import {
   finalizeFailedRequestDispatch,
-  finalizeRecordAndReleaseRequest,
+  finalizeRequestObservation,
 } from "../requestObservation.js";
 import {
   captureWebResponse,
@@ -164,27 +164,16 @@ async function finalizeRequestFromResponse(
   response: Response,
   capturedResponseBody: WebResponseCompletion,
 ): Promise<void> {
-  const durationSeconds =
-    (capturedResponseBody.completedAtMillis - observation.startTimeMillis) / 1000;
   await captureRequestBodyFromCache(observation);
-  finalizeRecordAndReleaseRequest({
-    requestRecord: observation.requestRecord,
-    spanHandle: observation.spanHandle,
-    rpcMetadata: observation.rpcMetadata,
-    method: observation.method,
-    durationSeconds,
+  finalizeRequestObservation({
+    observation,
+    completedAtMillis: capturedResponseBody.completedAtMillis,
     statusCode: response.status,
     route: observation.route,
     requestHeaders: observation.requestHeaders,
     responseHeaders: response.headers,
-    requestBodySize: observation.requestBodyCapture.size,
-    responseBodySize: capturedResponseBody.size,
-    requestBody:
-      observation.requestRecord.dropReason === undefined
-        ? observation.requestBodyCapture.body
-        : undefined,
-    responseBody:
-      observation.requestRecord.dropReason === undefined ? capturedResponseBody.body : undefined,
+    capturedRequestBody: observation.requestBodyCapture,
+    capturedResponseBody,
   });
 }
 

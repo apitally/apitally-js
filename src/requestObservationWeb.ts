@@ -5,11 +5,10 @@ import {
   ROOT_CONTEXT,
   type TextMapGetter,
 } from "@opentelemetry/api";
-import type { RPCMetadata } from "@opentelemetry/core";
 import { BodyCapture, type CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
-import type { RequestRecord, SpanHandle } from "./context.js";
 import {
+  type RequestObservation,
   resolveHttpRequestStartAttributes,
   startRequestObservation,
 } from "./requestObservation.js";
@@ -27,14 +26,9 @@ export interface StartWebRequestObservationOptions {
   clientAddress?: string;
 }
 
-export interface WebRequestObservation {
-  requestRecord: RequestRecord;
-  spanHandle: SpanHandle;
-  rpcMetadata?: RPCMetadata;
+export interface WebRequestObservation extends RequestObservation {
   requestBodyCapture: BodyCapture;
   requestHeaders: Headers;
-  startTimeMillis: number;
-  method: string;
 }
 
 export interface StartedWebRequestObservation {
