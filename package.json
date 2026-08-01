@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0-alpha.0",
-  "description": "Simple API monitoring, analytics and request logging for REST APIs built with Express and Hono.",
+  "description": "Simple API monitoring, analytics and request logging for REST APIs built with Express, Fastify and Hono.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -10,6 +10,7 @@
     "apitally",
     "bun",
     "express",
+    "fastify",
     "hono",
     "logging",
     "metrics",
@@ -83,6 +84,16 @@
         "default": "./dist/express/register.cjs"
       }
     },
+    "./fastify": {
+      "import": {
+        "types": "./dist/fastify/index.d.ts",
+        "default": "./dist/fastify/index.js"
+      },
+      "require": {
+        "types": "./dist/fastify/index.d.cts",
+        "default": "./dist/fastify/index.cjs"
+      }
+    },
     "./hono": {
       "import": {
         "types": "./dist/hono/index.d.ts",
@@ -99,6 +110,7 @@
     "@opentelemetry/api": ">=1.9.0 <2",
     "@sentry/node": ">=7",
     "express": ">=4.18.2 <6",
+    "fastify": ">=4.10.2 <6",
     "hono": ">=4.8.4 <5",
     "pino": ">=9.6.0 <11",
     "winston": ">=3.2.0 <4"
@@ -108,6 +120,9 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "fastify": {
       "optional": true
     },
     "hono": {
@@ -146,6 +161,7 @@
     "compression": "^1.8.1",
     "esbuild-fix-imports-plugin": "^1.0.23",
     "express": "^5.2.1",
+    "fastify": "^5.11.0",
     "hono": "^4.12.31",
     "knip": "^6.29.0",
     "pino": "^10.3.1",

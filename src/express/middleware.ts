@@ -5,9 +5,9 @@ import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
 import { captureException } from "../exceptions.js";
 import { logWarning } from "../logger.js";
-import { finalizeRecordAndReleaseRequest } from "../requestObservation.js";
 import {
   captureNodeResponse,
+  finalizeNodeRequestObservation,
   type NodeRequestObservation,
   type NodeResponseCompletion,
   registerServerCloseFlush,
@@ -106,28 +106,19 @@ function finalizeRequestFromResponse(
   observation: ExpressRequestObservation,
   responseBody: NodeResponseCompletion,
 ): void {
-  const { request, response, requestRecord, spanHandle, rpcMetadata } = observation;
-  const durationSeconds = (responseBody.completedAtMillis - observation.startTimeMillis) / 1000;
+  const { request, response } = observation;
   const routeResult = finishRouteTracking(request, observation.requestUrl.split("?")[0]);
   if (routeResult.matchedUncapturedRegistration) {
     logWarning(
       'Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
   }
-  const shouldReadCapturedBodies = requestRecord.dropReason === undefined;
-  finalizeRecordAndReleaseRequest({
-    requestRecord,
-    spanHandle,
-    rpcMetadata,
-    method: observation.method,
-    durationSeconds,
+  finalizeNodeRequestObservation({
+    observation,
+    completion: responseBody,
     statusCode: response.statusCode,
     route: routeResult.route,
     requestHeaders: request.headers,
     responseHeaders: response.getHeaders(),
-    requestBodySize: responseBody.requestBody.size,
-    responseBodySize: responseBody.size,
-    requestBody: shouldReadCapturedBodies ? responseBody.requestBody.body : undefined,
-    responseBody: shouldReadCapturedBodies ? responseBody.body : undefined,
   });
 }

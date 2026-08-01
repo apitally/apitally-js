@@ -7,6 +7,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
+import { fastify } from "fastify";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import {
@@ -43,6 +44,22 @@ describe("root entry", () => {
       expect(response.status).toBe(200);
       await response.arrayBuffer();
     });
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET /items/:id");
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/:id");
+  });
+
+  it("dispatches a Fastify app to the fastify adapter and exports its SERVER span with the route template", async () => {
+    prepareFirstRequestActivation();
+    const app = fastify();
+    useApitally(app, { writeToken: WRITE_TOKEN });
+    app.get<{ Params: { id: string } }>("/items/:id", () => ({ ok: true }));
+    const response = await app.inject("/items/7");
+    expect(response.statusCode).toBe(200);
+    await app.close();
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
@@ -158,6 +175,7 @@ describe("root entry", () => {
     prepareFirstRequestActivation();
     const attempt = () => useApitally({} as Hono, { writeToken: WRITE_TOKEN });
     expect(attempt).toThrowError("apitally/express");
+    expect(attempt).toThrowError("apitally/fastify");
     expect(attempt).toThrowError("apitally/hono");
   });
 });

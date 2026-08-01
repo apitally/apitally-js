@@ -120,6 +120,14 @@ export function getActivationHandles(): ActivationHandles | undefined {
   return getActivationState().handles;
 }
 
+export async function flushTelemetry(): Promise<void> {
+  try {
+    await getActivationState().handles?.worker.runCycle();
+  } catch (error) {
+    logDebug(`Error flushing telemetry: ${String(error)}`);
+  }
+}
+
 // Concurrent calls and lifecycle hooks share one final drain; calls before
 // activation are no-ops.
 export function shutdown(): Promise<void> {

@@ -1,12 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { type Context, context, propagation, ROOT_CONTEXT } from "@opentelemetry/api";
 import type { RPCMetadata } from "@opentelemetry/core";
-import { getActivationHandles } from "./activation.js";
+import { flushTelemetry } from "./activation.js";
 import { BodyCapture, type CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
 import type { RequestRecord, SpanHandle } from "./context.js";
 import { logDebug } from "./logger.js";
 import {
+  type FinalizeRequestOptions,
+  finalizeRecordAndReleaseRequest,
   resolveHttpRequestStartAttributes,
   startRequestObservation,
 } from "./requestObservation.js";
@@ -101,20 +103,53 @@ export interface NodeResponseCompletion extends CapturedBody {
   requestBody: CapturedBody;
 }
 
+interface FinalizeNodeRequestObservationOptions {
+  observation: NodeRequestObservation;
+  completion: NodeResponseCompletion;
+  statusCode: number;
+  route?: string;
+  requestHeaders: FinalizeRequestOptions["requestHeaders"];
+  responseHeaders: FinalizeRequestOptions["responseHeaders"];
+}
+
+export function finalizeNodeRequestObservation(
+  options: FinalizeNodeRequestObservationOptions,
+): void {
+  const { observation, completion } = options;
+  const shouldReadCapturedBodies = observation.requestRecord.dropReason === undefined;
+  finalizeRecordAndReleaseRequest({
+    requestRecord: observation.requestRecord,
+    spanHandle: observation.spanHandle,
+    rpcMetadata: observation.rpcMetadata,
+    method: observation.method,
+    durationSeconds: (completion.completedAtMillis - observation.startTimeMillis) / 1000,
+    statusCode: options.statusCode,
+    route: options.route,
+    requestHeaders: options.requestHeaders,
+    responseHeaders: options.responseHeaders,
+    requestBodySize: completion.requestBody.size,
+    responseBodySize: completion.size,
+    requestBody: shouldReadCapturedBodies ? completion.requestBody.body : undefined,
+    responseBody: shouldReadCapturedBodies ? completion.body : undefined,
+  });
+}
+
 // Patching write and end before framework dispatch lets compression wrappers
 // feed their final wire bytes through capture.
 export function captureNodeResponse(
   response: ServerResponse,
   shouldCaptureBody: boolean,
   requestBodyCapture?: BodyCapture,
+  resolveResponseHeader: (name: string) => string | number | string[] | undefined = (name) =>
+    response.getHeader(name),
 ): Promise<NodeResponseCompletion> {
   let responseBodyCapture: BodyCapture | undefined;
   const ensureResponseBodyCapture = (): BodyCapture => {
     responseBodyCapture ??= new BodyCapture({
       captureBody: shouldCaptureBody,
-      contentType: firstStringValue(response.getHeader("content-type")),
-      contentLength: response.getHeader("content-length") as string | number | string[] | undefined,
-      transferEncoding: response.getHeader("transfer-encoding") as string | string[] | undefined,
+      contentType: firstStringValue(resolveResponseHeader("content-type")),
+      contentLength: resolveResponseHeader("content-length"),
+      transferEncoding: resolveResponseHeader("transfer-encoding") as string | string[] | undefined,
     });
     return responseBodyCapture;
   };
@@ -183,12 +218,9 @@ export function registerServerCloseFlush(request: IncomingMessage): void {
   }
   flushOnCloseServers.add(server as object);
   (server as { on: (event: string, listener: () => void) => void }).on("close", () => {
-    const worker = getActivationHandles()?.worker;
-    if (worker) {
-      worker.runCycle().catch((error: unknown) => {
-        logDebug(`Error flushing telemetry on server close: ${String(error)}`);
-      });
-    }
+    flushTelemetry().catch((error: unknown) => {
+      logDebug(`Error flushing telemetry on server close: ${String(error)}`);
+    });
   });
 }
 

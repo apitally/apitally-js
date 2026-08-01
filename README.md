@@ -19,13 +19,13 @@
 </p>
 <br>
 
-# Apitally SDK for Express and Hono
+# Apitally SDK for Express, Fastify and Hono
 
 [![Tests](https://github.com/apitally/apitally-js/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/apitally-js/actions)
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express) and [Hono](https://github.com/honojs/hono), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally — no OpenTelemetry knowledge required, no infrastructure changes, no dashboards to build.
+API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify) and [Hono](https://github.com/honojs/hono), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally — no OpenTelemetry knowledge required, no infrastructure changes, no dashboards to build.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
@@ -44,6 +44,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | Framework                                           | Supported versions | Setup guide                                           |
 | --------------------------------------------------- | ------------------ | ----------------------------------------------------- |
 | [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x`       | [Link](https://docs.apitally.io/setup-guides/express) |
+| [**Fastify**](https://github.com/fastify/fastify)   | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
 | [**Hono**](https://github.com/honojs/hono) \*       | `>= 4.8.4`         | [Link](https://docs.apitally.io/setup-guides/hono)    |
 
 \* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
@@ -84,6 +85,26 @@ The register import ensures routes are captured no matter where they are registe
 
 For further instructions, see our [setup guide for Express](https://docs.apitally.io/setup-guides/express).
 
+### Fastify
+
+Call `useApitally(app)` immediately after creating the app, before registering plugins and routes:
+
+```javascript
+import Fastify from "fastify";
+import { useApitally } from "apitally";
+
+const app = Fastify();
+
+useApitally(app, {
+  writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
+  env: "prod", // optional, defaults to "prod"
+});
+
+// register plugins and routes below this point
+```
+
+For further instructions, see our [setup guide for Fastify](https://docs.apitally.io/setup-guides/fastify).
+
 ### Hono
 
 Call `useApitally(app)` immediately after creating the app — before registering middleware and routes, and before `app.fetch` is handed to the server:
@@ -103,8 +124,6 @@ useApitally(app, {
 ```
 
 For further instructions, see our [setup guide for Hono](https://docs.apitally.io/setup-guides/hono).
-
-The root `useApitally` function auto-detects your framework. If you prefer an explicit import, use the framework entries `apitally/express` or `apitally/hono` instead — they export the same function, typed for that framework.
 
 ## Using Sentry
 
@@ -143,7 +162,7 @@ Telemetry is exported in the background roughly every 15 seconds. After successf
 
 On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+Closing an Express server or calling `app.close()` on a Fastify app triggers a non-destructive telemetry flush. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";
