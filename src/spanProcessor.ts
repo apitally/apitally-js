@@ -331,6 +331,24 @@ export class SpanPipeline implements SpanProcessor {
     return this.requests.has(serverSpanId);
   }
 
+  // Exclusion answers "never wanted" and runs strictly before sampling; an
+  // excluded request never invokes a user sampling callback.
+  resolveRequestDropReasonBeforeSampling(attributes: Attributes): RequestDropReason | undefined {
+    const transportDropReason = resolveTransportDropReason(attributes);
+    if (transportDropReason !== undefined) {
+      return transportDropReason;
+    }
+    const path = attributes["url.path"] ?? attributes["http.target"];
+    if (typeof path === "string" && matchesAny(this.excludePathPatterns, path.split("?")[0])) {
+      return "excluded";
+    }
+    const userAgent = attributes["user_agent.original"] ?? attributes["http.user_agent"];
+    if (typeof userAgent === "string" && matchesAny(EXCLUDE_USER_AGENT_PATTERNS, userAgent)) {
+      return "excluded";
+    }
+    return undefined;
+  }
+
   forceFlush(): Promise<void> {
     return this.downstream.forceFlush();
   }
@@ -368,7 +386,9 @@ export class SpanPipeline implements SpanProcessor {
     }
     writeConsumerAttributesFromContext(parentContext, span, record);
     writeUrlAttributesFromFullUrl(span);
-    const dropReason = this.resolveDropReasonAtStart(span);
+    const dropReason =
+      this.resolveRequestDropReasonBeforeSampling(span.attributes) ??
+      (this.isRequestSampledIn(span) ? undefined : "sampled-out");
     if (dropReason) {
       if (record) {
         record.dropReason = dropReason;
@@ -384,25 +404,6 @@ export class SpanPipeline implements SpanProcessor {
       transportCompleted: false,
       released: false,
     });
-  }
-
-  // Exclusion answers "never wanted" and runs strictly before sampling; an
-  // excluded request never invokes a user sampling callback.
-  private resolveDropReasonAtStart(span: Span): RequestDropReason | undefined {
-    const attributes = span.attributes;
-    const transportDropReason = resolveTransportDropReason(attributes);
-    if (transportDropReason !== undefined) {
-      return transportDropReason;
-    }
-    const path = attributes["url.path"] ?? attributes["http.target"];
-    if (typeof path === "string" && matchesAny(this.excludePathPatterns, path.split("?")[0])) {
-      return "excluded";
-    }
-    const userAgent = attributes["user_agent.original"] ?? attributes["http.user_agent"];
-    if (typeof userAgent === "string" && matchesAny(EXCLUDE_USER_AGENT_PATTERNS, userAgent)) {
-      return "excluded";
-    }
-    return this.isRequestSampledIn(span) ? undefined : "sampled-out";
   }
 
   private isRequestSampledIn(span: Span): boolean {

@@ -86,6 +86,9 @@ export function startRequestObservation(
   // start attributes are mirrored into it on every path, span or no span.
   Object.assign(requestRecord.attributes, startAttributes);
   const activeSpan = trace.getSpan(activeContext);
+  const resolveUnavailableSpanDropReason = (): RequestRecord["dropReason"] =>
+    getActiveSpanPipeline()?.resolveRequestDropReasonBeforeSampling(startAttributes) ??
+    "sampled-out";
   let requestContext: Context;
   // Span kind is not part of the OTel API surface, so read the SDK-level
   // property from whichever package copy produced the span.
@@ -95,12 +98,14 @@ export function startRequestObservation(
     spanHandle.span = activeSpan;
     requestRecord.serverSpanId = activeSpan.spanContext().spanId;
     if (getActiveSpanPipeline()?.isRequestInFlight(requestRecord.serverSpanId) !== true) {
-      requestRecord.dropReason = "sampled-out";
+      requestRecord.dropReason = resolveUnavailableSpanDropReason();
     }
     requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
   } else if (activeSpan && !activeSpan.isRecording()) {
-    warnAboutNonRecordingServerSpan();
-    requestRecord.dropReason = "sampled-out";
+    requestRecord.dropReason = resolveUnavailableSpanDropReason();
+    if (requestRecord.dropReason === "sampled-out") {
+      warnAboutNonRecordingServerSpan();
+    }
     requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
   } else {
     requestContext = withRequestHolders(
@@ -113,14 +118,18 @@ export function startRequestObservation(
       .getTracer(tracerName)
       .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
     if (!ownSpan.isRecording()) {
-      warnAboutNonRecordingServerSpan();
-      requestRecord.dropReason = "sampled-out";
+      requestRecord.dropReason = resolveUnavailableSpanDropReason();
+      if (requestRecord.dropReason === "sampled-out") {
+        warnAboutNonRecordingServerSpan();
+      }
     } else {
       spanHandle.span = ownSpan;
       spanHandle.ownSpan = ownSpan;
       if (isApitallySpanProcessorDeclared() && requestRecord.serverSpanId === undefined) {
-        requestRecord.dropReason = "sampled-out";
-        warnAboutUnattachedSpanProcessor();
+        requestRecord.dropReason = resolveUnavailableSpanDropReason();
+        if (requestRecord.dropReason === "sampled-out") {
+          warnAboutUnattachedSpanProcessor();
+        }
       }
       requestContext = trace.setSpan(requestContext, ownSpan);
     }
