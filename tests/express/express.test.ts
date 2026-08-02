@@ -5,13 +5,14 @@ import { connect } from "node:net";
 import { PassThrough } from "node:stream";
 import { gunzipSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
-import { getRPCMetadata, type RPCMetadata, RPCType } from "@opentelemetry/core";
+import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import compression from "compression";
 import express, { type Express } from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/express/index.js";
+import { setConsumer } from "../../src/index.js";
 import {
   captureStderr,
   configureAndActivate,
@@ -192,9 +193,20 @@ describe("express adapter", () => {
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
   });
 
-  it("adopts an active SERVER span from user instrumentation without producing a duplicate and layers capture and metrics on top", async () => {
+  it("adopts an instrumented SERVER span and preserves request context through asynchronous body middleware", async () => {
     const handles = configureAndActivate({ captureResponseBody: true });
     const adoptedApp = buildAppFixture({ captureResponseBody: true });
+    adoptedApp.post(
+      "/async-consumer",
+      (req, _res, next) => {
+        req.on("end", next);
+        req.resume();
+      },
+      (_req, res) => {
+        setConsumer({ identifier: "acme" });
+        res.json({ ok: true });
+      },
+    );
     const userTracer = trace.getTracer("user-instrumentation");
     const appWithHandle = adoptedApp as unknown as {
       handle: (req: IncomingMessage, res: ServerResponse) => unknown;
@@ -215,13 +227,22 @@ describe("express adapter", () => {
         },
       });
       res.once("close", () => span.end());
-      return context.with(trace.setSpan(context.active(), span), () =>
-        sdkHandle.call(this, req, res),
-      );
+      const serverContext = setRPCMetadata(trace.setSpan(context.active(), span), {
+        type: RPCType.HTTP,
+        span,
+      });
+      return context.with(serverContext, () => {
+        context.bind(context.active(), req);
+        context.bind(context.active(), res);
+        return sdkHandle.call(this, req, res);
+      });
     };
     const released = waitForNextRequestFinish(handles.spanPipeline);
     await withServer(adoptedApp, async (_adoptedServer, baseUrl) => {
-      const response = await fetch(`${baseUrl}/items/5`);
+      const response = await fetch(`${baseUrl}/async-consumer`, {
+        method: "POST",
+        body: "request body",
+      });
       expect(response.status).toBe(200);
       await response.arrayBuffer();
       await released;
@@ -233,12 +254,18 @@ describe("express adapter", () => {
     expect(spans[0].kind).toBe(SpanKind.SERVER);
     expect(spans[0].instrumentationScope?.name).toBe("user-instrumentation");
     const attributes = spans[0].attributes;
-    expect(attributes["http.route"]).toBe("/items/:id");
+    expect(attributes["http.route"]).toBe("/async-consumer");
     expect(attributes["http.response.status_code"]).toBe(200);
-    expect(attributes["apitally.response.body"]).toBe(JSON.stringify({ id: 5, name: "Widget" }));
+    expect(attributes["apitally.response.body"]).toBe(JSON.stringify({ ok: true }));
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
-    expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
+    expect(dataPoints[0].attributes).toEqual({
+      "http.request.method": "POST",
+      "http.route": "/async-consumer",
+      "http.response.status_code": 200,
+      "apitally.consumer.identifier": "acme",
+      "url.scheme": "http",
+    });
   });
 
   it("warns once about partial trace coverage when a request arrives under an unsampled span context while metrics keep recording", async () => {
@@ -425,21 +452,6 @@ describe("express adapter", () => {
     const capturedBytes = Buffer.from(capturedResponseBody);
     expect(gunzipSync(capturedBytes).toString()).toBe(JSON.stringify(payload));
     expect(attributes["http.response.body.size"]).toBe(capturedBytes.length);
-  });
-
-  it("propagates a consumer set in a handler to the metrics dimensions", async () => {
-    prepareFirstRequestActivation();
-    await request(server).get("/consumer").expect(200);
-
-    const dataPoints = await readActivationDurationDataPoints();
-    expect(dataPoints).toHaveLength(1);
-    expect(dataPoints[0].attributes).toEqual({
-      "http.request.method": "GET",
-      "http.route": "/consumer",
-      "http.response.status_code": 200,
-      "apitally.consumer.identifier": "acme",
-      "url.scheme": "http",
-    });
   });
 
   it("activates on the first request and stays idempotent across repeated useApitally calls", async () => {

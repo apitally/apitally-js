@@ -84,6 +84,8 @@ function observeRequest(
   appendErrorMiddlewareOnce();
   registerServerCloseFlush(request);
   const started = startNodeRequestObservation({ request, tracerName: TRACER_NAME });
+  context.bind(started.requestContext, request);
+  context.bind(started.requestContext, response);
   beginRouteTracking(request);
   const observation: ExpressRequestObservation = {
     ...started.observation,
