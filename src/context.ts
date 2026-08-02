@@ -5,7 +5,7 @@ import {
   createContextKey,
   type Span,
 } from "@opentelemetry/api";
-import { getRPCMetadata, type RPCMetadata } from "@opentelemetry/core";
+import { getRPCMetadata, type RPCMetadata, RPCType } from "@opentelemetry/core";
 
 // Write sites resolve the request's SERVER span through this handle: under a child
 // span, the active span is not the SERVER span, and OTel has no public upward walk.
@@ -40,16 +40,10 @@ export const SPAN_HANDLE_KEY = createContextKey("apitally-span-handle");
 export const REQUEST_RECORD_KEY = createContextKey("apitally-request-record");
 export const CONSUMER_HOLDER_KEY = createContextKey("apitally-consumer-holder");
 
-const RPC_REQUEST_HOLDERS_KEY = Symbol.for("apitally.rpcRequestHolders");
+const RPC_REQUEST_RECORD_KEY = Symbol.for("apitally.rpcRequestRecord");
 
-interface RequestHolders {
-  spanHandle: SpanHandle;
-  requestRecord: RequestRecord;
-  consumerHolder: ConsumerHolder;
-}
-
-type RPCMetadataWithRequestHolders = RPCMetadata & {
-  [RPC_REQUEST_HOLDERS_KEY]?: RequestHolders;
+type RPCMetadataWithRequestRecord = RPCMetadata & {
+  [RPC_REQUEST_RECORD_KEY]?: RequestRecord;
 };
 
 // Mutable holders carry changing request state because OTel contexts are immutable.
@@ -59,42 +53,44 @@ export function withRequestHolders(
   record: RequestRecord,
   consumerHolder: ConsumerHolder,
 ): Context {
-  const holders = { spanHandle, requestRecord: record, consumerHolder };
-  const rpcMetadata = getRPCMetadata(baseContext) as RPCMetadataWithRequestHolders | undefined;
-  if (rpcMetadata) {
-    rpcMetadata[RPC_REQUEST_HOLDERS_KEY] = holders;
-  }
   return baseContext
     .setValue(SPAN_HANDLE_KEY, spanHandle)
     .setValue(REQUEST_RECORD_KEY, record)
     .setValue(CONSUMER_HOLDER_KEY, consumerHolder);
 }
 
+export function attachRequestRecordToRpcMetadata(
+  rpcMetadata: RPCMetadata | undefined,
+  record: RequestRecord,
+): void {
+  if (rpcMetadata) {
+    (rpcMetadata as RPCMetadataWithRequestRecord)[RPC_REQUEST_RECORD_KEY] = record;
+  }
+}
+
 export function getServerSpan(activeContext: Context = context.active()): Span | undefined {
   const spanHandle = activeContext.getValue(SPAN_HANDLE_KEY) as SpanHandle | undefined;
-  return spanHandle?.span ?? getRpcRequestHolders(activeContext)?.spanHandle.span;
+  const rpcMetadata = getRPCMetadata(activeContext) as RPCMetadataWithRequestRecord | undefined;
+  return (
+    spanHandle?.span ??
+    (rpcMetadata?.type === RPCType.HTTP && rpcMetadata[RPC_REQUEST_RECORD_KEY]
+      ? rpcMetadata.span
+      : undefined)
+  );
 }
 
 export function getRequestRecord(
   activeContext: Context = context.active(),
 ): RequestRecord | undefined {
+  const rpcMetadata = getRPCMetadata(activeContext) as RPCMetadataWithRequestRecord | undefined;
   return (
     (activeContext.getValue(REQUEST_RECORD_KEY) as RequestRecord | undefined) ??
-    getRpcRequestHolders(activeContext)?.requestRecord
+    rpcMetadata?.[RPC_REQUEST_RECORD_KEY]
   );
 }
 
 export function getConsumerHolder(
   activeContext: Context = context.active(),
 ): ConsumerHolder | undefined {
-  return (
-    (activeContext.getValue(CONSUMER_HOLDER_KEY) as ConsumerHolder | undefined) ??
-    getRpcRequestHolders(activeContext)?.consumerHolder
-  );
-}
-
-function getRpcRequestHolders(activeContext: Context): RequestHolders | undefined {
-  return (getRPCMetadata(activeContext) as RPCMetadataWithRequestHolders | undefined)?.[
-    RPC_REQUEST_HOLDERS_KEY
-  ];
+  return activeContext.getValue(CONSUMER_HOLDER_KEY) as ConsumerHolder | undefined;
 }

@@ -23,14 +23,17 @@ const CONSUMER_GROUP_ATTRIBUTE = "apitally.consumer.group";
 export function setConsumer(consumer: ApitallyConsumer | string): void {
   try {
     const holder = getConsumerHolder();
+    const record = getRequestRecord();
     const normalized = normalizeConsumer(consumer);
-    if (!holder || !normalized) {
+    if ((!holder && !record) || !normalized) {
       return;
     }
-    holder.identifier = normalized.identifier;
-    holder.name = normalized.name;
-    holder.group = normalized.group;
-    writeConsumerAttributes(getServerSpan(), getRequestRecord(), normalized);
+    if (holder) {
+      holder.identifier = normalized.identifier;
+      holder.name = normalized.name;
+      holder.group = normalized.group;
+    }
+    writeConsumerAttributes(getServerSpan(), record, normalized);
   } catch (error) {
     logDebug(`Error setting consumer: ${String(error)}`);
   }

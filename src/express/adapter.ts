@@ -9,11 +9,11 @@ import { installRouteCaptureFromApp, resolveStartupPaths } from "./routes.js";
 export function installExpressAdapter(
   app: Express,
   options: ApitallyOptions | undefined,
-  startupIdentity: Pick<StartupEventInfo, "framework" | "frameworkVersion">,
+  frameworkInfo: Pick<StartupEventInfo, "framework" | "frameworkVersion">,
 ): void {
   configure(options);
   registerStartupEventInfo({
-    ...startupIdentity,
+    ...frameworkInfo,
     resolvePaths: () => resolveStartupPaths(app),
   });
   try {

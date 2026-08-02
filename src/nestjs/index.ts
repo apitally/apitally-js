@@ -21,23 +21,23 @@ const INTERCEPTOR_MARKER = Symbol.for("apitally.nestInterceptor");
 export function useApitally(app: INestApplication, options?: ApitallyOptions): void {
   const httpAdapter = app.getHttpAdapter();
   const adapterType = httpAdapter.getType();
-  const nativeInstance = httpAdapter.getInstance() as object;
-  const startupIdentity = {
+  const adapterInstance = httpAdapter.getInstance() as object;
+  const frameworkInfo = {
     framework: "nestjs",
     frameworkVersion: resolvePackageVersion("@nestjs/core"),
   };
 
   if (adapterType === "express") {
-    installExpressAdapter(nativeInstance as Express, options, startupIdentity);
+    installExpressAdapter(adapterInstance as Express, options, frameworkInfo);
   } else if (adapterType === "fastify") {
-    installFastifyAdapter(nativeInstance as FastifyInstance, options, startupIdentity);
+    installFastifyAdapter(adapterInstance as FastifyInstance, options, frameworkInfo);
   } else {
     throw new TypeError(
       `Unsupported NestJS HTTP adapter ${JSON.stringify(adapterType)}. Supported adapters: express and fastify.`,
     );
   }
 
-  const markedInstance = nativeInstance as Record<symbol, boolean | undefined>;
+  const markedInstance = adapterInstance as Record<symbol, boolean | undefined>;
   if (markedInstance[INTERCEPTOR_MARKER] !== true) {
     app.useGlobalInterceptors(createExceptionInterceptor());
     markedInstance[INTERCEPTOR_MARKER] = true;

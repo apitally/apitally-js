@@ -3,6 +3,7 @@ import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@open
 import type { BodyCapture, CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
 import {
+  attachRequestRecordToRpcMetadata,
   getConsumerHolder,
   type RequestRecord,
   type SpanHandle,
@@ -132,6 +133,7 @@ export function startRequestObservation(
     rpcMetadata = { type: RPCType.HTTP, span: spanHandle.span };
     requestContext = setRPCMetadata(requestContext, rpcMetadata);
   }
+  attachRequestRecordToRpcMetadata(rpcMetadata, requestRecord);
   if (requestRecord.dropReason !== undefined) {
     requestBodyCapture.stopBuffering();
   }

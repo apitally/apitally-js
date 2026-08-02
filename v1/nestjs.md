@@ -33,8 +33,8 @@ The first implementation supports HTTP applications using Nest's Express and Fas
 
 Extract the setup body of each native adapter into an internal installer:
 
-- `src/express/adapter.ts`: `installExpressAdapter(app, options, startupIdentity)`
-- `src/fastify/adapter.ts`: `installFastifyAdapter(app, options, startupIdentity)`
+- `src/express/adapter.ts`: `installExpressAdapter(app, options, frameworkInfo)`
+- `src/fastify/adapter.ts`: `installFastifyAdapter(app, options, frameworkInfo)`
 
 Each installer owns the same behavior its current `useApitally()` owns now: configuration, startup route collection, and middleware or hook installation. `src/express/index.ts` and `src/fastify/index.ts` become small public wrappers that pass their native framework name and version.
 

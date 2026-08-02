@@ -7,12 +7,12 @@ import { installFastifyHooks } from "./middleware.js";
 export function installFastifyAdapter(
   app: FastifyInstance,
   options: ApitallyOptions | undefined,
-  startupIdentity: Pick<StartupEventInfo, "framework" | "frameworkVersion">,
+  frameworkInfo: Pick<StartupEventInfo, "framework" | "frameworkVersion">,
 ): void {
   configure(options);
   const startupPaths: RoutePath[] = [];
   registerStartupEventInfo({
-    ...startupIdentity,
+    ...frameworkInfo,
     resolvePaths: () => startupPaths,
   });
   installFastifyHooks(app, startupPaths);
