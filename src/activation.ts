@@ -89,7 +89,7 @@ export function configure(options: ApitallyOptions = {}): ApitallyConfig {
   return config;
 }
 
-// The first adapter registration wins so one process emits one startup event.
+// The first integration registration wins so one process emits one startup event.
 export function registerStartupEventInfo(info: StartupEventInfo): void {
   const activationState = getActivationState();
   activationState.startupEventInfo ??= info;

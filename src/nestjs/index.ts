@@ -10,8 +10,8 @@ import type { FastifyInstance } from "fastify";
 import type * as rxjs from "rxjs";
 import type { ApitallyOptions } from "../config.js";
 import { captureException } from "../exceptions.js";
-import { installExpressAdapter } from "../express/adapter.js";
-import { installFastifyAdapter } from "../fastify/adapter.js";
+import { installExpressIntegration } from "../express/install.js";
+import { installFastifyIntegration } from "../fastify/install.js";
 import { resolvePackageEntryPath, resolvePackageVersion } from "../packageVersion.js";
 
 export type { ApitallyOptions };
@@ -28,9 +28,9 @@ export function useApitally(app: INestApplication, options?: ApitallyOptions): v
   };
 
   if (adapterType === "express") {
-    installExpressAdapter(adapterInstance as Express, options, frameworkInfo);
+    installExpressIntegration(adapterInstance as Express, options, frameworkInfo);
   } else if (adapterType === "fastify") {
-    installFastifyAdapter(adapterInstance as FastifyInstance, options, frameworkInfo);
+    installFastifyIntegration(adapterInstance as FastifyInstance, options, frameworkInfo);
   } else {
     throw new TypeError(
       `Unsupported NestJS HTTP adapter ${JSON.stringify(adapterType)}. Supported adapters: express and fastify.`,

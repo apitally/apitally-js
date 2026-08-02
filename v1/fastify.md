@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add Fastify support to the v1 SDK with the same public setup and telemetry behavior as the Express and Hono adapters:
+Add Fastify support to the v1 SDK with the same public setup and telemetry behavior as the Express and Hono integrations:
 
 ```ts
 import Fastify from "fastify";
@@ -12,19 +12,19 @@ const app = Fastify();
 useApitally(app, options);
 ```
 
-Support Fastify `>=4.10.2 <6`. Keep the adapter limited to Fastify lifecycle wiring, route discovery, and context propagation. Shared request observation, body capture, spans, metrics, logs, sampling, redaction, activation, and export remain framework-independent.
+Support Fastify `>=4.10.2 <6`. Keep the integration limited to Fastify lifecycle wiring, route discovery, and context propagation. Shared request observation, body capture, spans, metrics, logs, sampling, redaction, activation, and export remain framework-independent.
 
 ## Research conclusions
 
 ### Fastify v4 and v5
 
-- Fastify 4.10.2 and 5 expose the hooks needed by the adapter: `onRoute`, `onReady`, `onRequest`, `preValidation`, `onError`, `onResponse`, and `onClose`.
-- `request.routeOptions.url` exists in Fastify 4.10.2 and is the supported route-template API in Fastify 5. Fastify 5 removed the deprecated `request.routerPath` API, so the v1 adapter should use `routeOptions.url` without a legacy fallback.
+- Fastify 4.10.2 and 5 expose the hooks needed by the integration: `onRoute`, `onReady`, `onRequest`, `preValidation`, `onError`, `onResponse`, and `onClose`.
+- `request.routeOptions.url` exists in Fastify 4.10.2 and is the supported route-template API in Fastify 5. Fastify 5 removed the deprecated `request.routerPath` API, so the v1 integration should use `routeOptions.url` without a legacy fallback.
 - `routeOptions.url` includes plugin prefixes. This provides the complete parameterized route template without reconstructing router state.
 - `onResponse` runs after the response has been sent. The existing raw Node response observer is still the better completion source because it also handles socket close and preserves exact wire body and size behavior.
 - Fastify hooks are encapsulated. Installing them on the root instance before routes and child plugins makes them apply throughout the app.
 
-### v0 adapter
+### v0 integration
 
 Carry forward the parts that remain relevant to v1:
 
@@ -39,12 +39,12 @@ Do not port v0 mechanisms now owned by the v1 shared core:
 
 - request counters, validation aggregation, bespoke request logs, and server-error payloads;
 - request and reply decorators used for v0 consumer and payload state;
-- adapter-specific console, Pino, Winston, or NestJS patches;
+- integration-specific console, Pino, Winston, or NestJS patches;
 - the v0 `setConsumer(request, ...)` API;
 - response-time and content-length fallbacks;
 - `routerPath` compatibility for versions below the new floor.
 
-NestJS support remains a separate adapter phase. Fastify support should not add NestJS detection, interceptors, or logging patches.
+NestJS support remains a separate integration phase. Fastify support should not add NestJS detection, interceptors, or logging patches.
 
 ## Public API and packaging decisions
 
@@ -90,7 +90,7 @@ src/fastify/
   routes.ts
 ```
 
-This mirrors the existing adapter layout while keeping each concern small.
+This mirrors the existing integration layout while keeping each concern small.
 
 ### Shared Node request observation adjustments
 
@@ -115,7 +115,7 @@ Keep raw response completion in `captureNodeResponse`. It already provides the r
 - suppresses partial response bodies after an aborted connection;
 - combines request and response capture results without reading streams itself.
 
-Before starting request observation, the Fastify hook should directly check for a case-insensitive `Upgrade: websocket` header and continue without instrumenting that request. Keep this check local to the adapter; it does not justify a shared helper or WebSocket-specific dependency.
+Before starting request observation, the Fastify hook should directly check for a case-insensitive `Upgrade: websocket` header and continue without instrumenting that request. Keep this check local to the integration; it does not justify a shared helper or WebSocket-specific dependency.
 
 #### `src/activation.ts` and `src/requestObservationNode.ts`
 
@@ -130,7 +130,7 @@ This gives Express and Fastify identical non-destructive server-close behavior. 
 
 ### `src/fastify/index.ts`
 
-Implement the same setup shape as the other adapters:
+Implement the same setup shape as the other integrations:
 
 1. Call `configure(options)`.
 2. Register startup event info with framework name `fastify`, `resolvePackageVersion("fastify")`, and the lazy route collector.
@@ -142,7 +142,7 @@ Export only `useApitally` and the `ApitallyOptions` type.
 
 Keep route handling deliberately small:
 
-- maintain an adapter-owned list populated by `onRoute`;
+- maintain an integration-owned list populated by `onRoute`;
 - expand string or array methods into `{ method, path }` entries;
 - retain Fastify's complete `routeOptions.url`, including prefixes;
 - let shared startup normalization uppercase methods, remove duplicates, and exclude `ALL`, `HEAD`, and `OPTIONS`;
@@ -155,7 +155,7 @@ No Fastify router internals or `printRoutes()` parsing should be used.
 
 Install hooks directly on the root instance. Guard installation with a `Symbol.for` marker on the instance so repeated setup and mixed ESM/CJS loading cannot add duplicate hooks.
 
-Use a `WeakMap<FastifyRequest, FastifyRequestObservation>` for private per-request adapter state. Do not decorate Fastify request or reply objects and do not add declaration merging.
+Use a `WeakMap<FastifyRequest, FastifyRequestObservation>` for private per-request integration state. Do not decorate Fastify request or reply objects and do not add declaration merging.
 
 #### `onReady`
 
@@ -180,7 +180,7 @@ All failures should log through the SDK logger and continue the request without 
 
 Re-enter the stored OTel request context and invoke `done()` inside it. This carries the SERVER span, request record, consumer holder, and log linkage through Fastify validation, later hooks, and the route handler.
 
-This is the v1 equivalent of the context restoration proven necessary by the v0 adapter, but it uses the existing OTel context manager rather than a second adapter-owned `AsyncLocalStorage` store.
+This is the v1 equivalent of the context restoration proven necessary by the v0 integration, but it uses the existing OTel context manager rather than a second integration-owned `AsyncLocalStorage` store.
 
 #### `onError`
 
@@ -202,19 +202,19 @@ This covers normal responses, custom error handlers, streamed responses, hijacke
 
 #### `onClose`
 
-Await `flushTelemetry()`. Do not call full `shutdown()` from the hook. This matches Express server-close semantics, avoids adapter ownership of global SDK teardown, and leaves `shutdown()` as the coordinated application-level API.
+Await `flushTelemetry()`. Do not call full `shutdown()` from the hook. This matches Express server-close semantics, avoids integration ownership of global SDK teardown, and leaves `shutdown()` as the coordinated application-level API.
 
 ## Root entry changes
 
 Update `src/index.ts`:
 
-- import the Fastify adapter;
+- import the Fastify integration;
 - add `isFastifyApp` using stable public instance shape, such as `version`, `addHook`, `register`, `route`, `ready`, and `close`;
 - keep Express and Hono predicates precise so the new branch cannot steal their apps;
-- dispatch Fastify apps to the typed adapter;
+- dispatch Fastify apps to the typed integration;
 - include `apitally/fastify` in the unsupported-framework error.
 
-Add one root-entry integration test that creates a real Fastify app and observes a route-templated SERVER span. Assert only enough to prove root dispatch; the Fastify adapter suite owns detailed telemetry behavior.
+Add one root-entry integration test that creates a real Fastify app and observes a route-templated SERVER span. Assert only enough to prove root dispatch; the Fastify integration suite owns detailed telemetry behavior.
 
 ## Test plan
 
@@ -247,7 +247,7 @@ Use real Fastify instances and a real listening server for transport behavior. D
 
 Call `useApitally` immediately after creating the root app and before registering these routes and plugins.
 
-### Canonical adapter scenarios
+### Canonical integration scenarios
 
 Copy the shared scenario names and order from Express and Hono, adapting only request-driving details:
 
@@ -267,7 +267,7 @@ Do not duplicate shared-core tests for sampling, redaction, body limits, spool b
 
 ### Fastify-specific scenarios
 
-Add focused coverage for behavior introduced by the adapter:
+Add focused coverage for behavior introduced by the integration:
 
 - `onReady` activates before the first request and emits a startup event containing complete prefixed route templates;
 - `onClose` allows pending telemetry to flush without tearing down the global SDK;
@@ -275,14 +275,14 @@ Add focused coverage for behavior introduced by the adapter:
 - a Fastify validation response remains a normal 4xx request without an unhandled exception event;
 - a request carrying a case-insensitive `Upgrade: websocket` header continues normally without producing an Apitally span or request metric.
 
-Keep `tests/fastify/routes.test.ts` for consistency with the other adapters. Use real Fastify route registration and readiness, and keep it focused on startup enumeration and route resolution rather than repeating adapter integration scenarios.
+Keep `tests/fastify/routes.test.ts` for consistency with the other integrations. Use real Fastify route registration and readiness, and keep it focused on startup enumeration and route resolution rather than repeating framework integration scenarios.
 
 ### Existing tests
 
 Update:
 
 - `tests/index.test.ts` for root Fastify detection and the unsupported-framework error text;
-- any adapter consistency comments or helper tables that currently name only Express and Hono.
+- any integration consistency comments or helper tables that currently name only Express and Hono.
 
 Rely on `npm run build` and `npm run check:package` to validate the ESM/CJS `apitally/fastify` export instead of adding dedicated built-artifact smoke tests.
 
@@ -298,7 +298,7 @@ Run these scenarios across the existing Node 20, 22, and 24 lanes. Do not add `f
 
 The floor lane is important because it proves that `routeOptions.url` and the selected lifecycle hooks are sufficient without deprecated fallbacks. The Fastify 5 lane proves that no removed v4 properties are used.
 
-Pino capture keeps the SDK's existing support policy. Do not add a Fastify-specific logger patch or restore Pino 8 support as part of this adapter. Fastify 4 applications that want Pino application-log capture must use a Pino version supported by the v1 SDK; request spans, request metrics, exception events, and other supported logging surfaces remain unaffected.
+Pino capture keeps the SDK's existing support policy. Do not add a Fastify-specific logger patch or restore Pino 8 support as part of this integration. Fastify 4 applications that want Pino application-log capture must use a Pino version supported by the v1 SDK; request spans, request metrics, exception events, and other supported logging surfaces remain unaffected.
 
 ## Documentation changes
 
@@ -320,7 +320,7 @@ Do not document `apitallyPlugin`, request decorators, or v0 Fastify APIs.
 4. Add the uniform fixture, canonical integration scenarios, and the focused Fastify-specific tests listed above.
 5. Add Fastify v4/v5/floor matrix lanes and README documentation.
 6. Run the prepared Fastify app in the cross-SDK test harness.
-7. Review all three adapter suites together for identical shared test names, ordering, fixture routes, helper reuse, and coverage ownership.
+7. Review all three integration suites together for identical shared test names, ordering, fixture routes, helper reuse, and coverage ownership.
 
 ## Verification
 
@@ -351,6 +351,6 @@ Use the existing `../sdk-tests/javascript/fastify` fixture rather than creating 
 - Normal, error, streaming, and aborted raw response completion cannot leave request telemetry in flight.
 - Requests carrying `Upgrade: websocket` bypass Apitally request telemetry.
 - `onReady` activates with complete startup routes; `onClose` flushes without owning global teardown.
-- No Fastify internals, `routerPath`, `getResponseTime`, request/reply decorators, adapter-local telemetry pipeline, or `fastify-plugin` dependency is introduced.
+- No Fastify internals, `routerPath`, `getResponseTime`, request/reply decorators, integration-local telemetry pipeline, or `fastify-plugin` dependency is introduced.
 - Express behavior remains unchanged after the shared-code extraction.
 - All local checks, `uv run sdk-tests test fastify`, and the complete Fastify version matrix are green.

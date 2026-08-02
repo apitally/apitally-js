@@ -36,7 +36,7 @@ preAssembledRouter.get("/pre/:id", (_req, res) => {
   res.json({ pre: true });
 });
 
-describe("express adapter", () => {
+describe("express integration", () => {
   let app: Express;
   let server: ReturnType<typeof createServer>;
   let serverPort: number;

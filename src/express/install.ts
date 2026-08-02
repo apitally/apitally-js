@@ -6,7 +6,7 @@ import type { StartupEventInfo } from "../startup.js";
 import { wrapAppHandle } from "./middleware.js";
 import { installRouteCaptureFromApp, resolveStartupPaths } from "./routes.js";
 
-export function installExpressAdapter(
+export function installExpressIntegration(
   app: Express,
   options: ApitallyOptions | undefined,
   frameworkInfo: Pick<StartupEventInfo, "framework" | "frameworkVersion">,

@@ -18,7 +18,7 @@ import {
 } from "../utils.js";
 import { buildAppFixture } from "./app.js";
 
-describe("hono adapter", () => {
+describe("hono integration", () => {
   let app: Hono;
 
   beforeAll(() => {

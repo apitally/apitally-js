@@ -4,7 +4,7 @@ import type { ApitallyOptions } from "../config.js";
 import type { RoutePath, StartupEventInfo } from "../startup.js";
 import { installFastifyHooks } from "./middleware.js";
 
-export function installFastifyAdapter(
+export function installFastifyIntegration(
   app: FastifyInstance,
   options: ApitallyOptions | undefined,
   frameworkInfo: Pick<StartupEventInfo, "framework" | "frameworkVersion">,

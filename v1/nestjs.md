@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add NestJS 10 and 11 support through `apitally/nestjs` while keeping Nest-specific behavior thin. The adapter will install the existing Express or Fastify observation implementation on Nest's native HTTP instance, then add only Nest's handler-chain exception integration. Default Nest logger capture joins the existing activation-time log integrations.
+Add NestJS 10 and 11 support through `apitally/nestjs` while keeping Nest-specific behavior thin. The integration will install the existing Express or Fastify observation implementation on Nest's native HTTP instance, then add only Nest's handler-chain exception integration. Default Nest logger capture joins the existing activation-time log integrations.
 
 The public setup remains synchronous:
 
@@ -29,16 +29,16 @@ Request helpers remain at the package root. Nest guards, interceptors, and contr
 
 The first implementation supports HTTP applications using Nest's Express and Fastify adapters. Other Nest application types receive a clear `TypeError` naming the detected adapter and the supported choices.
 
-### Native adapter reuse
+### Underlying integration reuse
 
-Extract the setup body of each native adapter into an internal installer:
+Extract the setup body of each framework integration into an internal installer:
 
-- `src/express/adapter.ts`: `installExpressAdapter(app, options, frameworkInfo)`
-- `src/fastify/adapter.ts`: `installFastifyAdapter(app, options, frameworkInfo)`
+- `src/express/install.ts`: `installExpressIntegration(app, options, frameworkInfo)`
+- `src/fastify/install.ts`: `installFastifyIntegration(app, options, frameworkInfo)`
 
 Each installer owns the same behavior its current `useApitally()` owns now: configuration, startup route collection, and middleware or hook installation. `src/express/index.ts` and `src/fastify/index.ts` become small public wrappers that pass their native framework name and version.
 
-The Nest adapter calls the same installers with:
+The NestJS integration calls the same installers with:
 
 - `framework: "nestjs"`
 - the version resolved from `@nestjs/core`
@@ -49,16 +49,16 @@ Use the public `httpAdapter.getType()` API to select `express` or `fastify`, the
 
 ### Lifecycle
 
-Keep activation under the native adapters instead of wrapping `app.init()`:
+Keep activation under the underlying integrations instead of wrapping `app.init()`:
 
 - Express activates at the start of the first request, after Nest has initialized and registered its routes.
 - Fastify activates in the existing `onReady` hook, after queued plugins and their routes have materialized.
 
 These boundaries already ensure that failed Nest initialization cannot activate Apitally and that the startup event sees the complete native route list. They also avoid mutating the proxy returned by `NestFactory.create()`, whose property assignment trap does not support replacing `app.init()` or storing markers.
 
-The existing Express server `close` listener and Fastify `onClose` hook continue to own non-destructive flushing, so the Nest adapter needs no separate shutdown implementation.
+The existing Express server `close` listener and Fastify `onClose` hook continue to own non-destructive flushing, so the NestJS integration needs no separate shutdown implementation.
 
-Repeated `useApitally()` calls still pass through the native installer so v1 configuration re-call semantics remain intact. After `app.useGlobalInterceptors()` succeeds, store one `Symbol.for` interceptor marker on the native HTTP instance returned by `getInstance()`. The native instance accepts ordinary property assignment, unlike the Nest application proxy.
+Repeated `useApitally()` calls still pass through the underlying integration installer so v1 configuration re-call semantics remain intact. After `app.useGlobalInterceptors()` succeeds, store one `Symbol.for` interceptor marker on the native HTTP instance returned by `getInstance()`. The native instance accepts ordinary property assignment, unlike the Nest application proxy.
 
 ### Exception capture
 
@@ -85,7 +85,7 @@ Do not add exception deduplication state. Nest's HTTP exception layer converts c
 
 Add `installNestLoggerCapture()` to `src/logCapture.ts` and invoke it beside the console, Winston, and Pino installers during activation when `captureLogs` is enabled.
 
-Nest officially supports replacing or extending its logger, but it exposes no listener or transport hook for transparent capture. The adapter will therefore use a small compatibility patch for the default `ConsoleLogger`; it will not replace the application's logger or add an OpenTelemetry Nest instrumentation dependency.
+Nest officially supports replacing or extending its logger, but it exposes no listener or transport hook for transparent capture. The integration will therefore use a small compatibility patch for the default `ConsoleLogger`; it will not replace the application's logger or add an OpenTelemetry Nest instrumentation dependency.
 
 Resolve `@nestjs/common` synchronously with `createRequire`, then wrap the shared `ConsoleLogger.prototype.printMessages` method once with a `Symbol.for` marker. This is preferable to the v0 `Logger.log()` wrappers because Nest has already applied its level filter and extracted the logger context before calling `printMessages`.
 
@@ -108,7 +108,7 @@ This covers the default logger and `ConsoleLogger` subclasses that retain the in
 
 ### Production and package surface
 
-1. **Add `src/express/adapter.ts` and `src/fastify/adapter.ts`**
+1. **Add `src/express/install.ts` and `src/fastify/install.ts`**
    - Move only the current setup bodies into internal installers.
    - Accept startup framework identity as an argument.
    - Keep all request observation, route capture, and lifecycle hooks unchanged.
@@ -118,10 +118,10 @@ This covers the default logger and `ConsoleLogger` subclasses that retain the in
    - Resolve their native package versions and delegate to the new installers.
 
 3. **Add `src/nestjs/index.ts`**
-   - Detect the native adapter with `getType()`.
+   - Detect the Nest HTTP adapter with `getType()`.
    - Delegate to the matching internal installer with NestJS startup identity.
    - Register the global exception interceptor once, marking the native HTTP instance rather than the Nest application proxy.
-   - Leave activation and shutdown under the native installer.
+   - Leave activation and shutdown under the underlying integration installer.
    - Keep the module decorator-free and side-effect-free until `useApitally()` is called.
 
 4. **Update `src/logCapture.ts` and `src/activation.ts`**
@@ -129,7 +129,7 @@ This covers the default logger and `ConsoleLogger` subclasses that retain the in
 
 5. **Update `package.json` and `package-lock.json`**
    - Add the `./nestjs` ESM/CJS/types export.
-   - Add optional peer ranges `>=10 <12` and matching `peerDependenciesMeta` entries for `@nestjs/common` and `@nestjs/core`. The adapter does not import either platform package; Express and Fastify platform compatibility is documented and tested instead.
+   - Add optional peer ranges `>=10 <12` and matching `peerDependenciesMeta` entries for `@nestjs/common` and `@nestjs/core`. The integration does not import either platform package; Express and Fastify platform compatibility is documented and tested instead.
    - Add the current Nest 11 common, core, Express platform, and Fastify platform packages, plus `reflect-metadata` and RxJS, as development dependencies for tests and type checking. `@nestjs/testing` is unnecessary.
    - Add NestJS to the description and keywords.
    - Leave `sideEffects` unchanged because the Nest entry has no import-time effect.
@@ -143,7 +143,7 @@ This covers the default logger and `ConsoleLogger` subclasses that retain the in
    - Define one small controller and module.
    - Apply Nest's `Controller`, `Get`, and `Module` decorator functions manually after class definitions. This avoids enabling TypeScript decorator transforms globally.
    - Include a successful parameterized route, a 400 route, and an unhandled 500 route.
-   - Call the root `setConsumer()` from the successful controller method to prove the native adapter restores request context through Nest dispatch.
+   - Call the root `setConsumer()` from the successful controller method to prove the underlying integration restores request context through Nest dispatch.
 
 8. **Add `tests/nestjs/nestjs.test.ts`**
    - Run one shared integration scenario against `ExpressAdapter` and `FastifyAdapter` with a genuine platform table.
@@ -151,7 +151,7 @@ This covers the default logger and `ConsoleLogger` subclasses that retain the in
    - Assert the startup event identifies `nestjs`, includes the Nest version, and contains the exact controller route list.
    - Send successful, 400, and 500 requests through the listening app and read every response body before telemetry assertions.
    - Assert activation after the first completed request, one SERVER span per request with Nest route templates, the consumer on the successful request, no exception event for the 400 response, and exactly one exception event for the controller 500 response.
-   - Close the Nest app in `finally`; native-adapter suites continue to own detailed activation, route-completeness, and close-flush behavior.
+   - Close the Nest app in `finally`; the Express and Fastify integration suites continue to own detailed activation, route-completeness, and close-flush behavior.
 
 9. **Extend `tests/logCapture.test.ts`**
    - In one test, install Nest capture twice around a real `ConsoleLogger`, configure a level threshold, and emit suppressed and accepted messages. Assert one record per accepted message with exact body, severity, the fixed `nestjs` scope, and `nestjs.context`.
@@ -175,7 +175,7 @@ The Nest suite intentionally does not repeat body capture, streaming, compressio
     - Include Nest `app.close()` in graceful-shutdown wording.
 
 12. **Update `v1/design-js.md`**
-    - Record the native-installer delegation, public adapter detection, native activation boundaries, and handler-chain exception policy.
+    - Record the underlying-integration delegation, Nest HTTP adapter detection, underlying activation boundaries, and handler-chain exception policy.
     - Describe the default `ConsoleLogger` compatibility patch, fixed `nestjs` instrumentation scope, context attribute, `forceConsole` deduplication, and activation and custom-logger boundaries.
     - Keep the existing lifecycle and logging decisions, replacing the remaining phase-only wording with the implemented Nest behavior.
 
@@ -196,11 +196,11 @@ Then inspect the packed export to confirm both module systems expose `apitally/n
 ## Acceptance criteria
 
 - Nest 10 and 11 applications using either Express or Fastify are instrumented through one synchronous `useApitally()` call before Nest initialization.
-- Nest delegates all transport observation and route collection to the existing native implementations.
+- Nest delegates all transport observation and route collection to the existing underlying integrations.
 - Native activation occurs only after successful Nest initialization and emits complete NestJS startup metadata, including Fastify plugin routes materialized at `onReady`.
 - Handler-chain exceptions with an unknown or 5xx status produce an exception event; the tested controller failure produces exactly one, and expected 4xx responses produce none.
 - The v1 context-based consumer API works inside Nest request handling.
 - Default Nest logger records preserve severity, context, and message boundaries while respecting Nest's level filter; `forceConsole` does not duplicate records.
 - Repeated setup does not duplicate wrappers, interceptors, spans, logs, or exceptions.
-- The Nest adapter does not mutate the Nest application proxy or duplicate native activation and shutdown logic.
-- No decorator compiler configuration, Nest dynamic module, adapter-specific request state, or duplicate native-adapter test suite is introduced.
+- The NestJS integration does not mutate the Nest application proxy or duplicate underlying activation and shutdown logic.
+- No decorator compiler configuration, Nest dynamic module, integration-specific request state, or duplicate underlying-integration test suite is introduced.

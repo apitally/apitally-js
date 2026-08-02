@@ -8,7 +8,7 @@ interface RouteFixture {
   routes: (string | undefined)[];
 }
 
-// Mirrors the adapter's setup shape: the observing middleware registers first,
+// Mirrors the integration's setup shape: the observing middleware registers first,
 // so routes registered after it compose behind it.
 function createRouteFixture(): RouteFixture {
   const app = new Hono();

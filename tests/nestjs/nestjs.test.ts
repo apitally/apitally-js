@@ -22,7 +22,7 @@ const platforms = [
   { name: "Fastify", createAdapter: () => new FastifyAdapter() },
 ];
 
-describe("NestJS adapter", () => {
+describe("NestJS integration", () => {
   it.each(platforms)(
     "observes requests through the $name HTTP adapter",
     async ({ createAdapter }) => {

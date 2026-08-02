@@ -32,7 +32,7 @@ import {
 } from "./utils.js";
 
 describe("root entry", () => {
-  it("dispatches an Express app to the express adapter and exports its SERVER span with the route template", async () => {
+  it("dispatches an Express app to the express integration and exports its SERVER span with the route template", async () => {
     prepareFirstRequestActivation();
     const app = express();
     useApitally(app, { writeToken: WRITE_TOKEN });
@@ -52,7 +52,7 @@ describe("root entry", () => {
     expect(spans[0].attributes["http.route"]).toBe("/items/:id");
   });
 
-  it("dispatches a Fastify app to the fastify adapter and exports its SERVER span with the route template", async () => {
+  it("dispatches a Fastify app to the fastify integration and exports its SERVER span with the route template", async () => {
     prepareFirstRequestActivation();
     const app = fastify();
     useApitally(app, { writeToken: WRITE_TOKEN });
@@ -68,7 +68,7 @@ describe("root entry", () => {
     expect(spans[0].attributes["http.route"]).toBe("/items/:id");
   });
 
-  it("dispatches a Hono app to the hono adapter and exports its SERVER span with the route template", async () => {
+  it("dispatches a Hono app to the hono integration and exports its SERVER span with the route template", async () => {
     prepareFirstRequestActivation();
     const app = new Hono();
     useApitally(app, { writeToken: WRITE_TOKEN });

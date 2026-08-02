@@ -5,7 +5,7 @@ import { useApitally } from "../../src/fastify/index.js";
 import { setConsumer } from "../../src/index.js";
 import { WRITE_TOKEN } from "../utils.js";
 
-// These fixtures must remain behaviorally aligned across adapter suites.
+// These fixtures must remain behaviorally aligned across integration suites.
 export function buildAppFixture(options: ApitallyOptions = {}): FastifyInstance {
   const app = fastify();
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });

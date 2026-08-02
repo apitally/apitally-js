@@ -52,13 +52,13 @@ Status: This branch (v1) is a new agent-generated codebase, largely untested and
 ### Layout and naming
 
 - Two tiers: `tests/shared/<module>.test.ts` mirrors `src/` with one focused test module per source module; per-framework integration directories (`tests/express/`, `tests/hono/`) each drive a small uniform real app fixture. Test files are named after the module they test, never after scenarios.
-- `describe` names the module or adapter; `it` is a present-tense behavior predicate readable without the test body, no "should". The name states the observable behavior, not the mechanism or an internal codename.
+- `describe` names the module or framework integration; `it` is a present-tense behavior predicate readable without the test body, no "should". The name states the observable behavior, not the mechanism or an internal codename.
 - Scenarios shared across frameworks use identical `it` strings in the same order in every framework file.
 - Test order within a file is deliberate: core behavior first, then edge cases, failure paths, and shutdown last; hooks at the top.
 
 ### Coverage ownership
 
-- Every behavior is asserted in exactly one home - the lowest layer that can observe it. `tests/shared/` owns core semantics; framework suites own adapter behavior, wiring, and the canonical cross-framework scenario set, which is the only sanctioned duplication. Two tests pinning the same contract outside that set is a defect.
+- Every behavior is asserted in exactly one home - the lowest layer that can observe it. `tests/shared/` owns core semantics; framework suites own integration behavior, wiring, and the canonical cross-framework scenario set, which is the only sanctioned duplication. Two tests pinning the same contract outside that set is a defect.
 - Helpers stay consolidated in `tests/utils.ts`: extending an existing helper always beats adding a sibling.
 
 ### Determinism and assertions

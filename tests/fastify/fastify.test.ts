@@ -34,7 +34,7 @@ async function send(baseUrl: string, path: string, init?: RequestInit): Promise<
   return { response, body: await readResponseAndSettleTransport(response) };
 }
 
-describe("fastify adapter", () => {
+describe("fastify integration", () => {
   let app: FastifyInstance;
   let baseUrl: string;
 

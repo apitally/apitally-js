@@ -5,7 +5,7 @@ import { useApitally } from "../../src/express/index.js";
 import { setConsumer } from "../../src/index.js";
 import { WRITE_TOKEN } from "../utils.js";
 
-// These fixtures must remain behaviorally aligned across adapter suites.
+// These fixtures must remain behaviorally aligned across integration suites.
 export function buildAppFixture(options: ApitallyOptions = {}): Express {
   const app = express();
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });

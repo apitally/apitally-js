@@ -4,7 +4,7 @@ import { useApitally } from "../../src/hono/index.js";
 import { setConsumer } from "../../src/index.js";
 import { WRITE_TOKEN } from "../utils.js";
 
-// These fixtures must remain behaviorally aligned across adapter suites.
+// These fixtures must remain behaviorally aligned across integration suites.
 export function buildAppFixture(options: ApitallyOptions = {}): Hono {
   const app = new Hono();
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });
