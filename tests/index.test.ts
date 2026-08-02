@@ -1,3 +1,4 @@
+import Router from "@koa/router";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -9,6 +10,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
 import { fastify } from "fastify";
 import { Hono } from "hono";
+import Koa from "koa";
 import { describe, expect, it } from "vitest";
 import {
   ApitallySpanProcessor,
@@ -76,6 +78,29 @@ describe("root entry", () => {
     const response = await app.request("/items/7");
     expect(response.status).toBe(200);
     await readResponseAndSettleTransport(response);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET /items/:id");
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/:id");
+  });
+
+  it("dispatches a Koa app to the koa integration and exports its SERVER span with the route template", async () => {
+    prepareFirstRequestActivation();
+    const app = new Koa();
+    app.silent = true;
+    useApitally(app, { writeToken: WRITE_TOKEN });
+    const router = new Router();
+    router.get("/items/:id", (ctx) => {
+      ctx.body = { ok: true };
+    });
+    app.use(router.routes());
+    await withServer(app.callback(), async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/items/7`);
+      expect(response.status).toBe(200);
+      await response.arrayBuffer();
+    });
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
@@ -177,5 +202,6 @@ describe("root entry", () => {
     expect(attempt).toThrowError("apitally/express");
     expect(attempt).toThrowError("apitally/fastify");
     expect(attempt).toThrowError("apitally/hono");
+    expect(attempt).toThrowError("apitally/koa");
   });
 });

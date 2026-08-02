@@ -19,13 +19,13 @@
 </p>
 <br>
 
-# Apitally SDK for Express, Fastify, Hono and NestJS
+# Apitally SDK for JavaScript
 
 [![Tests](https://github.com/apitally/apitally-js/actions/workflows/tests.yaml/badge.svg?event=push)](https://github.com/apitally/apitally-js/actions)
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [Hono](https://github.com/honojs/hono) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally — no OpenTelemetry knowledge required, no infrastructure changes, no dashboards to build.
+API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally — no OpenTelemetry knowledge required, no infrastructure changes, no dashboards to build.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
@@ -46,6 +46,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x`       | [Link](https://docs.apitally.io/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify)   | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
 | [**Hono**](https://github.com/honojs/hono) \*       | `>= 4.8.4`         | [Link](https://docs.apitally.io/setup-guides/hono)    |
+| [**Koa**](https://github.com/koajs/koa)              | `2.x`, `3.x`       | [Link](https://docs.apitally.io/setup-guides/koa)     |
 | [**NestJS**](https://github.com/nestjs/nest)        | `10.x`, `11.x`     | [Link](https://docs.apitally.io/setup-guides/nestjs)  |
 
 \* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
@@ -147,6 +148,26 @@ useApitally(app, {
 
 For further instructions, see our [setup guide for Hono](https://docs.apitally.io/setup-guides/hono).
 
+### Koa
+
+Call `useApitally(app)` immediately after creating the app, before registering middleware and routes:
+
+```javascript
+const Koa = require("koa");
+const { useApitally } = require("apitally");
+
+const app = new Koa();
+
+useApitally(app, {
+  writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
+  env: "prod", // optional, defaults to "prod"
+});
+
+// register middleware and routes below this point
+```
+
+For further instructions, see our [setup guide for Koa](https://docs.apitally.io/setup-guides/koa).
+
 ## Using Sentry
 
 Sentry's Node.js SDK registers an OpenTelemetry tracer provider by default. If you use Sentry for error monitoring without performance tracing, let Apitally configure OpenTelemetry by disabling Sentry's setup:
@@ -184,7 +205,7 @@ Telemetry is exported in the background roughly every 15 seconds. After successf
 
 On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-Closing an Express server or calling `app.close()` on a Fastify or NestJS app triggers a non-destructive telemetry flush. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+Closing an Express or Koa server, or calling `app.close()` on a Fastify or NestJS app, triggers a non-destructive telemetry flush. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";

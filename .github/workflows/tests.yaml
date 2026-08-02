@@ -72,6 +72,8 @@ jobs:
           - fastify-4.10
           - hono
           - hono-4.8
+          - koa
+          - koa-2
           - nestjs-10
           - nestjs-11
         include:
@@ -91,6 +93,10 @@ jobs:
             packages: hono
           - scenario: hono-4.8
             packages: hono@4.8.4 @opentelemetry/api@1.9.0
+          - scenario: koa
+            packages: koa
+          - scenario: koa-2
+            packages: koa@2 @types/koa@2
           - scenario: nestjs-10
             packages: "@nestjs/common@10 @nestjs/core@10 @nestjs/platform-express@10 @nestjs/platform-fastify@10"
           - scenario: nestjs-11
