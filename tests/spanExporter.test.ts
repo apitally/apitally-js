@@ -29,7 +29,7 @@ function createExportPipeline(
   const config = getConfig();
   const spanExporter = new ApitallySpanExporter({
     redaction: new Redaction(),
-    env: options.env ?? "prod",
+    env: options.env ?? "dev",
     spool,
     maskRequestBody: config.maskRequestBody,
     maskResponseBody: config.maskResponseBody,

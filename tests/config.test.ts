@@ -24,7 +24,7 @@ describe("config", () => {
     const config = setConfig({ writeToken: WRITE_TOKEN });
     expect(config).toEqual({
       writeToken: WRITE_TOKEN,
-      env: "prod",
+      env: "dev",
       appVersion: undefined,
       disabled: false,
       captureLogs: true,

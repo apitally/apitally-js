@@ -36,7 +36,7 @@ export type ApitallyConfig = Required<Omit<ApitallyOptions, OptionalConfigKeys>>
   Pick<ApitallyOptions, OptionalConfigKeys> & { otlpEndpoint: string };
 
 const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
-export const DEFAULT_ENV = "prod";
+export const DEFAULT_ENV = "dev";
 
 // User-supplied patterns extend these defaults, never replace them.
 export const DEFAULT_MASK_QUERY_PARAMS = ["auth", "api-?key", "secret", "token", "password", "pwd"];

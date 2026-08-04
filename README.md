@@ -80,7 +80,7 @@ const app = express();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "prod", // optional, defaults to "prod"
+  env: "dev", // optional, defaults to "dev"
 });
 ```
 
@@ -100,7 +100,7 @@ const app = Fastify();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "prod", // optional, defaults to "prod"
+  env: "dev", // optional, defaults to "dev"
 });
 
 // register plugins and routes below this point
@@ -121,7 +121,7 @@ const app = await NestFactory.create(AppModule);
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "prod", // optional, defaults to "prod"
+  env: "dev", // optional, defaults to "dev"
 });
 
 await app.listen(3000);
@@ -141,7 +141,7 @@ const app = new H3({
   plugins: [
     apitallyPlugin({
       writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-      env: "prod", // optional, defaults to "prod"
+      env: "dev", // optional, defaults to "dev"
     }),
   ],
 });
@@ -161,7 +161,7 @@ const app = new Hono();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "prod", // optional, defaults to "prod"
+  env: "dev", // optional, defaults to "dev"
 });
 
 // register middleware and routes below this point
@@ -181,7 +181,7 @@ const app = new Koa();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "prod", // optional, defaults to "prod"
+  env: "dev", // optional, defaults to "dev"
 });
 
 // register middleware and routes below this point

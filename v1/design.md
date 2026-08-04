@@ -31,7 +31,7 @@ With only a write token configured:
 | Request headers | off — opt-in |
 | Response headers | on — opt-out |
 
-Two deliberate departures from 0.x that every SDK carries and every migration guide MUST call out: log capture defaults on (0.x was double opt-in; request-scoped logs are core to a strong default experience without payload data), and `env` defaults to `prod` (0.x defaulted to `dev`). There is no log-content redaction in v1: the redaction patterns apply to query params, headers, and body fields only; log messages export verbatim (settled decision — users who log sensitive data sanitize at source or disable log capture).
+One deliberate departure from 0.x that every SDK carries and every migration guide MUST call out: log capture defaults on (0.x was double opt-in; request-scoped logs are core to a strong default experience without payload data). There is no log-content redaction in v1: the redaction patterns apply to query params, headers, and body fields only; log messages export verbatim (settled decision — users who log sensitive data sanitize at source or disable log capture).
 
 ## 2. Integration with existing OpenTelemetry setups
 
@@ -50,7 +50,7 @@ When the SDK sets up its own tracer provider, pin the span attribute value lengt
 
 ### Environment resolution
 
-The `Apitally-Env` transport header (spec §4) MUST match `deployment.environment.name` on the resource. Resolve once at activation: with its own tracer provider, the SDK uses the configured env (option / env var / default `prod`) for both; with an existing tracer provider, it uses that provider's `deployment.environment.name` resource attribute when present, else the configured env, and never modifies the user's resource. On conflict (the existing resource has an env and the configured env — option or env var — is a non-default value that differs from it) warn once and use the resource value; a configured value equal to the default does not trigger the conflict warning.
+The `Apitally-Env` transport header (spec §4) MUST match `deployment.environment.name` on the resource. Resolve once at activation: with its own tracer provider, the SDK uses the configured env (option / env var / default `dev`) for both; with an existing tracer provider, it uses that provider's `deployment.environment.name` resource attribute when present, else the configured env, and never modifies the user's resource. On conflict (the existing resource has an env and the configured env — option or env var — is a non-default value that differs from it) warn once and use the resource value; a configured value equal to the default does not trigger the conflict warning.
 
 ### Resource construction
 
@@ -74,7 +74,7 @@ The options layer needs an absent-vs-default distinction so an omitted option ke
 | Env var | Maps to | Notes |
 |---|---|---|
 | `APITALLY_WRITE_TOKEN` | `write_token` | Format `apt_` + 24 alphanumerics per spec §3. |
-| `APITALLY_ENV` | `env` | Default `prod`. |
+| `APITALLY_ENV` | `env` | Default `dev`. |
 | `APITALLY_DISABLED` | `disabled` | Truthy → never activate. Accepted truthy values: `1`, `true`, `yes` (case-insensitive, whitespace-trimmed). |
 | `APITALLY_OTLP_ENDPOINT` | endpoint override | Testing only. No code-level option. |
 

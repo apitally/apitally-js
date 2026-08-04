@@ -29,14 +29,14 @@ On every export request, the SDK MUST send:
 
 | HTTP header | gRPC metadata | Value |
 |---|---|---|
-| `Apitally-Env` | `apitally-env` | The SDK's resolved environment, identical to `deployment.environment.name` (default `prod`). Drives real-time online status, recorded at receive time. |
+| `Apitally-Env` | `apitally-env` | The SDK's resolved environment, identical to `deployment.environment.name` (default `dev`). Drives real-time online status, recorded at receive time. |
 
 ## 5. Resource attributes
 
 | Attribute | Requirement | Notes |
 |---|---|---|
 | `service.instance.id` | MUST | Unique per process instance, regenerated on restart (e.g. UUIDv4 at startup). Server falls back to `service.name` if absent, collapsing all instances into one. |
-| `deployment.environment.name` | SHOULD | Apitally environment. Server also accepts deprecated `deployment.environment`; defaults to `prod` when absent. Normalized by slugify, max 32 chars (`Production EU` → `production-eu`). MUST match the `Apitally-Env` header value. Environments are auto-created on first sight. |
+| `deployment.environment.name` | SHOULD | Apitally environment. Server also accepts deprecated `deployment.environment`; defaults to `dev` when absent. Normalized by slugify, max 32 chars (`Production EU` → `production-eu`). MUST match the `Apitally-Env` header value. Environments are auto-created on first sight. |
 | `telemetry.distro.name` | SHOULD | `apitally-py` for Python SDK, `apitally-js` for JavaScript SDK, etc. |
 | `telemetry.distro.version` | SHOULD | SDK version |
 
@@ -235,7 +235,7 @@ Rate limits: 1800/minute and 200/second per app per signal. Retry behavior is ow
 Per-language idioms win; this aligns naming and setup UX across SDKs.
 
 - Setup is one unified entry point at the package root, e.g. `apitally.init(app, write_token=..., env=...)`, which detects the framework from the app instance and delegates to per-framework integrations (design doc §13) — the distro wires exporters, sampler, processors, and instrumentation internally; no OTel knowledge required from the user.
-- Config: `write_token` (snake/camel/Pascal per language), also readable from an `APITALLY_WRITE_TOKEN` env var; `env` defaulting to `prod`.
+- Config: `write_token` (snake/camel/Pascal per language), also readable from an `APITALLY_WRITE_TOKEN` env var; `env` defaulting to `dev`.
 - Consumer API keeps its name: `set_consumer(identifier, name=None, group=None)` / `setConsumer(...)`, writing the section 6.2 attributes.
 - Request logging config stays close to the legacy SDK option names; renames for cross-option consistency are fine (e.g. Python drops the `_callback` suffix: `mask_request_body_callback` → `mask_request_body`, and the legacy `log_*` capture toggles become `capture_request_headers` / `capture_request_body` / `capture_response_headers` / `capture_response_body`, matching `capture_logs`). The legacy `exclude_callback` becomes the sampling callbacks `sample_on_request` / `sample_on_response`, which return a keep probability (`float` in `[0, 1]`, `bool`, or `None` to abstain) refining the static `sample_rate`; note that the meaning is reversed from exclude to keep.
 - Build on the official OTel SDK and contrib instrumentations of each language; do not reimplement OTLP export.
