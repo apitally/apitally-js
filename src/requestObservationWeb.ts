@@ -90,6 +90,58 @@ export function startWebRequestObservation(
   };
 }
 
+export function captureWebRequestBody(
+  request: Request,
+  bodyCapture: BodyCapture,
+  readTimeoutMillis: number = READ_TIMEOUT_MILLIS,
+): Promise<void> {
+  if (!request.body || !bodyCapture.isBuffering) {
+    return Promise.resolve();
+  }
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    reader = request.clone().body?.getReader();
+  } catch {
+    return Promise.resolve();
+  }
+  if (!reader) {
+    return Promise.resolve();
+  }
+  let isStopped = false;
+  const readPromise = (async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (isStopped) {
+          return;
+        }
+        if (done) {
+          bodyCapture.markComplete();
+          return;
+        }
+        bodyCapture.addChunk(value);
+        if (!bodyCapture.isBuffering) {
+          cancelReader(reader);
+          return;
+        }
+      }
+    } catch {
+      // A partial body is intentionally unavailable when the clone cannot be read.
+    }
+  })();
+  let readTimeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<void>((resolve) => {
+    readTimeout = setTimeout(() => {
+      isStopped = true;
+      bodyCapture.stopBuffering();
+      cancelReader(reader);
+      resolve();
+    }, readTimeoutMillis);
+    readTimeout.unref();
+  });
+  return Promise.race([readPromise, timeoutPromise]).finally(() => clearTimeout(readTimeout));
+}
+
 export interface WebResponseCompletion extends CapturedBody {
   completedAtMillis: number;
 }
@@ -157,4 +209,12 @@ export function captureWebResponse(
     clearTimeout(readTimeout),
   );
   return { response: capturedResponse, completion };
+}
+
+function cancelReader(reader: ReadableStreamDefaultReader<Uint8Array>): void {
+  try {
+    reader.cancel().catch(() => {});
+  } catch {
+    // Cancellation is best-effort after capture has already stopped.
+  }
 }

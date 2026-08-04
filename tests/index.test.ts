@@ -9,6 +9,7 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
 import { fastify } from "fastify";
+import { H3 } from "h3";
 import { Hono } from "hono";
 import Koa from "koa";
 import { describe, expect, it } from "vitest";
@@ -62,6 +63,22 @@ describe("root entry", () => {
     const response = await app.inject("/items/7");
     expect(response.statusCode).toBe(200);
     await app.close();
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET /items/:id");
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/:id");
+  });
+
+  it("dispatches an H3 app to the h3 integration and exports its SERVER span with the route template", async () => {
+    prepareFirstRequestActivation();
+    const app = new H3();
+    useApitally(app, { writeToken: WRITE_TOKEN });
+    app.get("/items/:id", () => ({ ok: true }));
+    const response = await app.request("/items/7");
+    expect(response.status).toBe(200);
+    await readResponseAndSettleTransport(response);
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
@@ -201,6 +218,7 @@ describe("root entry", () => {
     const attempt = () => useApitally({} as Hono, { writeToken: WRITE_TOKEN });
     expect(attempt).toThrowError("apitally/express");
     expect(attempt).toThrowError("apitally/fastify");
+    expect(attempt).toThrowError("apitally/h3");
     expect(attempt).toThrowError("apitally/hono");
     expect(attempt).toThrowError("apitally/koa");
   });

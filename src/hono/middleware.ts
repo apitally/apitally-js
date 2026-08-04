@@ -6,8 +6,8 @@ import { getRequestRecord, type RequestRecord } from "../context.js";
 import { captureException } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import {
-  finalizeFailedRequestDispatch,
   finalizeRequestObservation,
+  finalizeRequestObservationWithError,
 } from "../requestObservation.js";
 import {
   captureWebResponse,
@@ -81,13 +81,13 @@ export function wrapAppFetch(app: Hono): void {
         originalFetch.call(this, request, ...rest),
       );
     } catch (error) {
-      releaseRequestOnFetchRejection(observation, error);
+      finalizeRequestObservationAfterFetchRejection(observation, error);
       throw error;
     }
     return Promise.resolve(dispatchResult).then(
       (response) => observeResponse(response, observation),
       (error: unknown) => {
-        releaseRequestOnFetchRejection(observation, error);
+        finalizeRequestObservationAfterFetchRejection(observation, error);
         throw error;
       },
     );
@@ -177,11 +177,14 @@ async function finalizeRequestFromResponse(
   });
 }
 
-// A rejected dispatch has no response, so the request record is finalized and
+// A fetch rejection has no response, so the request record is finalized and
 // the rejection propagates unchanged.
-function releaseRequestOnFetchRejection(observation: RequestObservation, error: unknown): void {
+function finalizeRequestObservationAfterFetchRejection(
+  observation: RequestObservation,
+  error: unknown,
+): void {
   try {
-    finalizeFailedRequestDispatch({
+    finalizeRequestObservationWithError({
       requestRecord: observation.requestRecord,
       spanHandle: observation.spanHandle,
       error,

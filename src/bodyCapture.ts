@@ -48,6 +48,10 @@ export class BodyCapture {
       this.shouldCapture && this.declaredSize !== undefined && this.declaredSize > MAX_BODY_SIZE;
   }
 
+  get isBuffering(): boolean {
+    return this.shouldCapture && !this.tooLarge;
+  }
+
   addChunk(chunk: Buffer | Uint8Array | string, encoding?: BufferEncoding): void {
     const byteLength =
       typeof chunk === "string" ? Buffer.byteLength(chunk, encoding) : chunk.byteLength;

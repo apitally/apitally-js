@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { setConfig } from "../src/config.js";
 import type { RequestRecord, SpanHandle } from "../src/context.js";
 import {
-  finalizeFailedRequestDispatch,
   finalizeRequestObservation,
+  finalizeRequestObservationWithError,
   resolveHttpRequestStartAttributes,
 } from "../src/requestObservation.js";
 import { type SpanCopy, setActiveSpanPipeline } from "../src/spanProcessor.js";
@@ -89,7 +89,7 @@ describe("requestObservation", () => {
     });
   });
 
-  it("finalizes a failed dispatch through the current span and exact owned span", () => {
+  it("finalizes a request observation with an error through the current span and exact owned span", () => {
     const recordException = vi.fn();
     const setStatus = vi.fn();
     const end = vi.fn();
@@ -97,9 +97,9 @@ describe("requestObservation", () => {
     const ownSpan = { setStatus, end } as unknown as Span;
     const requestRecord: RequestRecord = { attributes: {} };
     const spanHandle: SpanHandle = { span: currentSpan, ownSpan };
-    const error = new Error("dispatch failed");
+    const error = new Error("request failed");
 
-    finalizeFailedRequestDispatch({
+    finalizeRequestObservationWithError({
       requestRecord,
       spanHandle,
       error,
@@ -155,7 +155,7 @@ describe("requestObservation", () => {
     expect(endOwnedSpan).toHaveBeenCalledOnce();
   });
 
-  it("does not end an adopted span after a failed dispatch", () => {
+  it("does not end an adopted span when finalizing an observation with an error", () => {
     const recordException = vi.fn();
     const adoptedSpan = {
       isRecording: () => true,
@@ -163,7 +163,7 @@ describe("requestObservation", () => {
       end: vi.fn(),
     } as unknown as Span;
 
-    finalizeFailedRequestDispatch({
+    finalizeRequestObservationWithError({
       requestRecord: { attributes: {} },
       spanHandle: { span: adoptedSpan },
       error: "failed",

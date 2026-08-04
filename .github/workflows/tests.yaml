@@ -70,6 +70,8 @@ jobs:
           - fastify
           - fastify-4
           - fastify-4.10
+          - h3
+          - h3-2.0.1-rc.26
           - hono
           - hono-4.8
           - koa
@@ -89,6 +91,10 @@ jobs:
             packages: fastify@4
           - scenario: fastify-4.10
             packages: fastify@4.10.2
+          - scenario: h3
+            packages: h3
+          - scenario: h3-2.0.1-rc.26
+            packages: h3@2.0.1-rc.26
           - scenario: hono
             packages: hono
           - scenario: hono-4.8

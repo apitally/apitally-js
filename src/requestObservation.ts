@@ -225,14 +225,16 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
 }
 
-export interface FinalizeFailedRequestDispatchOptions {
+export interface FinalizeRequestObservationWithErrorOptions {
   requestRecord: RequestRecord;
   spanHandle: SpanHandle;
   error: unknown;
   durationSeconds: number;
 }
 
-export function finalizeFailedRequestDispatch(options: FinalizeFailedRequestDispatchOptions): void {
+export function finalizeRequestObservationWithError(
+  options: FinalizeRequestObservationWithErrorOptions,
+): void {
   const { requestRecord, spanHandle, error, durationSeconds } = options;
   requestRecord.durationSeconds = durationSeconds;
   if (spanHandle.span?.isRecording()) {

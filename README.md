@@ -25,7 +25,7 @@
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally — no OpenTelemetry knowledge required, no infrastructure changes, no dashboards to build.
+API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
@@ -41,13 +41,14 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 ## Supported frameworks
 
-| Framework                                           | Supported versions | Setup guide                                           |
-| --------------------------------------------------- | ------------------ | ----------------------------------------------------- |
-| [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x`       | [Link](https://docs.apitally.io/setup-guides/express) |
-| [**Fastify**](https://github.com/fastify/fastify)   | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
-| [**Hono**](https://github.com/honojs/hono) \*       | `>= 4.8.4`         | [Link](https://docs.apitally.io/setup-guides/hono)    |
-| [**Koa**](https://github.com/koajs/koa)              | `2.x`, `3.x`       | [Link](https://docs.apitally.io/setup-guides/koa)     |
-| [**NestJS**](https://github.com/nestjs/nest)        | `10.x`, `11.x`     | [Link](https://docs.apitally.io/setup-guides/nestjs)  |
+| Framework | Supported versions | Setup guide |
+| --- | --- | --- |
+| [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x` | [Link](https://docs.apitally.io/setup-guides/express) |
+| [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
+| [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/setup-guides/h3) |
+| [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4` | [Link](https://docs.apitally.io/setup-guides/hono) |
+| [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/setup-guides/koa) |
+| [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x` | [Link](https://docs.apitally.io/setup-guides/nestjs) |
 
 \* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 
@@ -128,6 +129,26 @@ await app.listen(3000);
 
 For further instructions, see our [setup guide for NestJS](https://docs.apitally.io/setup-guides/nestjs).
 
+### H3
+
+Add `apitallyPlugin()` when constructing the root H3 app:
+
+```javascript
+import { H3 } from "h3";
+import { apitallyPlugin } from "apitally/h3";
+
+const app = new H3({
+  plugins: [
+    apitallyPlugin({
+      writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
+      env: "prod", // optional, defaults to "prod"
+    }),
+  ],
+});
+```
+
+For further instructions, see our [setup guide for H3](https://docs.apitally.io/setup-guides/h3).
+
 ### Hono
 
 Call `useApitally(app)` immediately after creating the app — before registering middleware and routes, and before `app.fetch` is handed to the server:
@@ -205,7 +226,7 @@ Telemetry is exported in the background roughly every 15 seconds. After successf
 
 On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-Closing an Express or Koa server, or calling `app.close()` on a Fastify or NestJS app, triggers a non-destructive telemetry flush. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+Closing an Express or Koa server, or calling `app.close()` on a Fastify or NestJS app, triggers a non-destructive telemetry flush. H3 uses the shared signal and `beforeExit` handling because its server lifecycle depends on the selected adapter and runtime. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";
@@ -222,7 +243,7 @@ No final drain is guaranteed for `SIGKILL`, a synchronous `process.exit()`, a na
 ## Runtime support
 
 - **Node.js** `>= 20.6`
-- **Bun** is supported for Hono apps
+- **Bun** is supported for H3 and Hono apps
 
 For edge and serverless runtimes like Cloudflare Workers, use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 

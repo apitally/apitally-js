@@ -1,6 +1,7 @@
 import type { ApitallyOptions } from "./config.js";
 import { useApitally as useApitallyExpress } from "./express/index.js";
 import { useApitally as useApitallyFastify } from "./fastify/index.js";
+import { useApitally as useApitallyH3 } from "./h3/index.js";
 import { useApitally as useApitallyHono } from "./hono/index.js";
 import { useApitally as useApitallyKoa } from "./koa/index.js";
 
@@ -22,13 +23,15 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
     useApitallyExpress(app, options);
   } else if (isFastifyApp(app)) {
     useApitallyFastify(app, options);
+  } else if (isH3App(app)) {
+    useApitallyH3(app, options);
   } else if (isHonoApp(app)) {
     useApitallyHono(app, options);
   } else if (isKoaApp(app)) {
     useApitallyKoa(app, options);
   } else {
     throw new TypeError(
-      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/hono" for Hono, from "apitally/koa" for Koa, or from "apitally/nestjs" for NestJS.',
+      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/h3" for H3, from "apitally/hono" for Hono, from "apitally/koa" for Koa, or from "apitally/nestjs" for NestJS.',
     );
   }
 }
@@ -63,6 +66,23 @@ function isFastifyApp(app: unknown): app is Parameters<typeof useApitallyFastify
     typeof candidate.route === "function" &&
     typeof candidate.ready === "function" &&
     typeof candidate.close === "function"
+  );
+}
+
+function isH3App(app: unknown): app is Parameters<typeof useApitallyH3>[0] {
+  const candidate = app as {
+    constructor?: Record<string, unknown>;
+    fetch?: unknown;
+    request?: unknown;
+    use?: unknown;
+  };
+  return (
+    typeof app === "object" &&
+    app !== null &&
+    candidate.constructor?.["~h3"] === true &&
+    typeof candidate.fetch === "function" &&
+    typeof candidate.request === "function" &&
+    typeof candidate.use === "function"
   );
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0-alpha.0",
-  "description": "Simple API monitoring, analytics and request logging for REST APIs built with Express, Fastify, Hono, Koa and NestJS.",
+  "description": "Simple API monitoring, analytics and request logging for REST APIs built with Express, Fastify, H3, Hono, Koa and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -11,6 +11,7 @@
     "bun",
     "express",
     "fastify",
+    "h3",
     "hono",
     "koa",
     "logging",
@@ -96,6 +97,16 @@
         "default": "./dist/fastify/index.cjs"
       }
     },
+    "./h3": {
+      "import": {
+        "types": "./dist/h3/index.d.ts",
+        "default": "./dist/h3/index.js"
+      },
+      "require": {
+        "types": "./dist/h3/index.d.cts",
+        "default": "./dist/h3/index.cjs"
+      }
+    },
     "./hono": {
       "import": {
         "types": "./dist/hono/index.d.ts",
@@ -135,6 +146,7 @@
     "@sentry/node": ">=7",
     "express": ">=4.18.2 <6",
     "fastify": ">=4.10.2 <6",
+    "h3": ">=2.0.1-rc.26 <3",
     "hono": ">=4.8.4 <5",
     "koa": ">=2 <4",
     "pino": ">=9.6.0 <11",
@@ -154,6 +166,9 @@
       "optional": true
     },
     "fastify": {
+      "optional": true
+    },
+    "h3": {
       "optional": true
     },
     "hono": {
@@ -204,6 +219,7 @@
     "esbuild-fix-imports-plugin": "^1.0.23",
     "express": "^5.2.1",
     "fastify": "^5.11.0",
+    "h3": "2.0.1-rc.26",
     "hono": "^4.12.31",
     "knip": "^6.29.0",
     "koa": "^3.2.1",

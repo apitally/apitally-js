@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { captureWebResponse } from "../src/requestObservationWeb.js";
+import { BODY_TOO_LARGE_BUFFER, BodyCapture, MAX_BODY_SIZE } from "../src/bodyCapture.js";
+import { captureWebRequestBody, captureWebResponse } from "../src/requestObservationWeb.js";
 
 function createChunkedResponse(): {
   response: Response;
@@ -37,6 +38,66 @@ async function readText(reader: ReadableStreamDefaultReader<Uint8Array>): Promis
 }
 
 describe("requestObservationWeb", () => {
+  it("captures a cloned request body byte-faithfully and leaves the original readable", async () => {
+    const wireBody = '{ "b": 2,\n  "a": 1 }';
+    const request = new Request("http://localhost/items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: wireBody,
+    });
+    const bodyCapture = new BodyCapture({
+      captureBody: true,
+      contentType: request.headers.get("content-type"),
+    });
+
+    await captureWebRequestBody(request, bodyCapture);
+
+    expect(bodyCapture.body).toEqual(Buffer.from(wireBody));
+    expect(bodyCapture.size).toBe(Buffer.byteLength(wireBody));
+    await expect(request.text()).resolves.toBe(wireBody);
+  });
+
+  it("stops reading a cloned request after the body exceeds the capture limit", async () => {
+    const wireBody = "x".repeat(MAX_BODY_SIZE + 1);
+    const request = new Request("http://localhost/items", {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: wireBody,
+    });
+    const bodyCapture = new BodyCapture({
+      captureBody: true,
+      contentType: request.headers.get("content-type"),
+    });
+
+    await captureWebRequestBody(request, bodyCapture);
+
+    expect(bodyCapture.body).toEqual(BODY_TOO_LARGE_BUFFER);
+    await expect(request.text()).resolves.toBe(wireBody);
+  });
+
+  it("suppresses a partial cloned request body after the read timeout", async () => {
+    const source = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"partial":'));
+      },
+    });
+    const request = new Request("http://localhost/items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: source,
+      duplex: "half",
+    } as RequestInit);
+    const bodyCapture = new BodyCapture({
+      captureBody: true,
+      contentType: request.headers.get("content-type"),
+    });
+
+    await captureWebRequestBody(request, bodyCapture, 0);
+
+    expect(bodyCapture.body).toBeUndefined();
+    expect(bodyCapture.size).toBeUndefined();
+  });
+
   it("tees a response stream without consuming or delaying it", async () => {
     const { response, pushChunk, closeStream } = createChunkedResponse();
     const captured = captureWebResponse(response, true);
