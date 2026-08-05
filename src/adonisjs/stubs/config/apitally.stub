@@ -1,0 +1,21 @@
+{{{
+  exports({
+    to: app.configPath('apitally.ts')
+  })
+}}}
+import env from '#start/env'
+import { defineConfig } from 'apitally/adonisjs'
+
+export default defineConfig({
+  writeToken: env.get('APITALLY_WRITE_TOKEN'),
+  env: env.get('APITALLY_ENV'),
+{{#if captureRequestHeaders}}
+  captureRequestHeaders: true,
+{{/if}}
+{{#if captureRequestBody}}
+  captureRequestBody: true,
+{{/if}}
+{{#if captureResponseBody}}
+  captureResponseBody: true,
+{{/if}}
+})

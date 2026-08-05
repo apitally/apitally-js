@@ -1,3 +1,4 @@
+import { cp } from "node:fs/promises";
 import { fixImportsPlugin } from "esbuild-fix-imports-plugin";
 import { defineConfig } from "tsup";
 
@@ -12,5 +13,6 @@ export default defineConfig({
   bundle: false,
   clean: true,
   shims: true,
+  onSuccess: () => cp("src/adonisjs/stubs", "dist/adonisjs/stubs", { recursive: true }),
   esbuildPlugins: [fixImportsPlugin()],
 });

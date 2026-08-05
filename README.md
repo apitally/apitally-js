@@ -25,7 +25,7 @@
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
+API monitoring, analytics and request logging for [AdonisJS](https://github.com/adonisjs/core), [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
@@ -43,6 +43,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 | Framework | Supported versions | Setup guide |
 | --- | --- | --- |
+| [**AdonisJS**](https://github.com/adonisjs/core) | `>= 6.3`, `< 8` | [Link](https://docs.apitally.io/setup-guides/adonisjs) |
 | [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x` | [Link](https://docs.apitally.io/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
 | [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/setup-guides/h3) |
@@ -58,13 +59,35 @@ Apitally also supports many other web frameworks in [Python](https://github.com/
 
 If you don't have an Apitally account yet, first [sign up here](https://app.apitally.io/?signup). Then create an app in the Apitally dashboard. You'll see detailed setup instructions with code snippets you can copy and paste, including your write token.
 
-Install the SDK:
+Install the SDK. AdonisJS applications should use the Ace command in the next section instead.
 
 ```bash
 npm install apitally
 ```
 
 Pass the write token via the `writeToken` option, or set the `APITALLY_WRITE_TOKEN` environment variable. See the [SDK reference](https://docs.apitally.io/sdk-reference/javascript) for all available configuration options, including how to mask sensitive data, customize request logging, and more.
+
+### AdonisJS
+
+Run the Ace add command from your application directory:
+
+```bash
+node ace add apitally
+```
+
+The command installs and configures Apitally. It creates `config/apitally.ts`, adds the required environment declarations, registers the service provider and server middleware, and updates the conventional exception handler to report unhandled 5xx errors.
+
+If Apitally is already installed, or to rerun setup, use:
+
+```bash
+node ace configure apitally
+```
+
+Request headers, request bodies, and response bodies are opt-in prompts during setup. Response headers are enabled by default. You can change these settings later in `config/apitally.ts`.
+
+The SDK-wide environment default is `dev`. `APITALLY_ENV` is deployment-specific, so set it appropriately for staging and production.
+
+For further instructions, see our [setup guide for AdonisJS](https://docs.apitally.io/setup-guides/adonisjs).
 
 ### Express
 
@@ -226,7 +249,7 @@ Telemetry is exported in the background roughly every 15 seconds. After successf
 
 On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-Closing an Express or Koa server, or calling `app.close()` on a Fastify or NestJS app, triggers a non-destructive telemetry flush. H3 uses the shared signal and `beforeExit` handling because its server lifecycle depends on the selected adapter and runtime. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+Closing an Express or Koa server, calling `app.close()` on a Fastify or NestJS app, or shutting down an AdonisJS application triggers a telemetry flush. H3 uses the shared signal and `beforeExit` handling because its server lifecycle depends on the selected adapter and runtime. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";

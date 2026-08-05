@@ -216,10 +216,11 @@ describe("root entry", () => {
   it("throws an error naming the framework entry points for an unrecognized app", () => {
     prepareFirstRequestActivation();
     const attempt = () => useApitally({} as Hono, { writeToken: WRITE_TOKEN });
-    expect(attempt).toThrowError("apitally/express");
-    expect(attempt).toThrowError("apitally/fastify");
-    expect(attempt).toThrowError("apitally/h3");
-    expect(attempt).toThrowError("apitally/hono");
-    expect(attempt).toThrowError("apitally/koa");
+    expect(attempt).toThrow("apitally/express");
+    expect(attempt).toThrow("apitally/fastify");
+    expect(attempt).toThrow("apitally/h3");
+    expect(attempt).toThrow("apitally/hono");
+    expect(attempt).toThrow("apitally/koa");
+    expect(attempt).toThrow("node ace add apitally");
   });
 });

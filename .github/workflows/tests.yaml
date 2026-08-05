@@ -64,6 +64,8 @@ jobs:
       matrix:
         node: ["20", "22", "24"]
         scenario:
+          - adonisjs-6.3
+          - adonisjs-7
           - express
           - express-5.0
           - express-4.18
@@ -78,35 +80,60 @@ jobs:
           - koa-2
           - nestjs-10
           - nestjs-11
+        exclude:
+          - node: "20"
+            scenario: adonisjs-7
+          - node: "22"
+            scenario: adonisjs-7
         include:
+          - scenario: adonisjs-6.3
+            packages: "@adonisjs/core@6.3.0 @adonisjs/assembler@7.8.2"
+            testDir: tests/adonisjs
+          - scenario: adonisjs-7
+            packages: "@adonisjs/core@7 @adonisjs/assembler@8"
+            testDir: tests/adonisjs
           - scenario: express
             packages: express
+            testDir: tests/express
           - scenario: express-5.0
             packages: express@5.0.0 pino@9.6.0
+            testDir: tests/express
           - scenario: express-4.18
             packages: express@4.18.2 winston@3.2.0 @sentry/node@7
+            testDir: tests/express
           - scenario: fastify
             packages: fastify
+            testDir: tests/fastify
           - scenario: fastify-4
             packages: fastify@4
+            testDir: tests/fastify
           - scenario: fastify-4.10
             packages: fastify@4.10.2
+            testDir: tests/fastify
           - scenario: h3
             packages: h3
+            testDir: tests/h3
           - scenario: h3-2.0.1-rc.26
             packages: h3@2.0.1-rc.26
+            testDir: tests/h3
           - scenario: hono
             packages: hono
+            testDir: tests/hono
           - scenario: hono-4.8
             packages: hono@4.8.4 @opentelemetry/api@1.9.0
+            testDir: tests/hono
           - scenario: koa
             packages: koa
+            testDir: tests/koa
           - scenario: koa-2
             packages: koa@2 @types/koa@2
+            testDir: tests/koa
           - scenario: nestjs-10
             packages: "@nestjs/common@10 @nestjs/core@10 @nestjs/platform-express@10 @nestjs/platform-fastify@10"
+            testDir: tests/nestjs
           - scenario: nestjs-11
             packages: "@nestjs/common@11 @nestjs/core@11 @nestjs/platform-express@11 @nestjs/platform-fastify@11"
+            testDir: tests/nestjs
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
@@ -118,7 +145,7 @@ jobs:
       - name: Install scenario dependencies
         run: npm install --no-save --force ${{ matrix.packages }}
       - name: Run tests
-        run: npm test
+        run: npm test -- "${{ matrix.testDir }}"
 
   ci-gate:
     runs-on: ubuntu-latest

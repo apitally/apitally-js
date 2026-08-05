@@ -1,3 +1,4 @@
+import { configure as configureAdonis } from "./adonisjs/configure.js";
 import type { ApitallyOptions } from "./config.js";
 import { useApitally as useApitallyExpress } from "./express/index.js";
 import { useApitally as useApitallyFastify } from "./fastify/index.js";
@@ -18,6 +19,11 @@ export { setRequestAttribute } from "./requestAttributes.js";
 export { ApitallySpanProcessor } from "./spanProcessor.js";
 export { instrument, span } from "./tracing.js";
 
+/** AdonisJS Ace configuration hook. */
+export function configure(command: unknown): Promise<void> {
+  return configureAdonis(command as Parameters<typeof configureAdonis>[0]);
+}
+
 export function useApitally(app: unknown, options?: ApitallyOptions): void {
   if (isExpressApp(app)) {
     useApitallyExpress(app, options);
@@ -31,7 +37,7 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
     useApitallyKoa(app, options);
   } else {
     throw new TypeError(
-      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/h3" for H3, from "apitally/hono" for Hono, from "apitally/koa" for Koa, or from "apitally/nestjs" for NestJS.',
+      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/h3" for H3, from "apitally/hono" for Hono, from "apitally/koa" for Koa, or from "apitally/nestjs" for NestJS. AdonisJS applications use "node ace add apitally" instead.',
     );
   }
 }

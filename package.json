@@ -1,10 +1,11 @@
 {
   "name": "apitally",
   "version": "1.0.0-alpha.0",
-  "description": "Simple API monitoring, analytics and request logging for REST APIs built with Express, Fastify, H3, Hono, Koa and NestJS.",
+  "description": "Simple API monitoring, analytics and request logging for REST APIs built with AdonisJS, Express, Fastify, H3, Hono, Koa and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
+    "adonisjs",
     "analytics",
     "api",
     "apitally",
@@ -65,6 +66,36 @@
       "require": {
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
+      }
+    },
+    "./adonisjs": {
+      "import": {
+        "types": "./dist/adonisjs/index.d.ts",
+        "default": "./dist/adonisjs/index.js"
+      },
+      "require": {
+        "types": "./dist/adonisjs/index.d.cts",
+        "default": "./dist/adonisjs/index.cjs"
+      }
+    },
+    "./adonisjs/provider": {
+      "import": {
+        "types": "./dist/adonisjs/provider.d.ts",
+        "default": "./dist/adonisjs/provider.js"
+      },
+      "require": {
+        "types": "./dist/adonisjs/provider.d.cts",
+        "default": "./dist/adonisjs/provider.cjs"
+      }
+    },
+    "./adonisjs/middleware": {
+      "import": {
+        "types": "./dist/adonisjs/middleware.d.ts",
+        "default": "./dist/adonisjs/middleware.js"
+      },
+      "require": {
+        "types": "./dist/adonisjs/middleware.d.cts",
+        "default": "./dist/adonisjs/middleware.cjs"
       }
     },
     "./express": {
@@ -140,6 +171,7 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
+    "@adonisjs/core": ">=6.3 <8",
     "@nestjs/common": ">=10 <12",
     "@nestjs/core": ">=10 <12",
     "@opentelemetry/api": ">=1.9.0 <2",
@@ -153,6 +185,9 @@
     "winston": ">=3.2.0 <4"
   },
   "peerDependenciesMeta": {
+    "@adonisjs/core": {
+      "optional": true
+    },
     "@nestjs/common": {
       "optional": true
     },
@@ -198,6 +233,8 @@
     "undici": "^6.27.0"
   },
   "devDependencies": {
+    "@adonisjs/assembler": "^8.4.0",
+    "@adonisjs/core": "^7.3.5",
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.4",
     "@koa/bodyparser": "^6.1.0",
@@ -207,6 +244,7 @@
     "@nestjs/platform-express": "^11.1.28",
     "@nestjs/platform-fastify": "^11.1.28",
     "@opentelemetry/api": "^1.9.1",
+    "@poppinss/cliui": "^6.8.1",
     "@sentry/node": "^10.67.0",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",

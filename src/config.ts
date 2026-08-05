@@ -105,6 +105,10 @@ export function getConfig(): ApitallyConfig {
   return configHolder[GLOBAL_CONFIG_KEY] ?? resolveConfig({}).config;
 }
 
+export function isValidWriteToken(value: string): boolean {
+  return WRITE_TOKEN_FORMAT.test(value);
+}
+
 // The emergency kill switch, re-checked at the activation boundary so it wins
 // even over an explicit disabled: false option.
 export function isApitallyDisabledViaEnv(): boolean {
@@ -162,7 +166,7 @@ function resolveConfig(options: ApitallyOptions): {
         "Apitally write token is missing (set the writeToken option or the APITALLY_WRITE_TOKEN environment variable)",
     };
   }
-  if (!WRITE_TOKEN_FORMAT.test(config.writeToken)) {
+  if (!isValidWriteToken(config.writeToken)) {
     config.disabled = true;
     // The write token is a credential and must never appear unmasked in logs.
     return {
