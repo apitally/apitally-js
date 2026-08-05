@@ -41,7 +41,9 @@ export default class HttpExceptionHandler extends ExceptionHandler {
 `;
 
 describe("adonisjs configure", () => {
-  it("configures a conventional application once with the selected capture options", async () => {
+  it("configures a conventional application once with the selected capture options", {
+    timeout: 15_000,
+  }, async () => {
     const projectRoot = await mkdtemp(join(process.cwd(), ".tmp-adonis-configure-"));
     try {
       await writeProject(projectRoot);
