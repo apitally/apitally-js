@@ -1,5 +1,6 @@
 import { configure as configureAdonis } from "./adonisjs/configure.js";
 import type { ApitallyOptions } from "./config.js";
+import { installElysiaIntegration } from "./elysia/middleware.js";
 import { useApitally as useApitallyExpress } from "./express/index.js";
 import { useApitally as useApitallyFastify } from "./fastify/index.js";
 import { useApitally as useApitallyH3 } from "./h3/index.js";
@@ -31,13 +32,15 @@ export function useApitally(app: unknown, options?: ApitallyOptions): void {
     useApitallyFastify(app, options);
   } else if (isH3App(app)) {
     useApitallyH3(app, options);
+  } else if (isElysiaApp(app)) {
+    installElysiaIntegration(app, options);
   } else if (isHonoApp(app)) {
     useApitallyHono(app, options);
   } else if (isKoaApp(app)) {
     useApitallyKoa(app, options);
   } else {
     throw new TypeError(
-      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/h3" for H3, from "apitally/hono" for Hono, from "apitally/koa" for Koa, or from "apitally/nestjs" for NestJS. AdonisJS applications use "node ace add apitally" instead.',
+      'useApitally() could not detect a supported framework from the app argument. To resolve this, use the framework-specific entry point instead: import { useApitally } from "apitally/elysia" for Elysia, from "apitally/express" for Express, from "apitally/fastify" for Fastify, from "apitally/h3" for H3, from "apitally/hono" for Hono, from "apitally/koa" for Koa, or from "apitally/nestjs" for NestJS. AdonisJS applications use "node ace add apitally" instead.',
     );
   }
 }
@@ -89,6 +92,28 @@ function isH3App(app: unknown): app is Parameters<typeof useApitallyH3>[0] {
     typeof candidate.fetch === "function" &&
     typeof candidate.request === "function" &&
     typeof candidate.use === "function"
+  );
+}
+
+function isElysiaApp(app: unknown): app is Parameters<typeof installElysiaIntegration>[0] {
+  const candidate = app as {
+    routes?: unknown;
+    handle?: unknown;
+    route?: unknown;
+    wrap?: unknown;
+    onTransform?: unknown;
+    onError?: unknown;
+  };
+  // Avoid reading app.fetch, as it compiles Elysia before the integration can be installed
+  return (
+    typeof app === "object" &&
+    app !== null &&
+    Array.isArray(candidate.routes) &&
+    typeof candidate.handle === "function" &&
+    typeof candidate.route === "function" &&
+    typeof candidate.wrap === "function" &&
+    typeof candidate.onTransform === "function" &&
+    typeof candidate.onError === "function"
   );
 }
 

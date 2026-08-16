@@ -7,6 +7,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { Elysia } from "elysia";
 import express from "express";
 import { fastify } from "fastify";
 import { H3 } from "h3";
@@ -77,6 +78,22 @@ describe("root entry", () => {
     useApitally(app, { writeToken: WRITE_TOKEN });
     app.get("/items/:id", () => ({ ok: true }));
     const response = await app.request("/items/7");
+    expect(response.status).toBe(200);
+    await readResponseAndSettleTransport(response);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET /items/:id");
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/:id");
+  });
+
+  it("dispatches an Elysia app to the elysia integration before the Hono detector and exports its SERVER span with the route template", async () => {
+    prepareFirstRequestActivation();
+    const app = new Elysia();
+    useApitally(app, { writeToken: WRITE_TOKEN });
+    app.get("/items/:id", () => ({ ok: true }));
+    const response = await app.handle(new Request("http://localhost/items/7"));
     expect(response.status).toBe(200);
     await readResponseAndSettleTransport(response);
 
@@ -216,6 +233,7 @@ describe("root entry", () => {
   it("throws an error naming the framework entry points for an unrecognized app", () => {
     prepareFirstRequestActivation();
     const attempt = () => useApitally({} as Hono, { writeToken: WRITE_TOKEN });
+    expect(attempt).toThrow("apitally/elysia");
     expect(attempt).toThrow("apitally/express");
     expect(attempt).toThrow("apitally/fastify");
     expect(attempt).toThrow("apitally/h3");

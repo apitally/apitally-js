@@ -25,7 +25,7 @@
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [AdonisJS](https://github.com/adonisjs/core), [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
+API monitoring, analytics and request logging for [AdonisJS](https://github.com/adonisjs/core), [Elysia](https://github.com/elysiajs/elysia), [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
@@ -44,6 +44,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | Framework | Supported versions | Setup guide |
 | --- | --- | --- |
 | [**AdonisJS**](https://github.com/adonisjs/core) | `>= 6.3`, `< 8` | [Link](https://docs.apitally.io/setup-guides/adonisjs) |
+| [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/setup-guides/elysia) |
 | [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x` | [Link](https://docs.apitally.io/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
 | [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/setup-guides/h3) |
@@ -88,6 +89,27 @@ Request headers, request bodies, and response bodies are opt-in prompts during s
 The SDK-wide environment default is `dev`. `APITALLY_ENV` is deployment-specific, so set it appropriately for staging and production.
 
 For further instructions, see our [setup guide for AdonisJS](https://docs.apitally.io/setup-guides/adonisjs).
+
+### Elysia
+
+Register `apitallyPlugin()` immediately after creating the app, before routes or plugins that add routes:
+
+```javascript
+import { Elysia } from "elysia";
+import { apitallyPlugin } from "apitally/elysia";
+
+const app = new Elysia()
+  .use(
+    apitallyPlugin({
+      writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
+      env: "dev", // optional, defaults to "dev"
+    }),
+  )
+  // register plugins and routes below this point
+  .get("/items/:id", ({ params }) => ({ id: params.id }));
+```
+
+For further instructions, see our [setup guide for Elysia](https://docs.apitally.io/setup-guides/elysia).
 
 ### Express
 
@@ -243,13 +265,25 @@ const sdk = new NodeSDK({
 
 Your existing exporters keep seeing everything they already see: Apitally adopts the spans your instrumentation produces instead of creating duplicates, and its meter and logger providers stay private, so nothing leaks into your own pipelines.
 
+When using Elysia's `@elysia/opentelemetry` plugin, register Apitally first so it adopts the OpenTelemetry SERVER span:
+
+```javascript
+import { opentelemetry } from "@elysia/opentelemetry";
+import { Elysia } from "elysia";
+import { apitallyPlugin } from "apitally/elysia";
+
+const app = new Elysia()
+  .use(apitallyPlugin(options))
+  .use(opentelemetry());
+```
+
 ## Graceful shutdown
 
 Telemetry is exported in the background roughly every 15 seconds. After successful activation, Apitally installs `SIGTERM` and `SIGINT` listeners by default on supported POSIX main-thread processes. There is no opt-out, and the fixed five-second timeout is not configurable.
 
 On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-Closing an Express or Koa server, calling `app.close()` on a Fastify or NestJS app, or shutting down an AdonisJS application triggers a telemetry flush. H3 uses the shared signal and `beforeExit` handling because its server lifecycle depends on the selected adapter and runtime. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+Closing an Express or Koa server, calling `app.close()` on a Fastify or NestJS app, or shutting down an AdonisJS application triggers a telemetry flush. Elysia starts a best-effort flush from its stop hook, but Elysia does not await that asynchronous work. H3 uses the shared signal and `beforeExit` handling because its server lifecycle depends on the selected adapter and runtime. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";
@@ -266,7 +300,7 @@ No final drain is guaranteed for `SIGKILL`, a synchronous `process.exit()`, a na
 ## Runtime support
 
 - **Node.js** `>= 20.6`
-- **Bun** is supported for H3 and Hono apps
+- **Bun** is supported for Elysia, H3 and Hono apps
 
 For edge and serverless runtimes like Cloudflare Workers, use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 

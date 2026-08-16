@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0-alpha.0",
-  "description": "Simple API monitoring, analytics and request logging for REST APIs built with AdonisJS, Express, Fastify, H3, Hono, Koa and NestJS.",
+  "description": "Simple API monitoring, analytics and request logging for REST APIs built with AdonisJS, Elysia, Express, Fastify, H3, Hono, Koa and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -10,6 +10,7 @@
     "api",
     "apitally",
     "bun",
+    "elysia",
     "express",
     "fastify",
     "h3",
@@ -98,6 +99,16 @@
         "default": "./dist/adonisjs/middleware.cjs"
       }
     },
+    "./elysia": {
+      "import": {
+        "types": "./dist/elysia/index.d.ts",
+        "default": "./dist/elysia/index.js"
+      },
+      "require": {
+        "types": "./dist/elysia/index.d.cts",
+        "default": "./dist/elysia/index.cjs"
+      }
+    },
     "./express": {
       "import": {
         "types": "./dist/express/index.d.ts",
@@ -176,6 +187,7 @@
     "@nestjs/core": ">=10 <12",
     "@opentelemetry/api": ">=1.9.0 <2",
     "@sentry/node": ">=7",
+    "elysia": ">=1.1 <2",
     "express": ">=4.18.2 <6",
     "fastify": ">=4.10.2 <6",
     "h3": ">=2.0.1-rc.26 <3",
@@ -195,6 +207,9 @@
       "optional": true
     },
     "@sentry/node": {
+      "optional": true
+    },
+    "elysia": {
       "optional": true
     },
     "express": {
@@ -254,6 +269,7 @@
     "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "^4.1.10",
     "compression": "^1.8.1",
+    "elysia": "^1.4.29",
     "esbuild-fix-imports-plugin": "^1.0.23",
     "express": "^5.2.1",
     "fastify": "^5.11.0",

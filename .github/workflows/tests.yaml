@@ -66,6 +66,8 @@ jobs:
         scenario:
           - adonisjs-6.3
           - adonisjs-7
+          - elysia
+          - elysia-1.1
           - express
           - express-5.0
           - express-4.18
@@ -92,6 +94,12 @@ jobs:
           - scenario: adonisjs-7
             packages: "@adonisjs/core@7 @adonisjs/assembler@8"
             testDir: tests/adonisjs
+          - scenario: elysia
+            packages: elysia
+            testDir: tests/elysia
+          - scenario: elysia-1.1
+            packages: elysia@1.1.0
+            testDir: tests/elysia
           - scenario: express
             packages: express
             testDir: tests/express
