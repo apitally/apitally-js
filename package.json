@@ -1,7 +1,7 @@
 {
   "name": "apitally",
   "version": "1.0.0-alpha.0",
-  "description": "Simple API monitoring, analytics and request logging for REST APIs built with AdonisJS, Elysia, Express, Fastify, H3, Hono, Koa and NestJS.",
+  "description": "Simple API monitoring, analytics and request logging for REST APIs built with AdonisJS, Elysia, Express, Fastify, H3, Hapi, Hono, Koa and NestJS.",
   "author": "Apitally <hello@apitally.io>",
   "license": "MIT",
   "keywords": [
@@ -14,6 +14,7 @@
     "express",
     "fastify",
     "h3",
+    "hapi",
     "hono",
     "koa",
     "logging",
@@ -149,6 +150,16 @@
         "default": "./dist/h3/index.cjs"
       }
     },
+    "./hapi": {
+      "import": {
+        "types": "./dist/hapi/index.d.ts",
+        "default": "./dist/hapi/index.js"
+      },
+      "require": {
+        "types": "./dist/hapi/index.d.cts",
+        "default": "./dist/hapi/index.cjs"
+      }
+    },
     "./hono": {
       "import": {
         "types": "./dist/hono/index.d.ts",
@@ -183,6 +194,7 @@
   },
   "peerDependencies": {
     "@adonisjs/core": ">=6.3 <8",
+    "@hapi/hapi": ">=21 <22",
     "@nestjs/common": ">=10 <12",
     "@nestjs/core": ">=10 <12",
     "@opentelemetry/api": ">=1.9.0 <2",
@@ -198,6 +210,9 @@
   },
   "peerDependenciesMeta": {
     "@adonisjs/core": {
+      "optional": true
+    },
+    "@hapi/hapi": {
       "optional": true
     },
     "@nestjs/common": {
@@ -252,6 +267,7 @@
     "@adonisjs/core": "^7.3.5",
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.4",
+    "@hapi/hapi": "^21.4.10",
     "@koa/bodyparser": "^6.1.0",
     "@koa/router": "^15.7.0",
     "@nestjs/common": "^11.1.28",

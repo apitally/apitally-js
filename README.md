@@ -25,7 +25,7 @@
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [AdonisJS](https://github.com/adonisjs/core), [Elysia](https://github.com/elysiajs/elysia), [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
+API monitoring, analytics and request logging for [AdonisJS](https://github.com/adonisjs/core), [Elysia](https://github.com/elysiajs/elysia), [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hapi](https://github.com/hapijs/hapi), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
@@ -33,7 +33,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 - **API analytics**: Traffic, error and performance metrics for your API, each endpoint, and individual API consumers.
 - **Request logging**: Every request as a searchable log entry, with optional capture of headers and request/response bodies.
-- **Application logs**: Logs written via `console`, winston, pino or Nest's default `ConsoleLogger` are captured automatically and correlated with the request they belong to.
+- **Application logs**: Logs written via `console`, winston, pino, Hapi's `request.log()` or Nest's default `ConsoleLogger` are captured automatically and correlated with the request they belong to.
 - **Distributed tracing**: Requests are exported as OpenTelemetry spans, including spans from any other instrumentations you run.
 - **Error tracking**: Exceptions with stack traces for server errors, automatically linked to Sentry events if you use Sentry.
 - **Server metrics**: CPU, memory and uptime of your app's processes.
@@ -48,6 +48,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x` | [Link](https://docs.apitally.io/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
 | [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/setup-guides/h3) |
+| [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/setup-guides/hapi) |
 | [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4` | [Link](https://docs.apitally.io/setup-guides/hono) |
 | [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/setup-guides/koa) |
 | [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x` | [Link](https://docs.apitally.io/setup-guides/nestjs) |
@@ -194,6 +195,29 @@ const app = new H3({
 
 For further instructions, see our [setup guide for H3](https://docs.apitally.io/setup-guides/h3).
 
+### Hapi
+
+Register `apitallyPlugin()` before calling `server.initialize()` or `server.start()`:
+
+```javascript
+import Hapi from "@hapi/hapi";
+import { apitallyPlugin } from "apitally/hapi";
+
+const server = Hapi.server({ port: 3000 });
+
+await server.register(
+  apitallyPlugin({
+    writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
+    env: "dev", // optional, defaults to "dev"
+  }),
+);
+
+// register application plugins and routes below this point
+await server.start();
+```
+
+For further instructions, see our [setup guide for Hapi](https://docs.apitally.io/setup-guides/hapi).
+
 ### Hono
 
 Call `useApitally(app)` immediately after creating the app — before registering middleware and routes, and before `app.fetch` is handed to the server:
@@ -281,9 +305,9 @@ const app = new Elysia()
 
 Telemetry is exported in the background roughly every 15 seconds. After successful activation, Apitally installs `SIGTERM` and `SIGINT` listeners by default on supported POSIX main-thread processes. There is no opt-out, and the fixed five-second timeout is not configurable.
 
-On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. It does not close the app server or wait for in-flight app requests. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
+On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
 
-Closing an Express or Koa server, calling `app.close()` on a Fastify or NestJS app, or shutting down an AdonisJS application triggers a telemetry flush. Elysia starts a best-effort flush from its stop hook, but Elysia does not await that asynchronous work. H3 uses the shared signal and `beforeExit` handling because its server lifecycle depends on the selected adapter and runtime. The public `shutdown()` function remains the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+Use the  `shutdown()` function for the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
 
 ```javascript
 import { shutdown } from "apitally";
@@ -294,8 +318,6 @@ process.on("SIGTERM", () => {
   });
 });
 ```
-
-No final drain is guaranteed for `SIGKILL`, a synchronous `process.exit()`, a native crash or out-of-memory failure, worker-thread signal delivery, or collector failure that lasts beyond the deadline.
 
 ## Runtime support
 

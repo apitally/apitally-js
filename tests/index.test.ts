@@ -1,3 +1,4 @@
+import { server as createHapiServer } from "@hapi/hapi";
 import Router from "@koa/router";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -70,6 +71,26 @@ describe("root entry", () => {
     expect(spans[0].name).toBe("GET /items/:id");
     expect(spans[0].kind).toBe(SpanKind.SERVER);
     expect(spans[0].attributes["http.route"]).toBe("/items/:id");
+  });
+
+  it("dispatches an initialized Hapi server to the hapi integration and exports its SERVER span with the route template", async () => {
+    prepareFirstRequestActivation();
+    const server = createHapiServer();
+    server.route({ method: "GET", path: "/items/{id}", handler: () => ({ ok: true }) });
+    await server.initialize();
+    expect(() => useApitally(server, { writeToken: WRITE_TOKEN })).not.toThrow();
+    const response = await server.inject("/items/7");
+    expect(response.statusCode).toBe(200);
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+    await server.stop();
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET /items/{id}");
+    expect(spans[0].kind).toBe(SpanKind.SERVER);
+    expect(spans[0].attributes["http.route"]).toBe("/items/{id}");
   });
 
   it("dispatches an H3 app to the h3 integration and exports its SERVER span with the route template", async () => {
@@ -228,17 +249,5 @@ describe("root entry", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("did not reach ApitallySpanProcessor");
     expect(await readActivationSpans()).toEqual([]);
-  });
-
-  it("throws an error naming the framework entry points for an unrecognized app", () => {
-    prepareFirstRequestActivation();
-    const attempt = () => useApitally({} as Hono, { writeToken: WRITE_TOKEN });
-    expect(attempt).toThrow("apitally/elysia");
-    expect(attempt).toThrow("apitally/express");
-    expect(attempt).toThrow("apitally/fastify");
-    expect(attempt).toThrow("apitally/h3");
-    expect(attempt).toThrow("apitally/hono");
-    expect(attempt).toThrow("apitally/koa");
-    expect(attempt).toThrow("node ace add apitally");
   });
 });

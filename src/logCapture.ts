@@ -402,7 +402,7 @@ export function uninstallLogCapture(): void {
 }
 
 // The active context lets the log pipeline resolve the emitting request.
-function emitCapturedLogRecord(
+export function emitCapturedLogRecord(
   logger: Logger,
   logRecord: {
     severityNumber: SeverityNumber;
