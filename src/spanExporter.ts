@@ -16,10 +16,12 @@ const QUERY_ATTRIBUTES = new Set(["url.query", "url.full", "http.target", "http.
 const REQUEST_HEADER_ATTRIBUTE_PREFIX = "http.request.header.";
 const RESPONSE_HEADER_ATTRIBUTE_PREFIX = "http.response.header.";
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
+const SERVICE_INSTANCE_ID = "service.instance.id";
 
 export interface ApitallySpanExporterOptions {
   redaction: Redaction;
   env: string;
+  instanceId: string;
   spool: Spool;
   maskRequestBody?: BodyMaskingCallback;
   maskResponseBody?: BodyMaskingCallback;
@@ -30,6 +32,7 @@ export interface ApitallySpanExporterOptions {
 export class ApitallySpanExporter implements SpanExporter {
   private readonly redaction: Redaction;
   private readonly env: string;
+  private readonly instanceId: string;
   private readonly spool: Spool;
   private readonly maskRequestBody?: BodyMaskingCallback;
   private readonly maskResponseBody?: BodyMaskingCallback;
@@ -37,6 +40,7 @@ export class ApitallySpanExporter implements SpanExporter {
   constructor(options: ApitallySpanExporterOptions) {
     this.redaction = options.redaction;
     this.env = options.env;
+    this.instanceId = options.instanceId;
     this.spool = options.spool;
     this.maskRequestBody = options.maskRequestBody;
     this.maskResponseBody = options.maskResponseBody;
@@ -191,31 +195,37 @@ export class ApitallySpanExporter implements SpanExporter {
     return this.redaction.redactBody(processed);
   }
 
-  // Export resources must match Apitally-Env. Conflicting values are rewritten
-  // only on Apitally's copy, and missing non-default values are added.
+  // Export resources must carry Apitally's process identity and match Apitally-Env.
+  // Rewrites apply only to Apitally's copies.
   private resolveExportResource(
     resource: Resource,
     rewrittenResources: Map<Resource, Resource>,
   ): Resource {
     const resourceEnv = resource.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
-    const conflicts = typeof resourceEnv === "string" && resourceEnv !== this.env;
-    const missing = resourceEnv === undefined && this.env !== DEFAULT_ENV;
-    if (!conflicts && !missing) {
+    const resourceInstanceId = resource.attributes[SERVICE_INSTANCE_ID];
+    const envDiffers = typeof resourceEnv === "string" && resourceEnv !== this.env;
+    const envMissing = resourceEnv === undefined && this.env !== DEFAULT_ENV;
+    const instanceIdDiffers = resourceInstanceId !== this.instanceId;
+    if (!envDiffers && !envMissing && !instanceIdDiffers) {
       return resource;
     }
     const existing = rewrittenResources.get(resource);
     if (existing) {
       return existing;
     }
-    if (conflicts) {
+    if (envDiffers) {
       logWarning(
         `The tracer provider's resource sets deployment.environment.name to "${resourceEnv}", which differs from the Apitally env "${this.env}". Spans are exported to Apitally with the env "${this.env}".`,
       );
     }
-    const rewritten = resourceFromAttributes({
+    const attributes: Attributes = {
       ...resource.attributes,
-      [DEPLOYMENT_ENVIRONMENT_NAME]: this.env,
-    });
+      [SERVICE_INSTANCE_ID]: this.instanceId,
+    };
+    if (envDiffers || envMissing) {
+      attributes[DEPLOYMENT_ENVIRONMENT_NAME] = this.env;
+    }
+    const rewritten = resourceFromAttributes(attributes);
     rewrittenResources.set(resource, rewritten);
     return rewritten;
   }

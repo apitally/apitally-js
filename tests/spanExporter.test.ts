@@ -22,14 +22,22 @@ import {
   WRITE_TOKEN,
 } from "./utils.js";
 
+const INSTANCE_ID = "apitally-instance";
+
 function createExportPipeline(
-  options: { resource?: Resource; userExporter?: InMemorySpanExporter; env?: string } = {},
+  options: {
+    resource?: Resource;
+    userExporter?: InMemorySpanExporter;
+    env?: string;
+    instanceId?: string;
+  } = {},
 ) {
   const spool = createInMemorySpool();
   const config = getConfig();
   const spanExporter = new ApitallySpanExporter({
     redaction: new Redaction(),
     env: options.env ?? "dev",
+    instanceId: options.instanceId ?? INSTANCE_ID,
     spool,
     maskRequestBody: config.maskRequestBody,
     maskResponseBody: config.maskResponseBody,
@@ -238,6 +246,28 @@ describe("spanExporter", () => {
     expect(lines[0]).toContain("staging");
     const [userSpan] = userExporter.getFinishedSpans();
     expect(userSpan.resource.attributes["deployment.environment.name"]).toBe("staging");
+  });
+
+  it("uses Apitally's process identity on export copies without changing the user resource", async () => {
+    const resource = resourceFromAttributes({
+      "service.instance.id": "user-instance",
+      "service.name": "user-service",
+    });
+    const userExporter = new InMemorySpanExporter();
+    const { pipeline, provider, tracer } = createExportPipeline({
+      resource,
+      userExporter,
+    });
+    const { span, request } = startServerSpan(tracer);
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+
+    await provider.forceFlush();
+    const [exportedSpan] = readSerializedSpans();
+    expect(exportedSpan.resource.attributes["service.instance.id"]).toBe(INSTANCE_ID);
+    expect(exportedSpan.resource.attributes["service.name"]).toBe("user-service");
+    const [userSpan] = userExporter.getFinishedSpans();
+    expect(userSpan.resource.attributes["service.instance.id"]).toBe("user-instance");
   });
 
   it("fills in the deployment environment resource attribute on Apitally's copies when the tracer provider's resource omits it", async () => {

@@ -223,10 +223,12 @@ function startPipelines(
   const config = getConfig();
   let hasUserProvider = isApitallySpanProcessorDeclared();
   const { env, resource } = resolveEnvAndCreateResource(hasUserProvider, triggeringSpan?.resource);
+  const instanceId = resource.attributes["service.instance.id"] as string;
   const spool = activationFactories.createSpool();
   const spanExporter = new ApitallySpanExporter({
     redaction: new Redaction(),
     env,
+    instanceId,
     spool,
     maskRequestBody: config.maskRequestBody,
     maskResponseBody: config.maskResponseBody,

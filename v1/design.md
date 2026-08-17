@@ -50,13 +50,13 @@ When the SDK sets up its own tracer provider, pin the span attribute value lengt
 
 ### Environment resolution
 
-The `Apitally-Env` transport header (spec §4) MUST match `deployment.environment.name` on the resource. Resolve once at activation: with its own tracer provider, the SDK uses the configured env (option / env var / default `dev`) for both; with an existing tracer provider, it uses that provider's `deployment.environment.name` resource attribute when present, else the configured env, and never modifies the user's resource. On conflict (the existing resource has an env and the configured env — option or env var — is a non-default value that differs from it) warn once and use the resource value; a configured value equal to the default does not trigger the conflict warning.
+The `Apitally-Env` transport header (spec §4) MUST match `deployment.environment.name` on the resource. Resolve once at activation: with its own tracer provider, the SDK uses the configured env (option / env var / default `dev`) for both; with an existing tracer provider, it uses that provider's `deployment.environment.name` resource attribute when present, else the configured env, and never modifies the user's live resource. On conflict (the existing resource has an env and the configured env - option or env var - is a non-default value that differs from it) warn once and use the resource value; a configured value equal to the default does not trigger the conflict warning.
 
 ### Resource construction
 
 The Apitally resource is built once at activation in both modes: through the standard OTel resource environment mechanism (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` are honored), then the Apitally-owned keys merged on top and winning: `service.instance.id`, `deployment.environment.name`, `telemetry.distro.name`, `telemetry.distro.version`. The env key must not be overridable via generic resource attributes because the transport header is derived from the same resolved value and the two may never disagree.
 
-This resource always backs the private meter and logger providers — that is what satisfies spec §5's `service.instance.id` requirement and the liveness contract on the metrics and logs signals. It backs the spans too when the SDK sets up its own tracer provider; when attached to an existing tracer provider, exported spans carry that provider's resource unchanged.
+This resource always backs the private meter and logger providers. It backs spans too when the SDK sets up its own tracer provider. When attached to an existing tracer provider, the Apitally export copy preserves that provider's resource attributes except that `service.instance.id` is overwritten with the Apitally process identity. The user's live resource and other exporters remain unchanged. This gives traces, metrics, and logs one process identity and satisfies spec §5.
 
 ## 3. Configuration
 
