@@ -1,5 +1,5 @@
 import { type Attributes, context, SpanKind, trace } from "@opentelemetry/api";
-import { H3, noContent, toNodeListener } from "h3";
+import { defineWebSocketHandler, H3, noContent, toNodeListener } from "h3";
 import { beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { apitallyPlugin, useApitally } from "../../src/h3/index.js";
@@ -124,6 +124,25 @@ describe("h3 integration", () => {
     const dataPoints = await readActivationDurationDataPoints();
     expect(dataPoints).toHaveLength(1);
     expect(dataPoints[0].attributes["http.route"]).toBe("/healthz");
+  });
+
+  it("activates but exports no request telemetry for WebSocket upgrades", async () => {
+    prepareFirstRequestActivation();
+    const websocketApp = new H3({
+      plugins: [apitallyPlugin({ writeToken: WRITE_TOKEN })],
+    });
+    websocketApp.get("/socket", defineWebSocketHandler({}));
+    expect(isActivated()).toBe(false);
+
+    const response = await websocketApp.request("/socket", {
+      headers: { upgrade: "WebSocket" },
+    });
+    expect(response.status).toBe(426);
+    expect((response as Response & { crossws?: unknown }).crossws).toBeDefined();
+    await response.text();
+    expect(isActivated()).toBe(true);
+    expect(await readActivationSpans()).toEqual([]);
+    expect(await readActivationDurationDataPoints()).toEqual([]);
   });
 
   it("records an exception for an unhandled 5xx error while treating an expected 4xx error as response telemetry", async () => {

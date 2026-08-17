@@ -11,6 +11,7 @@ import {
 } from "../requestObservation.js";
 import {
   captureWebResponse,
+  isWebSocketUpgrade,
   startWebRequestObservation,
   type WebRequestObservation,
   type WebResponseCompletion,
@@ -125,7 +126,7 @@ function observeRequest(
   wrapErrorHandlerOnce: () => void,
 ): ObservedRequestStart | undefined {
   activate();
-  if (!isActivated()) {
+  if (!isActivated() || isWebSocketUpgrade(request)) {
     return undefined;
   }
   wrapErrorHandlerOnce();

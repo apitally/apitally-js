@@ -122,6 +122,22 @@ describe("elysia integration", () => {
     expect(dataPoints[0].attributes["http.route"]).toBe("/healthz");
   });
 
+  it("activates but exports no request telemetry for WebSocket upgrades", async () => {
+    prepareFirstRequestActivation();
+    const websocketApp = new Elysia()
+      .use(apitallyPlugin({ writeToken: WRITE_TOKEN }))
+      .get("/socket", () => "upgrade");
+    expect(isActivated()).toBe(false);
+
+    const response = await request(websocketApp, "/socket", {
+      headers: { upgrade: "WebSocket" },
+    });
+    expect(await response.text()).toBe("upgrade");
+    expect(isActivated()).toBe(true);
+    expect(await readActivationSpans()).toEqual([]);
+    expect(await readActivationDurationDataPoints()).toEqual([]);
+  });
+
   it("records an exception for an unhandled 5xx while treating expected 4xx errors as response telemetry", async () => {
     prepareFirstRequestActivation();
     const badRequestResponse = await request(app, "/bad-request");

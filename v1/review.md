@@ -84,6 +84,8 @@ Hono also observes WebSocket upgrades as ordinary requests. Reconstructing a sta
 
 **Recommendation:** In every Fetch-style integration, call `activate()` first and then bypass all request and response observation when `Upgrade: websocket` is present. Return the framework response object unchanged. Add one uniform WebSocket scenario to the H3, Hono, and Elysia suites.
 
+**Verdict:** Accepted and fixed. H3, Hono, and Elysia now activate before bypassing WebSocket upgrades, return the framework response unchanged, and export no request telemetry for the upgrade.
+
 ## Medium severity
 
 ### 6. Express 4 optional route parameters lose route attribution

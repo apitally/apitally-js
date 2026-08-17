@@ -12,6 +12,7 @@ import {
 import {
   captureWebRequestBody,
   captureWebResponse,
+  isWebSocketUpgrade,
   startWebRequestObservation,
   type WebRequestObservation,
 } from "../requestObservationWeb.js";
@@ -49,7 +50,7 @@ export function installH3RequestObservation(app: H3): void {
     let observationContext: ReturnType<typeof startWebRequestObservation>["requestContext"];
     try {
       activate();
-      if (!isActivated()) {
+      if (!isActivated() || isWebSocketUpgrade(request)) {
         return requestFunction.call(this, request, requestContext);
       }
       const requestAddress = (request as { context?: { clientAddress?: unknown } }).context

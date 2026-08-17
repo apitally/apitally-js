@@ -134,6 +134,27 @@ describe("hono integration", () => {
     expect(dataPoints[0].value.count).toBe(1);
   });
 
+  it("activates but exports no request telemetry for WebSocket upgrades", async () => {
+    prepareFirstRequestActivation();
+    const websocketResponse = Object.assign(new Response("upgrade"), { webSocket: {} });
+    const websocketApp = new Hono();
+    (websocketApp as unknown as { fetch: () => Response }).fetch = () => websocketResponse;
+    useApitally(websocketApp, { writeToken: WRITE_TOKEN });
+    expect(isActivated()).toBe(false);
+
+    const result = websocketApp.fetch(
+      new Request("http://localhost/socket", {
+        headers: { upgrade: "WebSocket" },
+      }),
+    );
+    expect(result).toBe(websocketResponse);
+    const response = await result;
+    expect((response as Response & { webSocket?: unknown }).webSocket).toBeDefined();
+    expect(isActivated()).toBe(true);
+    expect(await readActivationSpans()).toEqual([]);
+    expect(await readActivationDurationDataPoints()).toEqual([]);
+  });
+
   it("records the exception event on the SERVER span for an unhandled route error and exports a 5xx status", async () => {
     prepareFirstRequestActivation();
     const response = await app.request("/error");

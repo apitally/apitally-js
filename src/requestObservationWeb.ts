@@ -26,6 +26,10 @@ export interface StartWebRequestObservationOptions {
   clientAddress?: string;
 }
 
+export function isWebSocketUpgrade(request: Request): boolean {
+  return request.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
 export interface WebRequestObservation extends RequestObservation {
   requestBodyCapture: BodyCapture;
   requestHeaders: Headers;

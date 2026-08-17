@@ -19,6 +19,7 @@ import {
 import {
   captureWebRequestBody,
   captureWebResponse,
+  isWebSocketUpgrade,
   startWebRequestObservation,
   type WebRequestObservation,
 } from "../requestObservationWeb.js";
@@ -90,14 +91,10 @@ function buildElysiaPlugin(
   plugin.wrap(
     ((dispatcher: ElysiaDispatcher, request: Request) =>
       function (this: unknown, ...args: unknown[]): Response | Promise<Response> {
-        if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
-          return dispatcher.apply(this, args);
-        }
-
         let observation: ElysiaRequestObservation;
         try {
           activate();
-          if (!isActivated()) {
+          if (!isActivated() || isWebSocketUpgrade(request)) {
             return dispatcher.apply(this, args);
           }
           const started = startWebRequestObservation({

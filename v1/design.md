@@ -120,6 +120,8 @@ Apitally ingests only request-rooted traces. One mechanism enforces this whether
 - its path (query stripped) or user agent matches an exclusion pattern — defaults per spec §6.8, user path patterns added on top;
 - old-convention attribute fallbacks are honored in all these reads, and when the instrumentation omits the path attributes entirely, the SDK derives path and query from the full-URL attribute at span start and writes them onto the span — the exported span's display URL and the query redaction pass depend on them, and exclusion matching must never silently no-op because an attribute is missing.
 
+Transport integrations bypass requests with `Upgrade: websocket` before observation, but only after activation so WebSocket-only applications still emit startup and liveness telemetry. The framework's response object passes through unchanged because it can carry runtime-specific upgrade metadata.
+
 Exclusion runs strictly before sampling: exclusion answers "never wanted", sampling answers "how much of the wanted", and an excluded request never invokes a user sampling callback. Metrics recording (§11) is independent of all of this: pattern-excluded and sampled-out requests are still counted; OPTIONS, websocket, and unmatched-route requests are not (spec §7.1).
 
 **Per-message spans** (spec §6.6): suppress the instrumentation's per-message receive/send INTERNAL spans at the source wherever the integration point allows it, and additionally drop them in the span processor by kind + name suffix + instrumentation scope for instrumentations that emit them anyway (including user-owned ones). Websocket send/receive variants included.
