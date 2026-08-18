@@ -130,6 +130,8 @@ This makes equivalent applications produce materially different and noisy error 
 
 **Recommendation:** Apply the same status-aware rule across frameworks. Resolve a numeric `status` or `statusCode`, and suppress exception recording for 400-499. For Hono, use the final response status when a custom error handler can change it.
 
+**Verdict:** Accepted and fixed. Koa now suppresses thrown errors with a resolved status below 500, while Hono classifies synchronous and asynchronous `onError` results by their final response status. Failures without a response and 5xx outcomes remain exception events.
+
 ### 10. Late request-body capture inflates SERVER span duration
 
 **Evidence:** `src/requestObservation.ts:171-224`, `src/h3/middleware.ts:149-179`, `src/elysia/middleware.ts:202-214`, `src/hono/middleware.ts:145-177`

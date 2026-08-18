@@ -252,13 +252,30 @@ function wrapErrorHandler(app: Hono): void {
       return;
     }
     const wrappedHandler = function (this: unknown, ...args: unknown[]) {
-      captureException(args[0]);
-      return (originalHandler as (...handlerArgs: unknown[]) => unknown).apply(this, args);
+      const result = (originalHandler as (...handlerArgs: unknown[]) => unknown).apply(this, args);
+      if (result instanceof Promise) {
+        return result.then((response) => {
+          captureExceptionIfServerErrorResponse(args[0], response);
+          return response;
+        });
+      }
+      captureExceptionIfServerErrorResponse(args[0], result);
+      return result;
     };
     (wrappedHandler as unknown as Record<symbol, boolean>)[ERROR_HANDLER_WRAP_MARKER] = true;
     appWithHandler.errorHandler = wrappedHandler;
   } catch (error) {
     logDebug(`Error wrapping the hono onError handler: ${String(error)}`);
+  }
+}
+
+function captureExceptionIfServerErrorResponse(error: unknown, response: unknown): void {
+  const status =
+    typeof response === "object" && response !== null
+      ? (response as { status?: unknown }).status
+      : undefined;
+  if (typeof status !== "number" || status >= 500) {
+    captureException(error);
   }
 }
 

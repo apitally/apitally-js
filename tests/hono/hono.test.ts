@@ -173,6 +173,25 @@ describe("hono integration", () => {
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
   });
 
+  it("does not record an exception event when onError returns a 4xx response", async () => {
+    prepareFirstRequestActivation();
+    const clientErrorApp = new Hono();
+    useApitally(clientErrorApp, { writeToken: WRITE_TOKEN });
+    clientErrorApp.onError((error, c) => Promise.resolve(c.json({ handled: error.message }, 404)));
+    clientErrorApp.get("/missing", () => {
+      throw new Error("not found");
+    });
+
+    const response = await clientErrorApp.request("/missing");
+    expect(response.status).toBe(404);
+    await readResponseAndSettleTransport(response);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes["http.response.status_code"]).toBe(404);
+    expect(spans[0].events).toEqual([]);
+  });
+
   it("rethrows a synchronous dispatch failure unchanged and releases its span", async () => {
     const handles = configureAndActivate();
     const failure = new Error("sync dispatch failed");

@@ -50,7 +50,19 @@ export function installKoaMiddleware(app: Koa): void {
     try {
       await context.with(started.requestContext, next);
     } catch (error) {
-      context.with(started.requestContext, () => captureException(error));
+      const candidate =
+        typeof error === "object" && error !== null
+          ? (error as { status?: unknown; statusCode?: unknown })
+          : undefined;
+      const statusCode =
+        typeof candidate?.status === "number"
+          ? candidate.status
+          : typeof candidate?.statusCode === "number"
+            ? candidate.statusCode
+            : undefined;
+      if (statusCode === undefined || statusCode >= 500) {
+        context.with(started.requestContext, () => captureException(error));
+      }
       throw error;
     } finally {
       started.observation.route = resolveMatchedRoute(ctx);

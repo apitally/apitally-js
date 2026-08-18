@@ -193,6 +193,21 @@ describe("koa integration", () => {
     expect(spans[0].events[0].attributes?.["exception.message"]).toBe("boom");
   });
 
+  it("does not record an exception event for an expected 4xx route error", async () => {
+    prepareFirstRequestActivation();
+    const clientErrorApp = new Koa();
+    clientErrorApp.silent = true;
+    useApitally(clientErrorApp, { writeToken: WRITE_TOKEN });
+    clientErrorApp.use((ctx) => ctx.throw(401, "authentication required"));
+
+    await request(clientErrorApp.callback()).get("/private").expect(401);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes["http.response.status_code"]).toBe(401);
+    expect(spans[0].events).toEqual([]);
+  });
+
   it("adopts an active SERVER span from user instrumentation without producing a duplicate and layers capture and metrics on top", async () => {
     const handles = configureAndActivate({ captureResponseBody: true });
     const adoptedApp = buildAppFixture({ captureResponseBody: true });
