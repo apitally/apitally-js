@@ -45,8 +45,9 @@ async function withApp(
   options: ApitallyOptions,
   run: (baseUrl: string, server: Server) => Promise<void>,
   wrapListener?: (listener: Listener) => Listener,
+  trustProxy = false,
 ): Promise<void> {
-  const fixture = await buildAppFixture(options);
+  const fixture = await buildAppFixture(options, trustProxy);
   const listener = fixture.server.handle.bind(fixture.server);
   try {
     await withServer(wrapListener ? wrapListener(listener) : listener, async (server, baseUrl) => {
@@ -93,6 +94,25 @@ describe("adonisjs integration", () => {
         "http.response.body.size": Buffer.byteLength(JSON.stringify({ id: 42, name: "Widget" })),
       });
     });
+  });
+
+  it("uses the client address resolved by the framework's trust proxy configuration", async () => {
+    prepareFirstRequestActivation();
+    await withApp(
+      {},
+      async (baseUrl) => {
+        const { response } = await send(baseUrl, "/items/42", {
+          headers: { "x-forwarded-for": "8.8.8.8" },
+        });
+        expect(response.status).toBe(200);
+
+        const spans = await readActivationSpans();
+        expect(spans).toHaveLength(1);
+        expect(spans[0].attributes["client.address"]).toBe("8.8.8.8");
+      },
+      undefined,
+      true,
+    );
   });
 
   it("continues the remote trace from a traceparent header and exports the request even when the upstream trace is unsampled", async () => {

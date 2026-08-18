@@ -258,6 +258,10 @@ useApitally(app, {
 
 For further instructions, see our [setup guide for Koa](https://docs.apitally.io/setup-guides/koa).
 
+## Trusted proxies
+
+When your application runs behind a reverse proxy, configure the framework's trusted-proxy setting so Apitally can record the client IP for GeoIP. The SDK uses the client address resolved by Express, Fastify, Koa, AdonisJS, or the corresponding NestJS adapter. It does not trust forwarding headers directly.
+
 ## Using Sentry
 
 Sentry's Node.js SDK registers an OpenTelemetry tracer provider by default. If you use Sentry for error monitoring without performance tracing, let Apitally configure OpenTelemetry by disabling Sentry's setup:

@@ -79,6 +79,7 @@ function observeRequest(ctx: Koa.Context): ObservedRequestStart | undefined {
         completedAtMillis: completion.completedAtMillis,
         statusCode: ctx.res.statusCode,
         route: observation.route ?? resolveMatchedRoute(ctx),
+        clientAddress: ctx.ip,
         requestHeaders: ctx.req.headers,
         responseHeaders: ctx.res.getHeaders(),
         capturedRequestBody: completion.requestBody,

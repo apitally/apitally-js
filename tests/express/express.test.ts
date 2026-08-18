@@ -91,6 +91,20 @@ describe("express integration", () => {
     });
   });
 
+  it("uses the client address resolved by the framework's trust proxy configuration", async () => {
+    prepareFirstRequestActivation();
+    const proxyApp = express();
+    proxyApp.set("trust proxy", true);
+    useApitally(proxyApp, { writeToken: WRITE_TOKEN });
+    proxyApp.get("/items", (_req, res) => res.json({ ok: true }));
+
+    await request(proxyApp).get("/items").set("x-forwarded-for", "8.8.8.8").expect(200);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes["client.address"]).toBe("8.8.8.8");
+  });
+
   it("continues the remote trace from a traceparent header and exports the request even when the upstream trace is unsampled", async () => {
     prepareFirstRequestActivation();
     const sampledTraceId = "0af7651916cd43dd8448eb211c80319c";

@@ -57,6 +57,7 @@ export function installFastifyHooks(app: FastifyInstance, startupPaths: RoutePat
               completedAtMillis: completion.completedAtMillis,
               statusCode: reply.statusCode,
               route: resolveRequestRoute(request),
+              clientAddress: request.ip,
               requestHeaders: request.raw.headers,
               responseHeaders: reply.getHeaders(),
               capturedRequestBody: completion.requestBody,

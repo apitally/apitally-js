@@ -118,7 +118,7 @@ Node request observation always writes `request.socket.remoteAddress`. This bypa
 
 **Recommendation:** Let framework integrations provide a trusted client-address override after their request object exists. Use framework-resolved values such as Express `req.ip`, Fastify `request.ip`, AdonisJS `ctx.request.ip()`, and Koa `ctx.ip`. Do not parse forwarding headers in shared code.
 
-**Verdict:** Need to investigate further. Why not parse forwarding headers in shared code?
+**Verdict:** Accepted and fixed using framework-resolved addresses. Express, Fastify, Koa, AdonisJS, and NestJS now honor their configured trusted-proxy policies. Shared code intentionally does not trust forwarding headers. This can remove GeoIP data after upgrading from v0 for users who relied on v0's untrusted header parsing without configuring their framework proxy trust.
 
 ### 9. Koa and Hono record routine 4xx control flow as exceptions
 

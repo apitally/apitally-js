@@ -105,6 +105,22 @@ describe("koa integration", () => {
     });
   });
 
+  it("uses the client address resolved by the framework's trust proxy configuration", async () => {
+    prepareFirstRequestActivation();
+    const proxyApp = new Koa();
+    proxyApp.proxy = true;
+    useApitally(proxyApp, { writeToken: WRITE_TOKEN });
+    proxyApp.use((ctx) => {
+      ctx.body = { ok: true };
+    });
+
+    await request(proxyApp.callback()).get("/items").set("x-forwarded-for", "8.8.8.8").expect(200);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes["client.address"]).toBe("8.8.8.8");
+  });
+
   it("continues the remote trace from a traceparent header and exports the request even when the upstream trace is unsampled", async () => {
     prepareFirstRequestActivation();
     const sampledTraceId = "0af7651916cd43dd8448eb211c80319c";

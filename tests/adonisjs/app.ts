@@ -18,7 +18,10 @@ export interface AppFixture {
   server: HttpServerService;
 }
 
-export async function buildAppFixture(options: ApitallyOptions = {}): Promise<AppFixture> {
+export async function buildAppFixture(
+  options: ApitallyOptions = {},
+  trustProxy = false,
+): Promise<AppFixture> {
   const app = new AppFactory().merge({ environment: "web" }).create(APP_ROOT) as ApplicationService;
   app.useConfig({ apitally: { writeToken: WRITE_TOKEN, ...options } });
   await app.init();
@@ -27,7 +30,9 @@ export async function buildAppFixture(options: ApitallyOptions = {}): Promise<Ap
     environment: ["web"],
   });
 
-  const server = new ServerFactory().merge({ app }).create();
+  const server = new ServerFactory()
+    .merge({ app, config: { trustProxy: () => trustProxy } })
+    .create();
   const router = server.getRouter();
   app.container.bindValue("router", router);
   server.use([async () => ({ default: ApitallyMiddleware })]);

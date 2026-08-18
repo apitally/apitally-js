@@ -27,12 +27,14 @@ describe("requestObservationNode", () => {
   it("starts observation without changing request stream flow", () => {
     captureStderr();
     const connection = new PassThrough();
+    Object.defineProperty(connection, "remoteAddress", { value: "127.0.0.1" });
     const request = new IncomingMessage(connection as unknown as Socket);
     request.method = "post";
     request.url = "/items?color=blue";
     request.headers = {
       host: "api.example.com:8443",
       "user-agent": "test-client",
+      "x-forwarded-for": "8.8.8.8",
     };
 
     const started = startNodeRequestObservation({ request, tracerName: "test" });
@@ -47,6 +49,7 @@ describe("requestObservationNode", () => {
       "url.scheme": "http",
       "server.address": "api.example.com",
       "url.full": "http://api.example.com:8443/items?color=blue",
+      "client.address": "127.0.0.1",
       "user_agent.original": "test-client",
     });
   });

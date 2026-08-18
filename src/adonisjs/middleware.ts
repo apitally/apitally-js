@@ -37,6 +37,7 @@ export default class ApitallyMiddleware {
             completedAtMillis: completion.completedAtMillis,
             statusCode: response.statusCode,
             route: ctx.route?.pattern,
+            clientAddress: ctx.request.ip(),
             requestHeaders: request.headers,
             responseHeaders: ctx.response.getHeaders(),
             capturedRequestBody: completion.requestBody,

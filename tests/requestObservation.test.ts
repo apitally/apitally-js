@@ -141,10 +141,12 @@ describe("requestObservation", () => {
       completedAtMillis: 250,
       statusCode: 500,
       route: "/items/:id",
+      clientAddress: "8.8.8.8",
       requestHeaders: {},
       responseHeaders: {},
     });
 
+    expect(setCurrentAttribute).toHaveBeenCalledWith("client.address", "8.8.8.8");
     expect(setCurrentAttribute).toHaveBeenCalledWith("http.response.status_code", 500);
     expect(setCurrentAttribute).toHaveBeenCalledWith("http.route", "/items/:id");
     expect(currentSpan.updateName).not.toHaveBeenCalled();

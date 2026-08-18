@@ -120,6 +120,7 @@ function finalizeRequestFromResponse(
     completedAtMillis: completion.completedAtMillis,
     statusCode: response.statusCode,
     route: routeResult.route,
+    clientAddress: (request as Request).ip,
     requestHeaders: request.headers,
     responseHeaders: response.getHeaders(),
     capturedRequestBody: completion.requestBody,

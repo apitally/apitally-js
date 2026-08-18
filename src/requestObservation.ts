@@ -54,8 +54,8 @@ export function resolveHttpRequestStartAttributes(
     ["url.path", input.path],
     ["url.query", input.query],
     ["url.scheme", input.scheme],
-    ["server.address", input.serverAddress],
     ["url.full", input.fullUrl],
+    ["server.address", input.serverAddress],
     ["client.address", input.clientAddress],
     ["user_agent.original", input.userAgent],
     ["http.request.body.size", input.requestBodySize],
@@ -162,6 +162,7 @@ export interface FinalizeRequestObservationOptions {
   completedAtMillis: number;
   statusCode: number;
   route?: string;
+  clientAddress?: string;
   requestHeaders: Headers | Record<string, string | string[] | undefined>;
   responseHeaders: Headers | Record<string, string | number | string[] | undefined>;
   capturedRequestBody?: CapturedBody;
@@ -173,6 +174,9 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
   const { requestRecord, spanHandle, rpcMetadata, method } = observation;
   requestRecord.durationSeconds = (options.completedAtMillis - observation.startTimeMillis) / 1000;
   const { span, ownSpan } = spanHandle;
+  if (options.clientAddress !== undefined) {
+    writeRequestAttribute(span, requestRecord, "client.address", options.clientAddress);
+  }
   writeRequestAttribute(span, requestRecord, "http.response.status_code", statusCode);
   const requestBodySize = options.capturedRequestBody?.size;
   if (requestBodySize !== undefined) {
