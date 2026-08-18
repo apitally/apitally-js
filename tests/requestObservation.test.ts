@@ -63,7 +63,7 @@ describe("requestObservation", () => {
         method: "GET",
         startTimeMillis: 0,
       },
-      completedAtMillis: 250,
+      completedAtMillis: performance.now(),
       statusCode: 200,
       requestHeaders,
       responseHeaders: {
@@ -154,7 +154,7 @@ describe("requestObservation", () => {
     expect(currentSpan.end).not.toHaveBeenCalled();
     expect(updateOwnedName).toHaveBeenCalledWith("GET /items/:id");
     expect(setOwnedStatus).toHaveBeenCalledWith({ code: SpanStatusCode.ERROR });
-    expect(endOwnedSpan).toHaveBeenCalledOnce();
+    expect(endOwnedSpan).toHaveBeenCalledWith(250);
   });
 
   it("does not end an adopted span when finalizing an observation with an error", () => {

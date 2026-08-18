@@ -142,6 +142,8 @@ An application that rejects a slow upload from headers can therefore report a tr
 
 **Recommendation:** Capture an OpenTelemetry end timestamp at response completion and pass it to `ownSpan.end(endTime)` after late enrichment finishes. Keep body enrichment asynchronous, but make span timing reflect transport completion.
 
+**Verdict:** Accepted and fixed. SDK-created spans now end with the existing transport completion timestamp after late enrichment finishes. H3 and Elysia fallback paths also record completion before awaiting request-body capture.
+
 ### 11. Hono body capture misses direct reads from the raw Request
 
 **Evidence:** `src/hono/middleware.ts:162-210`, compared with `captureWebRequestBody()` in `src/requestObservationWeb.ts:82-143`

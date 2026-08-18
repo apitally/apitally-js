@@ -225,7 +225,7 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
       getActiveSpanPipeline()?.updateStash(requestRecord.serverSpanId, stash);
     }
   }
-  ownSpan?.end();
+  ownSpan?.end(options.completedAtMillis);
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
 }
 

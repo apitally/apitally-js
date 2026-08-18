@@ -223,12 +223,13 @@ function observeResponse(
       headers: responseHeaders,
     });
   } catch (error) {
+    const completedAtMillis = performance.now();
     logWarning(`Error in the Apitally Elysia middleware: ${String(error)}`);
     observation.requestBodyCompletion
       .then(() =>
         finalizeRequestObservation({
           observation,
-          completedAtMillis: performance.now(),
+          completedAtMillis,
           statusCode,
           route: observation.route,
           requestHeaders: observation.requestHeaders,
