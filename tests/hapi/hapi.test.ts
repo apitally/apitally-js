@@ -339,6 +339,35 @@ describe("hapi integration", () => {
     expect(readFetchPaths(fetchSpy).sort()).toEqual(["/v1/logs", "/v1/metrics", "/v1/traces"]);
   });
 
+  it("captures native request.log() application events from onPostResponse", async () => {
+    prepareFirstRequestActivation();
+    const postResponseServer = createServer();
+    await postResponseServer.register(apitallyPlugin({ writeToken: WRITE_TOKEN }));
+    postResponseServer.ext("onPostResponse", (request, h) => {
+      request.log("info", "post response");
+      return h.continue;
+    });
+    postResponseServer.route({
+      method: "GET",
+      path: "/items",
+      handler: () => ({ ok: true }),
+    });
+
+    await inject(postResponseServer, "/items");
+    const spans = await readActivationSpans();
+    const handles = requireActivationHandles();
+    await handles.loggerProvider.forceFlush();
+    const records = readSerializedLogRecords().filter(
+      (record) => record.instrumentationScope.name === "hapi",
+    );
+    expect(records).toHaveLength(1);
+    expect(records[0].body).toBe("post response");
+    expect(records[0].attributes["apitally.request.server_span_id"]).toBe(
+      spans[0].spanContext().spanId,
+    );
+    await postResponseServer.stop();
+  });
+
   it("captures native request.log() application events with severity and request linkage", async () => {
     prepareFirstRequestActivation();
     await inject(server, "/logs");

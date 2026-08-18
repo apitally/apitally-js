@@ -52,20 +52,16 @@ export function installHapiHooks(server: Server): void {
         state.observation.requestBodyCapture,
       )
         .then((completion) => {
-          try {
-            finalizeRequestObservation({
-              observation: state.observation,
-              completedAtMillis: completion.completedAtMillis,
-              statusCode: request.raw.res.statusCode,
-              route: resolveRequestRoute(request),
-              requestHeaders: request.raw.req.headers,
-              responseHeaders: request.raw.res.getHeaders(),
-              capturedRequestBody: completion.requestBody,
-              capturedResponseBody: completion,
-            });
-          } finally {
-            observations.delete(request);
-          }
+          finalizeRequestObservation({
+            observation: state.observation,
+            completedAtMillis: completion.completedAtMillis,
+            statusCode: request.raw.res.statusCode,
+            route: resolveRequestRoute(request),
+            requestHeaders: request.raw.req.headers,
+            responseHeaders: request.raw.res.getHeaders(),
+            capturedRequestBody: completion.requestBody,
+            capturedResponseBody: completion,
+          });
         })
         .catch((error: unknown) => {
           logWarning(`Error in the Apitally Hapi middleware: ${String(error)}`);

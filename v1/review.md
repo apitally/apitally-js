@@ -108,6 +108,8 @@ Hapi calls `onPostResponse` after the response has been transmitted. The respons
 
 **Recommendation:** Do not delete this `WeakMap` entry explicitly. The weak request key already allows collection after Hapi releases the request, and retained state lets normal `onPostResponse` logs use the kept span mapping. Add a focused Hapi integration test.
 
+**Verdict:** Accepted and fixed. Hapi request observations now follow the weak request key's lifetime, allowing `onPostResponse` logs to retain request linkage without strongly retaining completed requests.
+
 ### 8. Framework-resolved client addresses are ignored behind trusted proxies
 
 **Evidence:** `src/requestObservationNode.ts:58-68`, with call sites in the Express, Fastify, AdonisJS, Koa, and NestJS paths
