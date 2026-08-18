@@ -505,12 +505,31 @@ function templateToRegExpSource(template: string): string {
   let index = 0;
   while (index < template.length) {
     const char = template[index];
-    if (char === ":" || char === "*") {
+    if (char === ":") {
       index += 1;
       while (index < template.length && /\w/.test(template[index])) {
         index += 1;
       }
-      source += char === ":" ? "[^/]+" : ".*";
+      const modifier = template[index];
+      if (modifier === "?") {
+        const slash = source.endsWith("\\/") ? "\\/" : "";
+        source = source.slice(0, source.length - slash.length);
+        source += `(?:${slash}[^/]+)?`;
+        index += 1;
+      } else {
+        source += modifier === "*" ? "[^/]+.*" : "[^/]+";
+        if (modifier === "+" || modifier === "*") {
+          index += 1;
+        }
+      }
+      continue;
+    }
+    if (char === "*") {
+      index += 1;
+      while (index < template.length && /\w/.test(template[index])) {
+        index += 1;
+      }
+      source += ".*";
       continue;
     }
     if (char === "{") {

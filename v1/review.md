@@ -98,6 +98,8 @@ The spans are exported without `http.route`, metrics are omitted, and the SDK em
 
 **Recommendation:** Support Express 4 parameter modifiers in the template matcher. The optional modifier must include the preceding separator. Handle `?`, `+`, and `*` in one parser change and add integration coverage for the matching forms.
 
+**Verdict:** Accepted and fixed. The route matcher now handles Express 4 optional, repeated, and wildcard parameter modifiers, with coverage against Express 4.18.
+
 ### 7. Hapi drops request logs emitted during `onPostResponse`
 
 **Evidence:** `src/hapi/middleware.ts:54-68,100-130`

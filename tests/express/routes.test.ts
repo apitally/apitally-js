@@ -171,6 +171,29 @@ describe("express routes", () => {
   });
 
   it.runIf(expressVersion.startsWith("4."))(
+    "resolves route templates with Express 4 parameter modifiers",
+    async () => {
+      const fixture = createRouteFixture();
+      fixture.app.get("/users/:id?", respondOk);
+      fixture.app.get("/tags/:name+", respondOk);
+      fixture.app.get("/files/:path*", respondOk);
+
+      const routeResults = await sendRequestsAndResolveRoutes(fixture, [
+        "/users",
+        "/users/42",
+        "/tags/a",
+        "/files/a/b",
+      ]);
+      expect(routeResults).toEqual([
+        { route: "/users/:id?", matchedUncapturedRegistration: false },
+        { route: "/users/:id?", matchedUncapturedRegistration: false },
+        { route: "/tags/:name+", matchedUncapturedRegistration: false },
+        { route: "/files/:path*", matchedUncapturedRegistration: false },
+      ]);
+    },
+  );
+
+  it.runIf(expressVersion.startsWith("4."))(
     "omits pure catch-all templates while preserving named wildcards in longer Express 4 routes",
     async () => {
       await expectPureCatchAllSegmentOmitted("*");
