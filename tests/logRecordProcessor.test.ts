@@ -33,6 +33,23 @@ describe("logRecordProcessor", () => {
     expect(record.instrumentationScope.name).toBe("myapp");
   });
 
+  it("truncates log strings before buffering them for an in-flight request", () => {
+    const { pipeline, tracer } = createTracePipeline();
+    const { loggerProvider, logExporter } = createLogRecordProcessor(pipeline);
+    const { span, request } = startServerSpan(tracer);
+    loggerProvider.getLogger("myapp").emit({
+      body: "a".repeat(3_000),
+      attributes: { detail: "b".repeat(3_000) },
+      context: trace.setSpan(request.context, span),
+    });
+    span.end();
+    pipeline.handleTransportCompletion(request.record);
+
+    const [record] = logExporter.getFinishedLogRecords();
+    expect(record.body).toBe("a".repeat(2_048));
+    expect(record.attributes.detail).toBe("b".repeat(2_048));
+  });
+
   it("exports a log emitted after the emitting child span ended while the request is in flight with the request association", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogRecordProcessor(pipeline);

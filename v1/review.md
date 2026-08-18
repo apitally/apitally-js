@@ -174,7 +174,7 @@ This creates avoidable heap and GC pressure in a realistic long-lived connection
 
 **Recommendation:** Truncate captured log strings before buffering and add simple process-wide counters for buffered spans and logs. Drop new buffered telemetry after the global budget is reached while preserving each request's SERVER span and metrics.
 
-**Verdict:** Need to investigate. How does the Python SDK handle this case?
+**Verdict:** Accepted in part for JavaScript. Log body strings and direct string attributes are now truncated before buffering, avoiding retention of oversized messages. Process-wide counters were rejected; the existing per-request limits remain, and the Python SDK is unchanged pending separate work.
 
 ### 14. Short malformed write tokens can be logged in full
 

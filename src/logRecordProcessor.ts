@@ -2,6 +2,7 @@ import { type Context, trace } from "@opentelemetry/api";
 import type { InstrumentationScope } from "@opentelemetry/core";
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import { logDebug, logWarning } from "./logger.js";
+import { truncateLogStringValue } from "./logRecordTruncation.js";
 import type { SpanPipeline } from "./spanProcessor.js";
 
 const MAX_BUFFERED_LOG_RECORDS = 1_000;
@@ -58,12 +59,15 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
         return;
       }
       const buffer = this.buffered.get(serverSpanId);
-      if (!buffer) {
-        this.buffered.set(serverSpanId, [logRecord]);
-      } else if (buffer.length < MAX_BUFFERED_LOG_RECORDS) {
+      if (buffer && buffer.length >= MAX_BUFFERED_LOG_RECORDS) {
+        logDebug("Apitally log buffer cap reached, dropping the log record");
+        return;
+      }
+      truncateBufferedLogRecordStrings(logRecord);
+      if (buffer) {
         buffer.push(logRecord);
       } else {
-        logDebug("Apitally log buffer cap reached, dropping the log record");
+        this.buffered.set(serverSpanId, [logRecord]);
       }
     } catch (error) {
       logWarning(`Error in the Apitally log record processor: ${String(error)}`);
@@ -89,6 +93,22 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
     }
     for (const logRecord of buffer) {
       this.downstream.onEmit(logRecord);
+    }
+  }
+}
+
+function truncateBufferedLogRecordStrings(logRecord: SdkLogRecord): void {
+  const body = logRecord.body;
+  if (typeof body === "string") {
+    const truncatedBody = truncateLogStringValue(body);
+    if (truncatedBody !== body) {
+      logRecord.setBody(truncatedBody);
+    }
+  }
+  for (const [key, value] of Object.entries(logRecord.attributes)) {
+    const truncatedValue = truncateLogStringValue(value);
+    if (truncatedValue !== value) {
+      logRecord.setAttribute(key, truncatedValue);
     }
   }
 }
