@@ -174,7 +174,7 @@ This creates avoidable heap and GC pressure in a realistic long-lived connection
 
 **Recommendation:** Truncate captured log strings before buffering and add simple process-wide counters for buffered spans and logs. Drop new buffered telemetry after the global budget is reached while preserving each request's SERVER span and metrics.
 
-**Verdict:** Accepted in part for JavaScript. Log body strings and direct string attributes are now truncated before buffering, avoiding retention of oversized messages. Process-wide counters were rejected; the existing per-request limits remain, and the Python SDK is unchanged pending separate work.
+**Verdict:** Accepted in part in both SDKs. Log body strings and direct string attributes are now truncated before buffering, avoiding retention of oversized messages. Process-wide counters were rejected, and the existing per-request limits remain.
 
 ### 14. Short malformed write tokens can be logged in full
 
@@ -206,6 +206,8 @@ Also, a later `setConsumer("account-b")` updates the identifier but leaves a pre
 
 **Recommendation:** Preserve the required order but handle each teardown stage independently so every stage is attempted. Always stop the worker in `finally`, shut down the meter provider, disable Undici instrumentation, uninstall log capture, and clear the active pipeline as part of terminal teardown.
 
+**Verdict:** Rejected. The span, log, and export pipelines are SDK-owned and handle their operational failures internally; their shutdown methods have no realistic rejection path. The on-demand meter reader starts no timer, and cleanup for continued operation after terminal `shutdown()` is outside the supported lifecycle.
+
 ### 17. Alpha releases publish under the wrong npm dist-tag
 
 **Evidence:** `.github/workflows/publish.yaml:33-38`, `v1/design-js.md:9`
@@ -213,6 +215,8 @@ Also, a later `setConsumer("account-b")` updates the identifier but leaves a pre
 The release workflow derives the npm tag from the prerelease identifier, so `1.0.0-alpha.0` publishes under `alpha`. The release design requires every prerelease to use `next` until v1 is stable.
 
 **Recommendation:** Publish all prerelease versions with `npm publish --tag next`; publish stable versions without an explicit tag.
+
+**Verdict:** Accepted and fixed. Every prerelease now publishes to the single rolling `next` channel, while stable releases continue to publish to `latest`.
 
 ### 18. Claimed Bun support is not exercised in CI
 

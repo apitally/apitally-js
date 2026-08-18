@@ -31,9 +31,8 @@ jobs:
       - name: Publish to npm
         run: |
           version="$(node --print "require('./package.json').version")"
-          prerelease="${version#*-}"
-          if [[ "$prerelease" = "$version" ]]; then
-            npm publish
+          if [[ "$version" = *-* ]]; then
+            npm publish --tag next
           else
-            npm publish --tag "${prerelease%%.*}"
+            npm publish
           fi
