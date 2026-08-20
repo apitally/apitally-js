@@ -131,8 +131,10 @@ export function startRequestObservation(
           warnAboutUnattachedSpanProcessor();
         }
       }
-      requestContext = trace.setSpan(requestContext, ownSpan);
     }
+    // A non-recording span still carries a valid span context, so user child
+    // spans parent to it and parent-based samplers drop them consistently.
+    requestContext = trace.setSpan(requestContext, ownSpan);
   }
 
   // Middleware-based span producers inspect OTel RPC metadata to demote duplicate
