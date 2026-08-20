@@ -3,7 +3,7 @@ import { type Context, context } from "@opentelemetry/api";
 import type { Express, NextFunction, Request, Response } from "express";
 import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
-import { captureException } from "../exceptions.js";
+import { captureException, resolveErrorStatus } from "../exceptions.js";
 import { logWarning } from "../logger.js";
 import { finalizeRequestObservation } from "../requestObservation.js";
 import {
@@ -42,7 +42,10 @@ export function wrapAppHandle(app: Express): void {
     // Appended on the first request so it sits below every handler the app
     // registered at setup; it records the exception and always passes it on.
     app.use((error: unknown, _req: Request, _res: Response, next: NextFunction) => {
-      captureException(error);
+      const errorStatus = resolveErrorStatus(error);
+      if (errorStatus === undefined || errorStatus >= 500) {
+        captureException(error);
+      }
       next(error);
     });
   };

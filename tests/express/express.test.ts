@@ -207,6 +207,21 @@ describe("express integration", () => {
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
   });
 
+  it("exports a body-parser 400 response without an exception event on the SERVER span", async () => {
+    prepareFirstRequestActivation();
+    await request(server)
+      .post("/items")
+      .set("content-type", "application/json")
+      .send("{ not json")
+      .expect(400);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("POST /items");
+    expect(spans[0].attributes["http.response.status_code"]).toBe(400);
+    expect(spans[0].events).toEqual([]);
+  });
+
   it("adopts an instrumented SERVER span and preserves request context through asynchronous body middleware", async () => {
     const handles = configureAndActivate({ captureResponseBody: true });
     const adoptedApp = buildAppFixture({ captureResponseBody: true });

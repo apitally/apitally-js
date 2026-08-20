@@ -4,7 +4,7 @@ import type Koa = require("koa");
 
 import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
-import { captureException } from "../exceptions.js";
+import { captureException, resolveErrorStatus } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import { finalizeRequestObservation } from "../requestObservation.js";
 import {
@@ -50,17 +50,8 @@ export function installKoaMiddleware(app: Koa): void {
     try {
       await context.with(started.requestContext, next);
     } catch (error) {
-      const candidate =
-        typeof error === "object" && error !== null
-          ? (error as { status?: unknown; statusCode?: unknown })
-          : undefined;
-      const statusCode =
-        typeof candidate?.status === "number"
-          ? candidate.status
-          : typeof candidate?.statusCode === "number"
-            ? candidate.statusCode
-            : undefined;
-      if (statusCode === undefined || statusCode >= 500) {
+      const errorStatus = resolveErrorStatus(error);
+      if (errorStatus === undefined || errorStatus >= 500) {
         context.with(started.requestContext, () => captureException(error));
       }
       throw error;

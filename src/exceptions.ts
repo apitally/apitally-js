@@ -14,6 +14,17 @@ export function captureException(error: unknown): void {
   }
 }
 
+export function resolveErrorStatus(error: unknown): number | undefined {
+  const { status, statusCode } = (error ?? {}) as { status?: unknown; statusCode?: unknown };
+  if (typeof status === "number") {
+    return status;
+  }
+  if (typeof statusCode === "number") {
+    return statusCode;
+  }
+  return undefined;
+}
+
 export function coerceToException(error: unknown): Exception {
   if (typeof error === "string") {
     return error;
