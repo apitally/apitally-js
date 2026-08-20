@@ -459,7 +459,7 @@ describe("hono integration", () => {
     expect(spans[0].events[0].attributes?.["exception.message"]).toBe("bad");
   });
 
-  it("warns once about routes registered before useApitally and exports their requests with a cleared route skipped by the request metrics", async () => {
+  it("warns once and does not install when useApitally follows route registration", async () => {
     const lines = captureStderr();
     prepareFirstRequestActivation();
     const lateApp = new Hono();
@@ -472,15 +472,8 @@ describe("hono integration", () => {
     expect(response.status).toBe(200);
     await readResponseAndSettleTransport(response);
 
-    const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("GET");
-    expect(spans[0].attributes["http.route"]).toBe("");
-    expect(await readActivationDurationDataPoints()).toEqual([]);
-    const orderingWarnings = lines.filter((line) =>
-      line.includes("immediately after creating the app"),
-    );
-    expect(orderingWarnings).toHaveLength(1);
+    expect(isActivated()).toBe(false);
+    expect(lines.filter((line) => line.includes("was not installed"))).toHaveLength(1);
   });
 
   it("captures a request body read via c.req.json() byte-identical to the wire and skips bodies consumed via parseBody", async () => {

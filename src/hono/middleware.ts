@@ -40,16 +40,13 @@ export function wrapAppFetch(app: Hono): void {
   if (markedApp[FETCH_WRAP_MARKER] === true) {
     return;
   }
-  markedApp[FETCH_WRAP_MARKER] = true;
-  try {
-    if (Array.isArray(app.routes) && app.routes.length > 0) {
-      logWarning(
-        "useApitally() was called after routes or middleware were registered on the Hono app, so requests handled by those earlier registrations are exported without a route template and are not counted in the request metrics. To resolve this, call useApitally() immediately after creating the app, before registering middleware and routes.",
-      );
-    }
-  } catch (error) {
-    logDebug(`Error inspecting the hono app's routes: ${String(error)}`);
+  if (hasRegisteredRoutes(app)) {
+    logWarning(
+      "useApitally() was called after routes were registered on the Hono app, so Apitally was not installed. To resolve this, call useApitally() immediately after creating the app, before registering routes.",
+    );
+    return;
   }
+  markedApp[FETCH_WRAP_MARKER] = true;
   app.use(recordMatchedRouteAfterNext);
   const originalFetch = app.fetch as FetchFunction;
   let errorHandlerWrapPending = true;
@@ -94,6 +91,22 @@ export function wrapAppFetch(app: Hono): void {
     );
   };
   (app as { fetch: FetchFunction }).fetch = wrappedFetch;
+}
+
+// Middleware entries register as method "ALL" and lose nothing when they
+// precede the wrap; only concrete-method entries need the route middleware
+// that is registered after them.
+function hasRegisteredRoutes(app: Hono): boolean {
+  try {
+    const routes = app.routes;
+    return (
+      Array.isArray(routes) &&
+      routes.some((route) => typeof route.method === "string" && route.method !== "ALL")
+    );
+  } catch (error) {
+    logDebug(`Error inspecting the hono app's routes: ${String(error)}`);
+    return false;
+  }
 }
 
 // Registered before later routes, this middleware records the resolved route

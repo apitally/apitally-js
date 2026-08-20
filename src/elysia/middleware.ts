@@ -182,6 +182,13 @@ function observeResponse(
   }
   observations.delete(request);
   const statusCode = response.status;
+  // A non-404 response without a recorded route matched a route registered
+  // before the plugin was applied; the plugin cannot detect this at setup.
+  if (observation.route === undefined && statusCode !== 404) {
+    logWarning(
+      "A request matched a route registered before the Apitally plugin was applied, so it is exported without a route template and is not counted in the request metrics. To resolve this, apply the Apitally plugin immediately after creating the app, before registering routes.",
+    );
+  }
   let responseHeaders = response.headers;
   try {
     responseHeaders = new Headers(response.headers);

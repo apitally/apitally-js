@@ -302,6 +302,26 @@ describe("elysia integration", () => {
     expect(dataPoints[0].attributes["http.route"]).toBe("/items/:id");
   });
 
+  it("warns once at request time when the plugin follows route registration and exports those requests with a cleared route", async () => {
+    const lines = captureStderr();
+    prepareFirstRequestActivation();
+    const lateApp = new Elysia()
+      .get("/early/:id", ({ params }) => ({ id: params.id }))
+      .use(apitallyPlugin({ writeToken: WRITE_TOKEN }));
+    const response = await request(lateApp, "/early/1");
+    expect(response.status).toBe(200);
+    await readResponseAndSettleTransport(response);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET");
+    expect(spans[0].attributes["http.route"]).toBe("");
+    expect(await readActivationDurationDataPoints()).toEqual([]);
+    expect(
+      lines.filter((line) => line.includes("before the Apitally plugin was applied")),
+    ).toHaveLength(1);
+  });
+
   it("warns once and leaves existing routes unchanged when direct setup follows route registration", async () => {
     const lines = captureStderr();
     prepareFirstRequestActivation();
