@@ -102,6 +102,8 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 
 **Recommendation:** Add a minimal built-artifact test that loads the built `dist/express/register.cjs` and `.js` entries and asserts peer resolution succeeds (run after `npm run build`, e.g. as a separate CI step), or correct `v1/design-js.md` §16 to drop the claim.
 
+**Verdict:** Rejected; the design document was corrected instead. Peer discovery through the built entries is now explicitly stated as not covered by tests.
+
 ## Documentation drift (no consumer impact)
 
 - `v1/design-js.md:166,207` specifies the Sentry hook as `beforeSendEvent`; the implementation deliberately subscribes `preprocessEvent` (`src/sentry.ts:15-28`) because it fires synchronously inside `captureException` while the request context is still active, and this is pinned by a test. The behavior is correct on every supported Sentry major; the design document should be updated to name `preprocessEvent` and record the rationale.
