@@ -45,11 +45,11 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | --- | --- | --- |
 | [**AdonisJS**](https://github.com/adonisjs/core) | `>= 6.3`, `< 8` | [Link](https://docs.apitally.io/setup-guides/adonisjs) |
 | [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/setup-guides/elysia) |
-| [**Express**](https://github.com/expressjs/express) | `4.x`, `5.x` | [Link](https://docs.apitally.io/setup-guides/express) |
+| [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
 | [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/setup-guides/h3) |
 | [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/setup-guides/hapi) |
-| [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4` | [Link](https://docs.apitally.io/setup-guides/hono) |
+| [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/setup-guides/hono) |
 | [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/setup-guides/koa) |
 | [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x` | [Link](https://docs.apitally.io/setup-guides/nestjs) |
 

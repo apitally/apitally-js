@@ -82,6 +82,8 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 
 **Recommendation:** Change the Express row to `>= 4.18.2`, `< 6` to match the peer range. The Hono row (`>= 4.8.4` without the `< 5` upper bound) has the same, smaller drift.
 
+**Verdict:** Accepted and fixed. Both rows now state the peer ranges from `package.json`.
+
 ### 7. The root detection failure message omits the promised subpath guidance
 
 **Evidence:** `src/index.ts:46` vs `v1/design-js.md:153`, which requires the detection failure to throw "an error naming the framework subpath entry points, including `apitally/nestjs` because Nest applications deliberately remain outside root auto-detection."
