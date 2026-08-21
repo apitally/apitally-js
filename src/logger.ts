@@ -14,6 +14,12 @@ export function logWarning(message: string): void {
   writeToStderr("WARNING", message);
 }
 
+// Allows a recurring-condition warning to fire again after the condition
+// recovered (e.g. spool writes succeeding again after a failure).
+export function resetWarning(message: string): void {
+  emittedWarnings.delete(message);
+}
+
 export function logError(message: string): void {
   writeToStderr("ERROR", message);
 }

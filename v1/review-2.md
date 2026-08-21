@@ -26,6 +26,8 @@ The lazily appended Express error middleware calls `captureException(error)` unc
 
 **Recommendation:** Apply Koa's rule in the Express error middleware: read a numeric `status` or `statusCode` off the error and skip `captureException` when it is below 500. Errors without a status still capture, since Express's default handler responds 500 for those. Add one integration test pinning that a body-parser 400 produces no exception event.
 
+**Verdict:** Accepted and fixed. The error middleware suppresses errors whose resolved `status`/`statusCode` is below 500; the status extraction lives in a shared `resolveErrorStatus` helper used by Express and Koa. A test pins that a body-parser 400 exports without an exception event.
+
 ### 2. A non-recording SDK-created SERVER span is never placed in the request context, orphaning user child spans
 
 **Evidence:** `src/requestObservation.ts:120-137` - `requestContext = trace.setSpan(requestContext, ownSpan)` runs only in the recording branch.
@@ -35,6 +37,8 @@ When the SDK creates the SERVER span on a user-owned provider and the user's sam
 **Scenario:** The documented existing-OpenTelemetry setup (user provider plus `ApitallySpanProcessor`) with `ParentBased(TraceIdRatioBased(0.1))`, using a framework without contrib HTTP server instrumentation (Hono, H3, Elysia), so the SDK creates the SERVER span on the user's provider. For the 90% of requests whose SERVER span is dropped, the user's own DB/HTTP instrumentations create spans with no parent: they become new roots, are independently sampled at 10%, and fill the user's tracing backend with orphan child spans. Apitally-side behavior is unaffected either way.
 
 **Recommendation:** Hoist `requestContext = trace.setSpan(requestContext, ownSpan)` out of the conditional so the own span is always placed in the request context. Keep `spanHandle.span` and `spanHandle.ownSpan` assignment recording-gated as today. One-line move; no Apitally behavior changes.
+
+**Verdict:** Accepted and fixed. The own span now enters the dispatch context even when it is non-recording; span handle assignment stays recording-gated, so Apitally-side behavior is unchanged.
 
 ## Low severity
 
@@ -48,6 +52,8 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 
 **Recommendation:** Warn and install anyway (degraded), matching Hono, and add the same warning to the `apitallyPlugin()` path when the host app already has routes. If fail-closed is a deliberate product choice, apply it consistently; today the inconsistency cannot be intentional since the plugin path silently permits what `useApitally` forbids.
 
+**Verdict:** Accepted in the fail-closed direction, reversing the recommendation. When Apitally cannot work properly it installs nothing and says so loudly: Hono's `useApitally` now warns and refuses when concrete-method route handlers precede it (middleware-only `ALL` entries install silently because nothing is lost), and Elysia's `useApitally` keeps its existing refusal. The Elysia plugin path cannot detect the misordering at apply time (a plugin receives no host reference, and the function form of `use()` destroys pre-existing routes - verified), so it warns once at request time when a non-404 response carries no recorded route. This reverses the documented round-1 Hono decision (warn and export with a cleared route); the design document now states the closed contract.
+
 ### 4. `configure()` mutates `OTEL_SEMCONV_STABILITY_OPT_IN` even when the SDK is disabled
 
 **Evidence:** `src/activation.ts:81-90` - the process-global environment variable is set unconditionally; the disabled checks (the `APITALLY_DISABLED` kill switch, `OTEL_SDK_DISABLED`, the `disabled` option, a missing or invalid write token) only gate `activate()` at `src/activation.ts:214-225`.
@@ -56,6 +62,8 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 
 **Recommendation:** Guard the assignment with the resolved config: set the variable only when `!config.disabled`. `setConfig` already folds the kill-switch environment variables into `config.disabled`, so this covers the common case where the variable is set before `useApitally()` runs.
 
+**Verdict:** Accepted and fixed. A disabled SDK no longer mutates the process environment.
+
 ### 5. Spool write-failure warnings never re-fire after writes recover
 
 **Evidence:** `src/logger.ts:1-13` (permanent process-wide warning deduplication), used by `src/spool.ts:57-62` and `src/spool.ts:124-125`. `v1/design.md:235` specifies the warning as "deduplicated until writes recover"; the implementation never clears the deduplication on recovery.
@@ -63,6 +71,8 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 **Scenario:** A deployment hits disk pressure; the SDK warns once and drops buffered telemetry. Ops clears the disk and writes recover. When the disk fills again months later during an incident, every warning is silently suppressed, so telemetry is dropped with zero diagnostics exactly when the operator needs the signal.
 
 **Recommendation:** After a successful write or close for a signal, remove that warning's key from the deduplication set (a small `resetWarning(message)` export on `logger.js`, called from the success paths in `Spool.append` and `closeCurrentFile`). Alternatively, if permanent deduplication is the intended behavior, amend `v1/design.md` §10.
+
+**Verdict:** Accepted and fixed. The spool write-failure warning became a single constant message, re-armed by a successful write through a new `resetWarning` logger function, so a new disk-failure episode warns again. The message no longer names the signal.
 
 ### 6. The README overclaims supported Express versions
 

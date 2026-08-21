@@ -13,7 +13,9 @@ import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGzip, type Gzip } from "node:zlib";
-import { logWarning } from "./logger.js";
+import { logWarning, resetWarning } from "./logger.js";
+
+const WRITE_FAILURE_WARNING = "Error writing to disk, dropping buffered telemetry";
 
 const SIGNALS = ["traces", "logs", "metrics"] as const;
 export type Signal = (typeof SIGNALS)[number];
@@ -65,8 +67,10 @@ export class Spool {
           this.current.set(signal, file);
         }
         await file.write(payload);
+        // Writes recovered; the write-failure warning may fire again later.
+        resetWarning(WRITE_FAILURE_WARNING);
       } catch {
-        logWarning(`Error writing telemetry to disk, dropping buffered ${signal}`);
+        logWarning(WRITE_FAILURE_WARNING);
         await this.discardCurrentFile(signal);
       }
       await this.evict();
@@ -144,7 +148,7 @@ export class Spool {
       await file.close();
       this.closed.push(file);
     } catch {
-      logWarning(`Error writing telemetry to disk, dropping buffered ${signal}`);
+      logWarning(WRITE_FAILURE_WARNING);
       await file.delete();
     }
   }

@@ -192,7 +192,7 @@ describe("spool", () => {
       failedFile.gzip.destroy(new Error("disk full"));
       await spool.append("traces", Buffer.from("second"));
       expect(lines).toHaveLength(1);
-      expect(lines[0]).toContain("traces");
+      expect(lines[0]).toContain("dropping buffered telemetry");
       expect(spool.current.get("traces")).toBeUndefined();
       if (failedFile.path) {
         expect(existsSync(failedFile.path)).toBe(false);
@@ -211,7 +211,7 @@ describe("spool", () => {
     await spool.append("traces", Buffer.from("first"));
     await spool.append("traces", Buffer.from("second"));
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("traces");
+    expect(lines[0]).toContain("dropping buffered telemetry");
     expect(spool.pendingFiles()).toEqual([]);
     chmodSync(tempDir, 0o700);
     await spool.append("traces", Buffer.from("third"));
