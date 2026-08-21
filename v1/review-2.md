@@ -106,9 +106,11 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 
 ## Documentation drift (no consumer impact)
 
-- `v1/design-js.md:166,207` specifies the Sentry hook as `beforeSendEvent`; the implementation deliberately subscribes `preprocessEvent` (`src/sentry.ts:15-28`) because it fires synchronously inside `captureException` while the request context is still active, and this is pinned by a test. The behavior is correct on every supported Sentry major; the design document should be updated to name `preprocessEvent` and record the rationale.
-- `AGENTS.md` describes the shared test tier as `tests/shared/<module>.test.ts`, but the shared test modules live directly under `tests/`. The same file describes `npm run check` as Biome plus tsc; the script also runs knip. Update the document, or move the tests.
-- `src/exportSerialization.ts` has no mirror test module (the conventions ask for one per source module); its behavior is currently exercised only through the exporter tests.
+All three items are resolved as documentation corrections:
+
+- `v1/design-js.md` §14 and the open-questions record now name the Sentry hook the implementation uses, `preprocessEvent`, with its rationale (synchronous firing preserves the request context).
+- `AGENTS.md` now describes the shared test tier as `tests/<module>.test.ts`, matching the actual layout.
+- `src/exportSerialization.ts` has no mirror test module; its behavior is asserted where it is observable (exporter tests with protobuf-decoded payloads), and a mirror module would duplicate those assertions in a second home against the coverage-ownership rule. Left as is.
 
 ## Findings considered and rejected
 
