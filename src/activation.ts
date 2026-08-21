@@ -82,7 +82,7 @@ export function configure(options: ApitallyOptions = {}): ApitallyConfig {
   const config = setConfig(options);
   // User instrumentations read this at initialization. `http/dup` adds stable
   // HTTP attributes alongside legacy ones; a user-set value takes precedence.
-  if (process.env.OTEL_SEMCONV_STABILITY_OPT_IN === undefined) {
+  if (!config.disabled && process.env.OTEL_SEMCONV_STABILITY_OPT_IN === undefined) {
     process.env.OTEL_SEMCONV_STABILITY_OPT_IN = "http/dup";
   }
   setServerSpanActivationCallback(activate);
