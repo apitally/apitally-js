@@ -92,6 +92,8 @@ For routes registered before `.use(plugin)`, the dispatcher `wrap()` still appli
 
 **Recommendation:** Extend the `TypeError` message to list the per-framework subpath entry points and note that NestJS applications require `apitally/nestjs`.
 
+**Verdict:** Rejected. The implementation's plain error message stands; the design document no longer promises subpath guidance in the detection failure.
+
 ### 8. The design-claimed built-artifact peer-discovery tests do not exist
 
 **Evidence:** `v1/design-js.md:179` states that the tsup `shims: true` CJS `createRequire(import.meta.url)` anchor is validated because "built-artifact tests prove peer discovery through both the ESM and CJS entries." No such test exists: every test imports `src/` (ESM, pre-build), and `attw --pack` only statically analyzes the packed artifact's types and conditions - it never executes the built files.
