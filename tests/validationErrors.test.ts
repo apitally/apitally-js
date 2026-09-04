@@ -51,8 +51,22 @@ describe("validationErrors", () => {
         error: { name: "ZodError", message: JSON.stringify(issues) },
       }),
     ).toEqual(expected);
-    expect(formatIssues([{ path: "/name", message: "Expected string" }], "body")).toEqual([
+    expect(
+      formatIssues(
+        [
+          { path: "/name", message: "Expected string" },
+          { path: "/metadata/example.com~1owner/display~0name", message: "Expected string" },
+        ],
+        "body",
+      ),
+    ).toEqual([
       { source: "body", field: "name", message: "Expected string", type: "" },
+      {
+        source: "body",
+        field: "metadata.example.com/owner.display~name",
+        message: "Expected string",
+        type: "",
+      },
     ]);
   });
 

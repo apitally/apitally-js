@@ -123,7 +123,10 @@ export function formatIssues(issues: unknown, source = ""): ValidationErrorDetai
     const path = Array.isArray(issue.path)
       ? issue.path
       : typeof issue.path === "string"
-        ? issue.path.split("/").filter(Boolean)
+        ? issue.path
+            .split("/")
+            .filter(Boolean)
+            .map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"))
         : [];
     details.push({
       source,
