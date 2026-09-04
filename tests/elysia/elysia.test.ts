@@ -164,7 +164,7 @@ describe("elysia integration", () => {
     const validationResponse = await request(app, "/validate", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: "{}",
+      body: '{"name":1}',
     });
     expect(validationResponse.status).toBe(422);
     await readResponseAndSettleTransport(validationResponse);
