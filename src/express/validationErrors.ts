@@ -26,13 +26,17 @@ export function extractExpressValidationErrors(body: unknown): ValidationErrorDe
 function extractExpressValidatorErrors(errors: unknown[]): ValidationErrorDetail[] {
   const details: ValidationErrorDetail[] = [];
   for (const error of errors) {
-    if (isRecord(error) && typeof error.path === "string" && typeof error.msg === "string") {
-      details.push({
-        source: normalizeSource(error.location),
-        field: error.path,
-        message: error.msg,
-        type: "",
-      });
+    if (
+      !isRecord(error) ||
+      error.type !== "field" ||
+      typeof error.path !== "string" ||
+      typeof error.msg !== "string"
+    ) {
+      continue;
+    }
+    const source = normalizeSource(error.location);
+    if (source) {
+      details.push({ source, field: error.path, message: error.msg, type: "" });
     }
   }
   return details;
