@@ -77,10 +77,10 @@ describe("adonisjs configure", () => {
       expect(envExample).toContain("APITALLY_ENV=prod-us");
       expect(count(envSchema, "APITALLY_WRITE_TOKEN: Env.schema.string()")).toBe(1);
       expect(count(envSchema, "APITALLY_ENV: Env.schema.string()")).toBe(1);
-      expect(handler).toMatch(/import \{ captureException \} from ["']apitally["']/);
-      expect(count(handler, "captureException(error)")).toBe(1);
+      expect(handler).toMatch(/import \{ captureException \} from ["']apitally\/adonisjs["']/);
+      expect(count(handler, "captureException(error, ctx)")).toBe(1);
       expect(handler.indexOf("await super.handle(error, ctx)")).toBeLessThan(
-        handler.indexOf("captureException(error)"),
+        handler.indexOf("captureException(error, ctx)"),
       );
     } finally {
       await rm(projectRoot, { recursive: true, force: true });

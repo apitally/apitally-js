@@ -204,7 +204,6 @@ describe("adonisjs integration", () => {
     await withApp(options, async (baseUrl) => {
       const { response: validationResponse } = await send(baseUrl, "/validate", {
         method: "POST",
-        headers: { accept: "application/json" },
       });
       expect(validationResponse.status).toBe(422);
       const { response: errorResponse } = await send(baseUrl, "/error");
