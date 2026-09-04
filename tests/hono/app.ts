@@ -18,6 +18,13 @@ export function buildAppFixture(options: ApitallyOptions = {}): Hono {
   app.get("/error", () => {
     throw new Error("boom");
   });
+  app.post("/validate", (c) => {
+    const issues = [{ code: "invalid_type", path: ["name"], message: "Required" }];
+    return c.json(
+      { success: false, error: { name: "ZodError", message: JSON.stringify(issues) } },
+      400,
+    );
+  });
   app.get("/consumer", (c) => {
     setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
     return c.json({ ok: true });

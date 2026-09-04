@@ -5,6 +5,8 @@ import { compress } from "hono/compress";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/hono/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   configureAndActivate,
@@ -171,6 +173,39 @@ describe("hono integration", () => {
     expect(eventAttributes["exception.type"]).toBe("Error");
     expect(eventAttributes["exception.message"]).toBe("boom");
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
+  });
+
+  it("counts validation and server errors independently of trace sampling", async () => {
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    const validationResponse = await app.request("/validate", { method: "POST" });
+    expect(validationResponse.status).toBe(400);
+    await readResponseAndSettleTransport(validationResponse);
+    const errorResponse = await app.request("/error");
+    expect(errorResponse.status).toBe(500);
+    await readResponseAndSettleTransport(errorResponse);
+
+    expect(await readActivationSpans()).toEqual([]);
+    expect(drainValidationErrors()).toEqual([
+      {
+        method: "POST",
+        path: "/validate",
+        source: "",
+        field: "name",
+        message: "Required",
+        type: "invalid_type",
+        count: 1,
+      },
+    ]);
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "boom",
+        stacktrace: expect.stringContaining("Error: boom"),
+        count: 1,
+      },
+    ]);
   });
 
   it("does not record an exception event when onError returns a 4xx response", async () => {

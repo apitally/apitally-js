@@ -6,6 +6,8 @@ import { SpanKind } from "@opentelemetry/api";
 import { describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/nestjs/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
@@ -73,6 +75,47 @@ describe("NestJS integration", () => {
           { method: "GET", path: "/items/:id" },
           { method: "GET", path: "/bad-request" },
           { method: "GET", path: "/error" },
+          { method: "GET", path: "/validate" },
+        ]);
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  it.each(platforms)(
+    "counts validation and server errors independently of trace sampling through the $name HTTP adapter",
+    async ({ createAdapter }) => {
+      prepareFirstRequestActivation({ sampleRate: 0 });
+      const app = await NestFactory.create(AppModule, createAdapter(), { logger: false });
+      try {
+        useApitally(app, { writeToken: WRITE_TOKEN });
+        await app.listen(0, "127.0.0.1");
+        const baseUrl = await app.getUrl();
+        await send(baseUrl, "/validate", 400);
+        await send(baseUrl, "/error", 500);
+
+        expect(await readActivationSpans()).toEqual([]);
+        expect(drainValidationErrors()).toEqual([
+          {
+            method: "GET",
+            path: "/validate",
+            source: "",
+            field: "",
+            message: "name must be a string",
+            type: "",
+            count: 1,
+          },
+        ]);
+        expect(drainServerErrors()).toEqual([
+          {
+            method: "GET",
+            path: "/error",
+            type: "Error",
+            message: "boom",
+            stacktrace: expect.stringContaining("Error: boom"),
+            count: 1,
+          },
         ]);
       } finally {
         await app.close();

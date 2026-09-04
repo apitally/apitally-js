@@ -12,11 +12,13 @@ import {
 import { coerceToException } from "./exceptions.js";
 import { logWarning } from "./logger.js";
 import { writeRequestAttribute } from "./requestAttributes.js";
+import { addServerError } from "./serverErrors.js";
 import {
   getActiveSpanPipeline,
   isApitallySpanProcessorDeclared,
   type RequestStash,
 } from "./spanProcessor.js";
+import { addValidationErrors, isValidationResponseStatus } from "./validationErrors.js";
 
 interface StartRequestObservationOptions {
   activeContext: Context;
@@ -204,6 +206,23 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
   if (ownSpan && statusCode >= 500) {
     ownSpan.setStatus({ code: SpanStatusCode.ERROR });
   }
+  // Validation and server errors are counted for every routed request,
+  // including requests dropped from tracing.
+  const consumer = requestRecord.attributes["apitally.consumer.identifier"];
+  const consumerIdentifier = typeof consumer === "string" ? consumer : undefined;
+  if (requestRecord.validationErrors && isValidationResponseStatus(statusCode)) {
+    addValidationErrors(consumerIdentifier, method, route ?? "", requestRecord.validationErrors);
+  }
+  if (statusCode === 500 && requestRecord.exception !== undefined) {
+    const sentryEventId = requestRecord.attributes["apitally.exception.sentry_event_id"];
+    addServerError(
+      consumerIdentifier,
+      method,
+      route ?? "",
+      requestRecord.exception,
+      typeof sentryEventId === "string" ? sentryEventId : undefined,
+    );
+  }
   // A dropped request's spans are never released, so a stash entry for it
   // would sit unconsumed until the cap evicts it.
   if (requestRecord.serverSpanId !== undefined && requestRecord.dropReason === undefined) {
@@ -220,7 +239,7 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
       stash.requestBody = requestBody;
     }
     const responseBody = options.capturedResponseBody?.body;
-    if (responseBody) {
+    if (responseBody && config.captureResponseBody) {
       stash.responseBody = responseBody;
     }
     if (Object.keys(stash).length > 0) {

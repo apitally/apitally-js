@@ -1,4 +1,4 @@
-import { type AnyElysia, Elysia } from "elysia";
+import { type AnyElysia, Elysia, t } from "elysia";
 import type { ApitallyOptions } from "../../src/config.js";
 import { apitallyPlugin } from "../../src/elysia/index.js";
 import { setConsumer } from "../../src/index.js";
@@ -23,6 +23,7 @@ export function buildAppFixture(options: ApitallyOptions = {}): AnyElysia {
     .get("/error", () => {
       throw new Error("boom");
     })
+    .post("/validate", () => ({ ok: true }), { body: t.Object({ name: t.String() }) })
     .get("/consumer", () => {
       setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
       return { ok: true };

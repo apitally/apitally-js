@@ -210,7 +210,7 @@ Frameworks that convert unhandled exceptions into responses before the instrumen
 
 ### Validation and server error capture
 
-Each transport request carries error state that is independent of the SERVER span and exists even when the request is excluded or sampled out. It stores the last captured exception, normalized validation details, and the latest Sentry event ID. Automatic framework exception hooks update both this request state and the recording SERVER span when one is available. The public `capture_exception` helper records an exception event on a recording SERVER span but does not update request-local error state. Request cancellation exceptions are not retained for server error capture. Trace exception events remain separate request detail and never increment the dedicated error tables.
+Each transport request carries error state that is independent of the SERVER span and exists even when the request is excluded or sampled out. It stores the last captured exception, normalized validation details, and the latest Sentry event ID. Automatic framework exception hooks update both this request state and the recording SERVER span when one is available. The public `capture_exception` helper updates request-local error state and records an exception event on a recording SERVER span, the same as the automatic hooks. Request cancellation exceptions are not retained for server error capture. Trace exception events remain separate request detail and never increment the dedicated error tables.
 
 Framework integrations recognize only known validation structures, generally on status 400 or 422. They normalize each detail directly to `source`, `field`, `message`, and `type`. `source` names the request component; `field` is one opaque human-readable string. A structured validator path is formatted once and the normalized field is never split again inside the SDK. Response-based extraction uses a separate buffer for eligible JSON error responses and does not depend on response-body logging. It retains at most 50,000 bytes, matching the body capture cap, and parses only a complete response. Crossing the cap or observing an aborted response discards the validation buffer without parsing it.
 
@@ -299,7 +299,7 @@ Frameworks that only accept instrumentation at construction time (e.g. Litestar)
 |---|---|
 | `set_consumer(identifier, name?, group?)` | Sets `apitally.consumer.*` on the active SERVER span (caps per spec §6.2, whitespace-stripped). |
 | `set_request_attribute(key, value)` | Arbitrary attribute on the active SERVER span; pairs with `sample_on_response`. |
-| `capture_exception(error)` | Records an exception event on the active SERVER span when available; it does not participate in server error capture. |
+| `capture_exception(error)` | Records an exception event on the active SERVER span when available and retains the exception for server error capture. |
 
 All active-SERVER-span write sites resolve the span through one request-scoped handle set by the span processor at SERVER-span start — for every local-root SERVER span, independent of the keep decision (keep/drop is enforced solely at span end, so writes to a span that will be dropped stay local; and the handle always reflects the *current* request, never a stale one from a reused execution context). Getting the "current span" from OTel directly is wrong under any child span, and OTel has no public upward walk.
 

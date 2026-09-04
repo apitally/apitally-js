@@ -5,10 +5,11 @@ import { ServerFactory } from "@adonisjs/core/factories/http";
 import { ExceptionHandler, type HttpContext } from "@adonisjs/core/http";
 import type { ApplicationService, HttpServerService } from "@adonisjs/core/types";
 
+import { captureException } from "../../src/adonisjs/index.js";
 import ApitallyMiddleware from "../../src/adonisjs/middleware.js";
 import ApitallyProvider from "../../src/adonisjs/provider.js";
 import type { ApitallyOptions } from "../../src/config.js";
-import { captureException, setConsumer } from "../../src/index.js";
+import { setConsumer } from "../../src/index.js";
 import { WRITE_TOKEN } from "../utils.js";
 
 const APP_ROOT = new URL("./tmp/", import.meta.url);
@@ -50,6 +51,14 @@ export async function buildAppFixture(
   router.get("/error", () => {
     throw new Error("boom");
   });
+  // The error shape VineJS throws; the exception handler renders it as `{ errors }`.
+  router.post("/validate", () => {
+    throw Object.assign(new Error("Validation failure"), {
+      code: "E_VALIDATION_ERROR",
+      status: 422,
+      messages: [{ message: "The name field must be defined", rule: "required", field: "name" }],
+    });
+  });
   router.get("/consumer", () => {
     setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
     return { ok: true };
@@ -74,9 +83,7 @@ export async function buildAppFixture(
 class FixtureExceptionHandler extends ExceptionHandler {
   async handle(error: unknown, ctx: HttpContext): Promise<unknown> {
     const result = await super.handle(error, ctx);
-    if (ctx.response.getStatus() >= 500) {
-      captureException(error);
-    }
+    captureException(error, ctx);
     return result;
   }
 }

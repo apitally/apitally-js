@@ -1,14 +1,17 @@
 import type { Exception } from "@opentelemetry/api";
-import { getServerSpan } from "./context.js";
+import { getRequestRecord, getServerSpan } from "./context.js";
 import { logDebug } from "./logger.js";
 
 export function captureException(error: unknown): void {
   try {
-    const span = getServerSpan();
-    if (!span?.isRecording()) {
-      return;
+    const requestRecord = getRequestRecord();
+    if (requestRecord) {
+      requestRecord.exception = error;
     }
-    span.recordException(coerceToException(error));
+    const span = getServerSpan();
+    if (span?.isRecording()) {
+      span.recordException(coerceToException(error));
+    }
   } catch (captureError) {
     logDebug(`Error capturing exception: ${String(captureError)}`);
   }

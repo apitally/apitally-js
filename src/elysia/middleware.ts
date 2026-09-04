@@ -23,6 +23,7 @@ import {
   startWebRequestObservation,
   type WebRequestObservation,
 } from "../requestObservationWeb.js";
+import { formatIssues, normalizeSource } from "../validationErrors.js";
 import { resolveStartupPaths } from "./routes.js";
 
 const INSTALL_MARKER = Symbol.for("apitally.elysiaInstall");
@@ -158,6 +159,10 @@ function buildElysiaPlugin(
         observation.route = route;
       }
       observation.error = error;
+      const { code, all, type } = error as { code?: unknown; all?: unknown; type?: unknown };
+      if (code === "VALIDATION") {
+        observation.requestRecord.validationErrors = formatIssues(all, normalizeSource(type));
+      }
     } catch (hookError) {
       logDebug(`Error recording an Elysia error: ${String(hookError)}`);
     }

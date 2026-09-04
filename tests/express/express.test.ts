@@ -13,6 +13,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/express/index.js";
 import { setConsumer } from "../../src/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   configureAndActivate,
@@ -205,6 +207,35 @@ describe("express integration", () => {
     expect(eventAttributes["exception.type"]).toBe("Error");
     expect(eventAttributes["exception.message"]).toBe("boom");
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
+  });
+
+  it("counts validation and server errors independently of trace sampling", async () => {
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    await request(server).post("/validate").send({}).expect(400);
+    await request(server).get("/error").expect(500);
+
+    expect(await readActivationSpans()).toEqual([]);
+    expect(drainValidationErrors()).toEqual([
+      {
+        method: "POST",
+        path: "/validate",
+        source: "body",
+        field: "name",
+        message: "Invalid value",
+        type: "",
+        count: 1,
+      },
+    ]);
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "boom",
+        stacktrace: expect.stringContaining("Error: boom"),
+        count: 1,
+      },
+    ]);
   });
 
   it("exports a body-parser 400 response without an exception event on the SERVER span", async () => {

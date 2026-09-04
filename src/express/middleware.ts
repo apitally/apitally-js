@@ -13,7 +13,9 @@ import {
   registerServerCloseFlush,
   startNodeRequestObservation,
 } from "../requestObservationNode.js";
+import { isValidationResponseStatus, parseJsonResponseBody } from "../validationErrors.js";
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
+import { extractExpressValidationErrors } from "./validationErrors.js";
 
 const HANDLE_WRAP_MARKER = Symbol.for("apitally.expressHandleWrap");
 const TRACER_NAME = "apitally.express";
@@ -95,9 +97,11 @@ function observeRequest(
     request,
     response,
   };
+  const shouldCaptureBody =
+    getConfig().captureResponseBody && observation.requestRecord.dropReason === undefined;
   captureNodeResponse(
     response,
-    getConfig().captureResponseBody && observation.requestRecord.dropReason === undefined,
+    (statusCode) => shouldCaptureBody || isValidationResponseStatus(statusCode),
     observation.requestBodyCapture,
   )
     .then((completion) => finalizeRequestFromResponse(observation, completion))
@@ -116,6 +120,11 @@ function finalizeRequestFromResponse(
   if (routeResult.matchedUncapturedRegistration) {
     logWarning(
       'Some requests matched routes that Apitally did not capture at registration time. These requests are exported without a route template and are not counted in the request metrics. To resolve this, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
+    );
+  }
+  if (isValidationResponseStatus(response.statusCode)) {
+    observation.requestRecord.validationErrors ??= extractExpressValidationErrors(
+      parseJsonResponseBody(completion.body, response.getHeader("content-encoding")),
     );
   }
   finalizeRequestObservation({

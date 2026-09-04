@@ -22,6 +22,11 @@ export function buildAppFixture(options: ApitallyOptions = {}): Express {
   app.get("/error", () => {
     throw new Error("boom");
   });
+  app.post("/validate", (_req, res) => {
+    res.status(400).json({
+      errors: [{ type: "field", location: "body", path: "name", msg: "Invalid value" }],
+    });
+  });
   app.get("/consumer", (_req, res) => {
     setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
     res.json({ ok: true });

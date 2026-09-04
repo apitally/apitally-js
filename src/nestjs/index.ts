@@ -9,6 +9,7 @@ import type { Express } from "express";
 import type { FastifyInstance } from "fastify";
 import type * as rxjs from "rxjs";
 import type { ApitallyOptions } from "../config.js";
+import { getRequestRecord } from "../context.js";
 import { captureException } from "../exceptions.js";
 import { installExpressIntegration } from "../express/install.js";
 import { installFastifyIntegration } from "../fastify/install.js";
@@ -62,6 +63,16 @@ function createExceptionInterceptor(): NestInterceptor {
           if (status === undefined || status >= 500) {
             captureException(exception);
           }
+          const requestRecord = getRequestRecord();
+          const messages = getExceptionResponseMessages(exception);
+          if (requestRecord && messages) {
+            requestRecord.validationErrors = messages.map((message) => ({
+              source: "",
+              field: "",
+              message,
+              type: "",
+            }));
+          }
           return throwError(() => exception);
         }),
       );
@@ -90,4 +101,18 @@ function getExceptionStatus(exception: unknown): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+// The ValidationPipe throws a BadRequestException whose response carries the
+// class-validator messages as an array of strings.
+function getExceptionResponseMessages(exception: unknown): string[] | undefined {
+  const getResponse = (exception as { getResponse?: unknown } | null)?.getResponse;
+  if (typeof getResponse !== "function") {
+    return undefined;
+  }
+  const response = getResponse.call(exception) as { message?: unknown } | null;
+  const messages = response?.message;
+  return Array.isArray(messages) && messages.every((message) => typeof message === "string")
+    ? messages
+    : undefined;
 }

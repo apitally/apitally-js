@@ -73,10 +73,12 @@ async function updateExceptionHandler(
         if (node.getKindName() !== "CallExpression") {
           return false;
         }
+        const call = node as typeof node & {
+          getArguments: () => unknown[];
+          getExpression: () => { getText: () => string };
+        };
         return (
-          (node as typeof node & { getExpression: () => { getText: () => string } })
-            .getExpression()
-            .getText() === "captureException"
+          call.getExpression().getText() === "captureException" && call.getArguments().length === 2
         );
       });
     if (alreadyConfigured) {
@@ -115,7 +117,7 @@ async function updateExceptionHandler(
       ) {
         const importDeclaration = sourceFile?.getImportDeclaration(
           (candidate: { getModuleSpecifierValue: () => string }) =>
-            candidate.getModuleSpecifierValue() === "apitally",
+            candidate.getModuleSpecifierValue() === "apitally/adonisjs",
         );
         if (importDeclaration) {
           if (
@@ -130,15 +132,13 @@ async function updateExceptionHandler(
           }
         } else {
           sourceFile?.addImportDeclaration({
-            moduleSpecifier: "apitally",
+            moduleSpecifier: "apitally/adonisjs",
             namedImports: ["captureException"],
           });
         }
         method.setBodyText(
           `const result = await super.handle(${errorName}, ${contextName})\n` +
-            `if (${contextName}.response.getStatus() >= 500) {\n` +
-            `  captureException(${errorName})\n` +
-            `}\n` +
+            `captureException(${errorName}, ${contextName})\n` +
             `return result`,
         );
         await sourceFile?.save();
@@ -151,12 +151,10 @@ async function updateExceptionHandler(
     'Could not update "app/exceptions/handler.ts" automatically. Add the following import and method:',
   );
   command.logger.info(
-    'import { captureException } from "apitally"\n\n' +
+    'import { captureException } from "apitally/adonisjs"\n\n' +
       "async handle(error: unknown, ctx: HttpContext) {\n" +
       "  const result = await super.handle(error, ctx)\n" +
-      "  if (ctx.response.getStatus() >= 500) {\n" +
-      "    captureException(error)\n" +
-      "  }\n" +
+      "  captureException(error, ctx)\n" +
       "  return result\n" +
       "}",
   );

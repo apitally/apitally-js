@@ -77,7 +77,7 @@ Run the Ace add command from your application directory:
 node ace add apitally
 ```
 
-The command installs and configures Apitally. It creates `config/apitally.ts`, adds the required environment declarations, registers the service provider and server middleware, and updates the conventional exception handler to report unhandled 5xx errors.
+The command installs and configures Apitally. It creates `config/apitally.ts`, adds the required environment declarations, registers the service provider and server middleware, and updates the conventional exception handler to capture validation and server errors.
 
 If Apitally is already installed, or to rerun setup, use:
 

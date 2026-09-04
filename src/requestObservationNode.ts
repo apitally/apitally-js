@@ -96,10 +96,11 @@ export interface NodeResponseCompletion extends CapturedBody {
 }
 
 // Patching write and end before framework dispatch lets compression wrappers
-// feed their final wire bytes through capture.
+// feed their final wire bytes through capture. A predicate defers the capture
+// decision to the status code, which is known at the first write.
 export function captureNodeResponse(
   response: ServerResponse,
-  shouldCaptureBody: boolean,
+  shouldCaptureBody: boolean | ((statusCode: number) => boolean),
   requestBodyCapture?: BodyCapture,
   resolveResponseHeader: (name: string) => string | number | string[] | undefined = (name) =>
     response.getHeader(name),
@@ -107,7 +108,10 @@ export function captureNodeResponse(
   let responseBodyCapture: BodyCapture | undefined;
   const ensureResponseBodyCapture = (): BodyCapture => {
     responseBodyCapture ??= new BodyCapture({
-      captureBody: shouldCaptureBody,
+      captureBody:
+        typeof shouldCaptureBody === "function"
+          ? shouldCaptureBody(response.statusCode)
+          : shouldCaptureBody,
       contentType: firstStringValue(resolveResponseHeader("content-type")),
       contentLength: resolveResponseHeader("content-length"),
       transferEncoding: resolveResponseHeader("transfer-encoding") as string | string[] | undefined,
