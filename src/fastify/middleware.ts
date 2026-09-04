@@ -112,7 +112,6 @@ export function installFastifyHooks(app: FastifyInstance, startupPaths: RoutePat
   app.addHook("onClose", () => flushTelemetry());
 }
 
-// An AJV instancePath is a JSON pointer, which formatIssues splits into a field path.
 function formatAjvErrors(errors: unknown[], source: string) {
   return formatIssues(
     errors.map((error) => {
@@ -122,8 +121,11 @@ function formatAjvErrors(errors: unknown[], source: string) {
         params?: { missingProperty?: unknown };
         message?: unknown;
       };
+      // AJV returns instancePath as a JSON Pointer but missingProperty as a raw property name.
       const missing =
-        typeof params?.missingProperty === "string" ? `/${params.missingProperty}` : "";
+        typeof params?.missingProperty === "string"
+          ? `/${params.missingProperty.replace(/~/g, "~0").replace(/\//g, "~1")}`
+          : "";
       return { path: `${instancePath ?? ""}${missing}`, message, code: keyword };
     }),
     source,
