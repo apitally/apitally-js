@@ -24,7 +24,14 @@ type ServerErrorGroup = {
   sentry_event_id?: string;
 };
 
-let serverErrorGroups = new Map<string, ServerErrorGroup>();
+const SERVER_ERROR_GROUPS_KEY = Symbol.for("apitally.serverErrorGroups");
+const serverErrorGroupsHolder = globalThis as Record<
+  symbol,
+  Map<string, ServerErrorGroup> | undefined
+>;
+const serverErrorGroups =
+  serverErrorGroupsHolder[SERVER_ERROR_GROUPS_KEY] ?? new Map<string, ServerErrorGroup>();
+serverErrorGroupsHolder[SERVER_ERROR_GROUPS_KEY] = serverErrorGroups;
 
 export function addServerError(
   consumer: string | undefined,
@@ -74,13 +81,13 @@ export function addServerError(
 }
 
 export function drainServerErrors(): AnyValueMap[] {
-  const groups = serverErrorGroups;
-  serverErrorGroups = new Map();
-  return [...groups.values()];
+  const groups = [...serverErrorGroups.values()];
+  serverErrorGroups.clear();
+  return groups;
 }
 
 export function resetServerErrors(): void {
-  serverErrorGroups = new Map();
+  serverErrorGroups.clear();
 }
 
 function formatMessage(message: unknown): string {

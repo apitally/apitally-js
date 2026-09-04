@@ -40,7 +40,15 @@ type ValidationErrorGroup = ValidationErrorDetail & {
   count: number;
 };
 
-let validationErrorGroups = new Map<string, ValidationErrorGroup>();
+const VALIDATION_ERROR_GROUPS_KEY = Symbol.for("apitally.validationErrorGroups");
+const validationErrorGroupsHolder = globalThis as Record<
+  symbol,
+  Map<string, ValidationErrorGroup> | undefined
+>;
+const validationErrorGroups =
+  validationErrorGroupsHolder[VALIDATION_ERROR_GROUPS_KEY] ??
+  new Map<string, ValidationErrorGroup>();
+validationErrorGroupsHolder[VALIDATION_ERROR_GROUPS_KEY] = validationErrorGroups;
 
 export function isValidationResponseStatus(statusCode: number): boolean {
   return statusCode === 400 || statusCode === 422;
@@ -88,13 +96,13 @@ export function addValidationErrors(
 }
 
 export function drainValidationErrors(): AnyValueMap[] {
-  const groups = validationErrorGroups;
-  validationErrorGroups = new Map();
-  return [...groups.values()];
+  const groups = [...validationErrorGroups.values()];
+  validationErrorGroups.clear();
+  return groups;
 }
 
 export function resetValidationErrors(): void {
-  validationErrorGroups = new Map();
+  validationErrorGroups.clear();
 }
 
 export function normalizeSource(source: unknown): string {
