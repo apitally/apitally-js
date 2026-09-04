@@ -32,6 +32,19 @@ export default class ApitallyMiddleware {
         (name) => ctx.response.getHeader(name),
       )
         .then((completion) => {
+          // The exception handler renders VineJS errors as `{ errors }`; the body
+          // object stays readable after finish().
+          const errors = (ctx.response.getBody() as { errors?: unknown } | null)?.errors;
+          if (Array.isArray(errors)) {
+            started.observation.requestRecord.validationErrors = errors.map(
+              (error: { field?: unknown; message?: unknown; rule?: unknown }) => ({
+                source: "",
+                field: typeof error.field === "string" ? error.field : "",
+                message: typeof error.message === "string" ? error.message : "",
+                type: typeof error.rule === "string" ? error.rule : "",
+              }),
+            );
+          }
           finalizeRequestObservation({
             observation: started.observation,
             completedAtMillis: completion.completedAtMillis,

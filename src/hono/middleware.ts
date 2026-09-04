@@ -16,6 +16,11 @@ import {
   type WebRequestObservation,
   type WebResponseCompletion,
 } from "../requestObservationWeb.js";
+import {
+  extractZodValidationErrors,
+  isValidationResponseStatus,
+  parseJsonResponseBody,
+} from "../validationErrors.js";
 import { resolveMatchedRoute } from "./routes.js";
 
 const FETCH_WRAP_MARKER = Symbol.for("apitally.honoFetchWrap");
@@ -159,7 +164,8 @@ function observeResponse(response: Response, observation: RequestObservation): R
   try {
     const captured = captureWebResponse(
       response,
-      getConfig().captureResponseBody && observation.requestRecord.dropReason === undefined,
+      (getConfig().captureResponseBody && observation.requestRecord.dropReason === undefined) ||
+        isValidationResponseStatus(response.status),
     );
     captured.completion
       .then((completion) => finalizeRequestFromResponse(observation, response, completion))
@@ -179,6 +185,11 @@ async function finalizeRequestFromResponse(
   capturedResponseBody: WebResponseCompletion,
 ): Promise<void> {
   await captureRequestBodyFromCache(observation);
+  if (isValidationResponseStatus(response.status)) {
+    observation.requestRecord.validationErrors ??= extractZodValidationErrors(
+      parseJsonResponseBody(capturedResponseBody.body, response.headers.get("content-encoding")),
+    );
+  }
   finalizeRequestObservation({
     observation,
     completedAtMillis: capturedResponseBody.completedAtMillis,

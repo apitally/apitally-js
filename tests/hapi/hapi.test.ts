@@ -10,6 +10,7 @@ import { SeverityNumber } from "@opentelemetry/api-logs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { apitallyPlugin, useApitally } from "../../src/hapi/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
 import { span } from "../../src/tracing.js";
 import {
   configureAndActivate,
@@ -163,6 +164,24 @@ describe("hapi integration", () => {
     expect(spans[1].events).toHaveLength(1);
     expect(spans[1].events[0].name).toBe("exception");
     expect(spans[1].events[0].attributes?.["exception.message"]).toBe("boom");
+  });
+
+  it("counts server errors independently of trace sampling", async () => {
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    const errorResponse = await inject(server, "/error");
+    expect(errorResponse.statusCode).toBe(500);
+
+    expect(await readActivationSpans()).toEqual([]);
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "boom",
+        stacktrace: expect.stringContaining("Error: boom"),
+        count: 1,
+      },
+    ]);
   });
 
   it("adopts an active SERVER span from user instrumentation without producing a duplicate and layers capture and metrics on top", async () => {

@@ -6,6 +6,7 @@ import {
   type Span,
 } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType } from "@opentelemetry/core";
+import type { ValidationErrorDetail } from "./validationErrors.js";
 
 // Write sites resolve the request's SERVER span through this handle: under a child
 // span, the active span is not the SERVER span, and OTel has no public upward walk.
@@ -34,6 +35,10 @@ export interface RequestRecord {
   // histogram records it independent of span timing.
   durationSeconds?: number;
   dropReason?: RequestDropReason;
+  // Error state for the validation and server error events; it exists
+  // independently of the SERVER span and of the drop decision.
+  exception?: unknown;
+  validationErrors?: ValidationErrorDetail[];
 }
 
 export const SPAN_HANDLE_KEY = createContextKey("apitally-span-handle");

@@ -14,13 +14,16 @@ import {
   activate,
   activationFactories,
   configure,
+  flushTelemetry,
   getActivationHandles,
   isActivated,
   registerStartupEventInfo,
   shutdown,
 } from "../src/activation.js";
 import type { ApitallyOptions } from "../src/config.js";
+import { addServerError } from "../src/serverErrors.js";
 import { getActiveSpanPipeline } from "../src/spanProcessor.js";
+import { addValidationErrors } from "../src/validationErrors.js";
 import {
   captureStderr,
   clearTestRunnerMarkers,
@@ -59,6 +62,39 @@ describe("activation", () => {
       framework: string;
     };
     expect(payload.framework).toBe("express");
+  });
+
+  it("emits one root-context log record per validation and server error group in each export cycle", async () => {
+    spyOnSuccessfulFetch();
+    configureAndActivate();
+    const detail = { source: "body", field: "name", message: "Required", type: "invalid_type" };
+    addValidationErrors(undefined, "POST", "/items", [detail]);
+    addServerError("acme", "GET", "/items", new Error("boom"), undefined);
+    await flushTelemetry();
+    await flushTelemetry();
+
+    const records = readSerializedLogRecords();
+    expect(records).toHaveLength(2);
+    expect(
+      records.map((record) => [
+        record.eventName,
+        record.instrumentationScope.name,
+        record.spanContext,
+      ]),
+    ).toEqual([
+      ["apitally.request.validation_error", "apitally", undefined],
+      ["apitally.request.server_error", "apitally", undefined],
+    ]);
+    expect(records[0].body).toEqual({ method: "POST", path: "/items", ...detail, count: 1 });
+    expect(records[1].body).toEqual({
+      consumer: "acme",
+      method: "GET",
+      path: "/items",
+      type: "Error",
+      message: "boom",
+      stacktrace: expect.stringContaining("Error: boom"),
+      count: 1,
+    });
   });
 
   it("sets the semconv opt-in env var at configure when it is unset", () => {

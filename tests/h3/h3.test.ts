@@ -4,6 +4,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { apitallyPlugin, useApitally } from "../../src/h3/index.js";
 import { setConsumer, setRequestAttribute } from "../../src/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   configureAndActivate,
   prepareFirstRequestActivation,
@@ -162,6 +164,43 @@ describe("h3 integration", () => {
     expect(spans[1].events).toHaveLength(1);
     expect(spans[1].events[0].name).toBe("exception");
     expect(spans[1].events[0].attributes?.["exception.message"]).toBe("boom");
+  });
+
+  it("counts validation and server errors independently of trace sampling", async () => {
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    const validationResponse = await app.request("/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(validationResponse.status).toBe(400);
+    await readResponseAndSettleTransport(validationResponse);
+    const errorResponse = await app.request("/error");
+    expect(errorResponse.status).toBe(500);
+    await readResponseAndSettleTransport(errorResponse);
+
+    expect(await readActivationSpans()).toEqual([]);
+    expect(drainValidationErrors()).toEqual([
+      {
+        method: "POST",
+        path: "/validate",
+        source: "",
+        field: "name",
+        message: "Required",
+        type: "",
+        count: 1,
+      },
+    ]);
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "boom",
+        stacktrace: expect.stringContaining("Error: boom"),
+        count: 1,
+      },
+    ]);
   });
 
   it("keeps H3 request and response hooks inside the request observation", async () => {

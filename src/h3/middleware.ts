@@ -16,6 +16,7 @@ import {
   startWebRequestObservation,
   type WebRequestObservation,
 } from "../requestObservationWeb.js";
+import { formatIssues } from "../validationErrors.js";
 import { resolveMatchedRoute } from "./routes.js";
 
 const TRACER_NAME = "apitally.h3";
@@ -115,16 +116,21 @@ export function installH3RequestObservation(app: H3): void {
               ? candidate.statusCode
               : undefined;
       }
-      if (status === undefined || status >= 500) {
-        try {
+      try {
+        if (status === undefined || status >= 500) {
           const cause =
             typeof error === "object" && error !== null
               ? (error as { cause?: unknown }).cause
               : undefined;
           captureException(cause === undefined ? error : cause);
-        } catch (captureError) {
-          logDebug(`Error recording an H3 exception: ${String(captureError)}`);
         }
+        const issues = (error as { data?: { issues?: unknown } } | undefined)?.data?.issues;
+        const requestRecord = getRequestRecord();
+        if (requestRecord && Array.isArray(issues)) {
+          requestRecord.validationErrors = formatIssues(issues);
+        }
+      } catch (captureError) {
+        logDebug(`Error recording an H3 exception: ${String(captureError)}`);
       }
       return originalOnError?.(error, event);
     };

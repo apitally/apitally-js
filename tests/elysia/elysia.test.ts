@@ -3,6 +3,8 @@ import { type AnyElysia, Elysia } from "elysia";
 import { beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { apitallyPlugin, useApitally } from "../../src/elysia/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   configureAndActivate,
@@ -155,6 +157,43 @@ describe("elysia integration", () => {
     expect(spans[1].events).toHaveLength(1);
     expect(spans[1].events[0].name).toBe("exception");
     expect(spans[1].events[0].attributes?.["exception.message"]).toBe("boom");
+  });
+
+  it("counts validation and server errors independently of trace sampling", async () => {
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    const validationResponse = await request(app, "/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(validationResponse.status).toBe(422);
+    await readResponseAndSettleTransport(validationResponse);
+    const errorResponse = await request(app, "/error");
+    expect(errorResponse.status).toBe(500);
+    await readResponseAndSettleTransport(errorResponse);
+
+    expect(await readActivationSpans()).toEqual([]);
+    expect(drainValidationErrors()).toEqual([
+      {
+        method: "POST",
+        path: "/validate",
+        source: "body",
+        field: "name",
+        message: "Expected string",
+        type: "",
+        count: 1,
+      },
+    ]);
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "boom",
+        stacktrace: expect.stringContaining("Error: boom"),
+        count: 1,
+      },
+    ]);
   });
 
   it("adopts an active user SERVER span without producing a duplicate and layers capture and metrics on top", async () => {

@@ -10,6 +10,8 @@ import { isActivated } from "../../src/activation.js";
 import ApitallyProvider from "../../src/adonisjs/provider.js";
 import { type ApitallyOptions, getConfig } from "../../src/config.js";
 import { resolvePackageVersion } from "../../src/packageVersion.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   clearTestRunnerMarkers,
@@ -196,6 +198,43 @@ describe("adonisjs integration", () => {
     });
   });
 
+  it("counts validation and server errors independently of trace sampling", async () => {
+    const options = { sampleRate: 0 };
+    prepareFirstRequestActivation(options);
+    await withApp(options, async (baseUrl) => {
+      const { response: validationResponse } = await send(baseUrl, "/validate", {
+        method: "POST",
+        headers: { accept: "application/json" },
+      });
+      expect(validationResponse.status).toBe(422);
+      const { response: errorResponse } = await send(baseUrl, "/error");
+      expect(errorResponse.status).toBe(500);
+
+      expect(await readActivationSpans()).toEqual([]);
+      expect(drainValidationErrors()).toEqual([
+        {
+          method: "POST",
+          path: "/validate",
+          source: "",
+          field: "name",
+          message: "The name field must be defined",
+          type: "required",
+          count: 1,
+        },
+      ]);
+      expect(drainServerErrors()).toEqual([
+        {
+          method: "GET",
+          path: "/error",
+          type: "Error",
+          message: "boom",
+          stacktrace: expect.stringContaining("Error: boom"),
+          count: 1,
+        },
+      ]);
+    });
+  });
+
   it("adopts an active SERVER span from user instrumentation without producing a duplicate and layers capture and metrics on top", async () => {
     const options = { captureResponseBody: true };
     const handles = configureAndActivate(options);
@@ -325,6 +364,7 @@ describe("adonisjs integration", () => {
           { method: "POST", path: "/items" },
           { method: "GET", path: "/healthz" },
           { method: "GET", path: "/error" },
+          { method: "POST", path: "/validate" },
           { method: "GET", path: "/consumer" },
           { method: "GET", path: "/stream" },
           { method: "GET", path: "/api/nested/:key" },

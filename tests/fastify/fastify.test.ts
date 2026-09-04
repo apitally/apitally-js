@@ -3,7 +3,9 @@ import { type FastifyInstance, fastify } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/fastify/index.js";
+import { drainServerErrors } from "../../src/serverErrors.js";
 import { span } from "../../src/tracing.js";
+import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   configureAndActivate,
@@ -171,6 +173,41 @@ describe("fastify integration", () => {
     expect(spans[0].attributes["http.response.status_code"]).toBe(500);
     expect(spans[0].events[0].name).toBe("exception");
     expect(spans[0].events[0].attributes?.["exception.message"]).toBe("boom");
+  });
+
+  it("counts validation and server errors independently of trace sampling", async () => {
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    const { response: validationResponse } = await send(baseUrl, "/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(validationResponse.status).toBe(400);
+    const { response: errorResponse } = await send(baseUrl, "/error");
+    expect(errorResponse.status).toBe(500);
+
+    expect(await readActivationSpans()).toEqual([]);
+    expect(drainValidationErrors()).toEqual([
+      {
+        method: "POST",
+        path: "/validate",
+        source: "body",
+        field: "name",
+        message: "must have required property 'name'",
+        type: "required",
+        count: 1,
+      },
+    ]);
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "boom",
+        stacktrace: expect.stringContaining("Error: boom"),
+        count: 1,
+      },
+    ]);
   });
 
   it("adopts an active SERVER span from user instrumentation without producing a duplicate and layers capture and metrics on top", async () => {

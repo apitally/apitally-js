@@ -22,6 +22,15 @@ export function buildAppFixture(options: ApitallyOptions = {}): FastifyInstance 
   app.get("/error", () => {
     throw new Error("boom");
   });
+  app.post(
+    "/validate",
+    {
+      schema: {
+        body: { type: "object", required: ["name"], properties: { name: { type: "string" } } },
+      },
+    },
+    () => ({ ok: true }),
+  );
   app.get("/consumer", () => {
     setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
     return { ok: true };

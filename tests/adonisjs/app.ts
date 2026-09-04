@@ -50,6 +50,14 @@ export async function buildAppFixture(
   router.get("/error", () => {
     throw new Error("boom");
   });
+  // The error shape VineJS throws; the exception handler renders it as `{ errors }`.
+  router.post("/validate", () => {
+    throw Object.assign(new Error("Validation failure"), {
+      code: "E_VALIDATION_ERROR",
+      status: 422,
+      messages: [{ message: "The name field must be defined", rule: "required", field: "name" }],
+    });
+  });
   router.get("/consumer", () => {
     setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
     return { ok: true };

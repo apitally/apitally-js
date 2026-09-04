@@ -1,4 +1,6 @@
 import { isMainThread } from "node:worker_threads";
+import { ROOT_CONTEXT } from "@opentelemetry/api";
+import type { AnyValueMap } from "@opentelemetry/api-logs";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { BatchLogRecordProcessor, type LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor, type Span } from "@opentelemetry/sdk-trace-base";
@@ -29,6 +31,7 @@ import {
 } from "./providers.js";
 import { Redaction } from "./redaction.js";
 import { installSentryEventIdRecording } from "./sentry.js";
+import { drainServerErrors, resetServerErrors, SERVER_ERROR_EVENT_NAME } from "./serverErrors.js";
 import { ApitallySpanExporter } from "./spanExporter.js";
 import {
   isApitallySpanProcessorDeclared,
@@ -38,6 +41,11 @@ import {
 } from "./spanProcessor.js";
 import { Spool } from "./spool.js";
 import { emitStartupEvent, type StartupEventInfo } from "./startup.js";
+import {
+  drainValidationErrors,
+  resetValidationErrors,
+  VALIDATION_ERROR_EVENT_NAME,
+} from "./validationErrors.js";
 
 // The worker sends every 15 seconds, so batches only need to reach the spool
 // within that interval.
@@ -168,6 +176,8 @@ export async function resetActivation(): Promise<void> {
   const activationState = holder[ACTIVATION_STATE_KEY];
   delete holder[ACTIVATION_STATE_KEY];
   hasWarnedAboutVersionSkew = false;
+  resetValidationErrors();
+  resetServerErrors();
   if (!activationState) {
     return;
   }
@@ -184,6 +194,21 @@ export async function resetActivation(): Promise<void> {
 }
 
 let hasWarnedAboutVersionSkew = false;
+
+// One root-context record per aggregate group, drained right before the log
+// processor flush so the records leave with the same export cycle.
+function emitErrorEvents(loggerProvider: LoggerProvider): void {
+  const logger = loggerProvider.getLogger("apitally");
+  const events: [string, AnyValueMap[]][] = [
+    [VALIDATION_ERROR_EVENT_NAME, drainValidationErrors()],
+    [SERVER_ERROR_EVENT_NAME, drainServerErrors()],
+  ];
+  for (const [eventName, bodies] of events) {
+    for (const body of bodies) {
+      logger.emit({ timestamp: Date.now(), context: ROOT_CONTEXT, eventName, body });
+    }
+  }
+}
 
 function getActivationState(): ActivationState {
   const holder = globalThis as Record<symbol, ActivationState | undefined>;
@@ -278,6 +303,7 @@ function startPipelines(
   worker.flushCallbacks.push(
     () => metricsPipeline.collectAndExport(),
     () => batchSpanProcessor.forceFlush(),
+    () => emitErrorEvents(loggerProvider),
     () => batchLogProcessor.forceFlush(),
   );
   if (config.captureLogs) {

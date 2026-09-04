@@ -1,4 +1,4 @@
-import { H3, HTTPError } from "h3";
+import { H3, HTTPError, readValidatedBody } from "h3";
 import type { ApitallyOptions } from "../../src/config.js";
 import { apitallyPlugin } from "../../src/h3/index.js";
 import { setConsumer } from "../../src/index.js";
@@ -27,6 +27,15 @@ export function buildAppFixture(options: ApitallyOptions = {}): H3 {
   app.get("/error", () => {
     throw new Error("boom");
   });
+  app.post("/validate", (event) =>
+    readValidatedBody(event, {
+      "~standard": {
+        version: 1,
+        vendor: "fixture",
+        validate: () => ({ issues: [{ message: "Required", path: [{ key: "name" }] }] }),
+      },
+    }),
+  );
   app.get("/consumer", () => {
     setConsumer({ identifier: "acme", name: "Acme Corp", group: "enterprise" });
     return { ok: true };

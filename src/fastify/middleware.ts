@@ -11,6 +11,7 @@ import {
   startNodeRequestObservation,
 } from "../requestObservationNode.js";
 import type { RoutePath } from "../startup.js";
+import { formatIssues, normalizeSource } from "../validationErrors.js";
 import { addStartupPaths, resolveRequestRoute } from "./routes.js";
 
 const HOOKS_MARKER = Symbol.for("apitally.fastifyHooks");
@@ -91,12 +92,40 @@ export function installFastifyHooks(app: FastifyInstance, startupPaths: RoutePat
       return;
     }
     context.with(state.requestContext, () => {
-      const statusCode = (error as { statusCode?: unknown }).statusCode;
+      const { statusCode, validation, validationContext } = error as {
+        statusCode?: unknown;
+        validation?: unknown;
+        validationContext?: unknown;
+      };
       if (typeof statusCode !== "number" || statusCode >= 500) {
         captureException(error);
+      }
+      if (Array.isArray(validation)) {
+        state.observation.requestRecord.validationErrors = formatAjvErrors(
+          validation,
+          normalizeSource(validationContext),
+        );
       }
       done();
     });
   });
   app.addHook("onClose", () => flushTelemetry());
+}
+
+// An AJV instancePath is a JSON pointer, which formatIssues splits into a field path.
+function formatAjvErrors(errors: unknown[], source: string) {
+  return formatIssues(
+    errors.map((error) => {
+      const { instancePath, keyword, params, message } = error as {
+        instancePath?: unknown;
+        keyword?: unknown;
+        params?: { missingProperty?: unknown };
+        message?: unknown;
+      };
+      const missing =
+        typeof params?.missingProperty === "string" ? `/${params.missingProperty}` : "";
+      return { path: `${instancePath ?? ""}${missing}`, message, code: keyword };
+    }),
+    source,
+  );
 }
