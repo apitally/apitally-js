@@ -344,3 +344,5 @@ function getStatusCode(set: Context["set"]) {
     return StatusMap[set.status];
   }
 }
+
+export { apitallyPlugin };

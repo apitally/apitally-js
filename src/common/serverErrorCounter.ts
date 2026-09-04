@@ -94,3 +94,5 @@ export function truncateExceptionStackTrace(stack: string) {
   }
   return truncatedLines.join("\n");
 }
+
+export { ServerErrorCounter };

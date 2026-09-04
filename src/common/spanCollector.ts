@@ -222,3 +222,5 @@ export class ApitallySpanProcessor implements SpanProcessor {
     this.getCollector()?.forceFlush();
   }
 }
+
+export { SpanCollector };

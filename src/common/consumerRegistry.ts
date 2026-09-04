@@ -55,3 +55,5 @@ export default class ConsumerRegistry {
     return data;
   }
 }
+
+export { ConsumerRegistry };

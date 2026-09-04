@@ -58,3 +58,5 @@ export default class ValidationErrorCounter {
     return createHash("md5").update(hashInput).digest("hex");
   }
 }
+
+export { ValidationErrorCounter };

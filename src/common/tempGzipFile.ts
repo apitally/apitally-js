@@ -102,3 +102,5 @@ export default class TempGzipFile {
     await unlink(this.filePath);
   }
 }
+
+export { TempGzipFile };
