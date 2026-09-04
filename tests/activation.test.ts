@@ -366,6 +366,10 @@ describe("activation", () => {
     const handles = configureAndActivate();
     const tracer = trace.getTracer("test");
     await runInsideRequest({ pipeline: handles.spanPipeline, tracer }, () => {});
+    addValidationErrors(undefined, "POST", "/items", [
+      { source: "body", field: "name", message: "Required", type: "invalid_type" },
+    ]);
+    addServerError(undefined, "GET", "/items", new Error("boom"), undefined);
 
     const drain = shutdown();
     expect(shutdown()).toBe(drain);
@@ -376,6 +380,11 @@ describe("activation", () => {
     expect(vi.mocked(ProtobufLogsSerializer.serializeRequest)).toHaveBeenCalled();
     expect(vi.mocked(ProtobufMetricsSerializer.serializeRequest)).toHaveBeenCalled();
     expect(readSerializedSpans().map((span) => span.name)).toEqual(["GET /items"]);
+    expect(readSerializedLogRecords().map((record) => record.eventName)).toEqual([
+      "apitally.app.startup",
+      "apitally.request.validation_error",
+      "apitally.request.server_error",
+    ]);
 
     await shutdown();
     expect(fetchSpy).toHaveBeenCalledTimes(3);
