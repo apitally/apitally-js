@@ -6,7 +6,7 @@ Canonical, language-agnostic contract between Apitally client SDKs and the Apita
 
 Apitally SDKs become OpenTelemetry distributions: they configure the official OTel SDK of their language and export OTLP directly to `otlp.apitally.io`. This is a clean break shipped as a new major version: the Hub, `client_id`, and all bespoke transport/payload code are removed. Auth uses a per-app write token. Legacy SDK versions continue working against the Hub; no dual-mode support.
 
-Deferred, no SDK work required: validation errors and server errors (legacy `app_sync` features) are not part of this contract and will be derived server-side from traces later.
+Validation and server error capture emits SDK-aggregated standalone log events. It is independent of trace sampling and exclusion because traces cannot provide complete error counts when a request's spans are not exported.
 
 ## 2. Transport
 
@@ -29,14 +29,14 @@ On every export request, the SDK MUST send:
 
 | HTTP header | gRPC metadata | Value |
 |---|---|---|
-| `Apitally-Env` | `apitally-env` | The SDK's resolved environment, identical to `deployment.environment.name` (default `dev`). Drives real-time online status, recorded at receive time. |
+| `Apitally-Env` | `apitally-env` | The SDK's resolved environment, identical to `deployment.environment.name` (default `prod`). Drives real-time online status, recorded at receive time. |
 
 ## 5. Resource attributes
 
 | Attribute | Requirement | Notes |
 |---|---|---|
 | `service.instance.id` | MUST | Unique per process instance, regenerated on restart (e.g. UUIDv4 at startup). Server falls back to `service.name` if absent, collapsing all instances into one. |
-| `deployment.environment.name` | SHOULD | Apitally environment. Server also accepts deprecated `deployment.environment`; defaults to `dev` when absent. Normalized by slugify, max 32 chars (`Production EU` → `production-eu`). MUST match the `Apitally-Env` header value. Environments are auto-created on first sight. |
+| `deployment.environment.name` | SHOULD | Apitally environment. Server also accepts deprecated `deployment.environment`; defaults to `prod` when absent. Normalized by slugify, max 32 chars (`Production EU` → `production-eu`). MUST match the `Apitally-Env` header value. Environments are auto-created on first sight. |
 | `telemetry.distro.name` | SHOULD | `apitally-py` for Python SDK, `apitally-js` for JavaScript SDK, etc. |
 | `telemetry.distro.version` | SHOULD | SDK version |
 
@@ -91,12 +91,14 @@ Example: `apitally.consumer.identifier="acme-corp"`, `apitally.consumer.name="Ac
 
 Unhandled exceptions MUST be recorded as the standard OTel `exception` span event on the SERVER span (`exception.type`, `exception.message`, `exception.stacktrace`; server caps 256 / 2048 / 64 KiB). The last `exception` event wins. With a Sentry integration active, set `apitally.exception.sentry_event_id` on the SERVER span.
 
+Server error capture uses a separate request-local path defined in section 9.2. Trace exception events never increment the dedicated server error table.
+
 ### 6.5 Span selection
 
-- The SERVER span (the request boundary, section 6) and its descendants MUST be exported, except for `OPTIONS` requests (CORS preflight), excluded requests (section 6.8), and requests sampled out by the SDK's own sampling configuration, which MUST NOT be exported. Sampled-out requests are still counted in request metrics (section 7), same as excluded requests.
+- The SERVER span (the request boundary, section 6) and its descendants MUST be exported, except for `OPTIONS` requests (CORS preflight), excluded requests (section 6.8), and requests sampled out by the SDK's own sampling configuration, which MUST NOT be exported. Sampled-out and excluded requests are still counted in request metrics (section 7) and can still produce validation and server error events (section 9.2).
 - A root span of any other kind (background jobs, queue consumers, schedulers) and its descendants MUST NOT be exported.
 - A request MUST be exported even when its upstream parent was not sampled; upstream sampling MUST NOT suppress local requests.
-- Descendant spans and request-scoped logs whose SERVER span never arrives are never surfaced: all request data derives from the SERVER span, so telemetry without one is unreachable by construction and ages out with normal retention. An SDK dropping a SERVER span at response time (e.g. a response-based sampling callback) MAY rely on this to abandon telemetry the request already emitted.
+- Descendant spans and request-scoped application logs whose SERVER span never arrives are never surfaced: trace detail and application logs derive from the SERVER span, so telemetry without one is unreachable by construction and ages out with normal retention. An SDK dropping a SERVER span at response time (e.g. a response-based sampling callback) MAY rely on this to abandon telemetry the request already emitted. Validation and server error events remain independent as defined in section 9.2.
 
 ### 6.6 Per-message spans
 
@@ -116,7 +118,7 @@ Body fields are matched on object keys; only string values are replaced; nested 
 
 ### 6.8 Excluded requests
 
-Requests whose path or user agent matches a built-in pattern MUST NOT be recorded as request logs: no SERVER span (and therefore no request-scoped logs) is exported. They are still counted in request metrics (section 7), which exclusion does not affect.
+Requests whose path or user agent matches a built-in pattern MUST NOT be recorded as request logs: no SERVER span (and therefore no request-scoped application logs) is exported. They are still counted in request metrics (section 7), and routed excluded requests can still produce validation and server error events (section 9.2).
 
 | Target | Default patterns |
 |---|---|
@@ -171,12 +173,12 @@ Every metrics export serves as a liveness signal: the server writes a liveness s
 
 ## 8. Logs
 
-Only request-scoped application logs are stored. Every exported LogRecord MUST carry:
+The logs signal carries request-scoped application logs and the SDK-owned internal events in section 9. Every exported application LogRecord MUST carry:
 
 - a non-empty `trace_id`, and
 - attribute `apitally.request.server_span_id` = lowercase hex of the request's SERVER span id (16 hex chars, e.g. `00f067aa0ba902b7`).
 
-Records missing either are dropped (the startup event in section 9 is the exception). The native `LogRecord.span_id` (the emitting span, typically a child) is stored for waterfall linking; the explicit SERVER span attribute is required because the server computes the request linkage as `xxh3_128(trace_id_bytes + server_span_id_bytes)`, byte-identical to the trace path.
+Application records missing either are dropped. SDK-owned internal events in section 9 are the exceptions. The native `LogRecord.span_id` (the emitting span, typically a child) is stored for waterfall linking; the explicit SERVER span attribute is required because the server computes the request linkage as `xxh3_128(trace_id_bytes + server_span_id_bytes)`, byte-identical to the trace path.
 
 The SDK MUST set this attribute on every application log record it exports. Which logging interfaces the SDK captures records from is defined in the design doc (§9).
 
@@ -189,9 +191,13 @@ The SDK MUST set this attribute on every application log record it exports. Whic
 | attr `code.file.path` (`code.filepath`) | file | max 4096 |
 | attr `code.line.number` (`code.lineno`) | line | valid 1–65535 |
 
-## 9. Startup event
+## 9. SDK internal events
 
-Emitted on the logs signal as a LogRecord under instrumentation scope `apitally`, with `time_unix_nano` set. The startup event is identified by the event name `apitally.app.startup` together with the scope name. The SDK MUST set this name in the LogRecord's native `event_name` field; where the OTel SDK version cannot, the server also accepts it in an `event.name` attribute as a fallback. No `trace_id` or server-span attribute. Body is a JSON string: the payload below serialized to JSON and set as the LogRecord body (a string `AnyValue`), which the server JSON-decodes. The payload:
+SDK internal events use the logs signal, the same private SDK resource as other Apitally telemetry, and instrumentation scope `apitally`. They bypass request-log linkage requirements and MUST NOT carry trace or span context.
+
+### 9.1 Startup event
+
+Emitted as a LogRecord with `time_unix_nano` set. The startup event is identified by the event name `apitally.app.startup` together with the scope name. The SDK MUST set this name in the LogRecord's native `event_name` field; where the OTel SDK version cannot, the server also accepts it in an `event.name` attribute as a fallback. No `trace_id` or server-span attribute. Body is a JSON string: the payload below serialized to JSON and set as the LogRecord body (a string `AnyValue`), which the server JSON-decodes. The payload:
 
 ```json
 {
@@ -214,6 +220,54 @@ Emitted on the logs signal as a LogRecord under instrumentation scope `apitally`
 
 Emit once when the app is ready (routes registered). Identical startup events from many instances are deduplicated server-side.
 
+### 9.2 Validation and server error events
+
+Validation and server errors are aggregated in each SDK process and emitted as standalone LogRecords, one normalized aggregate group per record. The SDK MUST set `time_unix_nano` to the aggregate emission time and the native `event_name` field to one of the names below. The body MUST be a structured OTLP `AnyValue` object, not a JSON string.
+
+Validation error event name: `apitally.request.validation_error`.
+
+```json
+{
+  "consumer": "acme-corp",
+  "method": "POST",
+  "path": "/users/{user_id}",
+  "source": "body",
+  "field": "email",
+  "message": "value is not a valid email address",
+  "type": "value_error.email",
+  "count": 4
+}
+```
+
+Server error event name: `apitally.request.server_error`.
+
+```json
+{
+  "consumer": "acme-corp",
+  "method": "GET",
+  "path": "/users/{user_id}",
+  "type": "builtins.RuntimeError",
+  "message": "database unavailable",
+  "stacktrace": "...",
+  "sentry_event_id": "0123456789abcdef0123456789abcdef",
+  "count": 2
+}
+```
+
+`consumer` MAY be omitted when the request has no identified consumer. `sentry_event_id` MAY be omitted from a server event when unavailable. All other fields MUST be present; unavailable string values use the empty string.
+
+The validation aggregation identity is `consumer, method, path, source, field, message, type`. The server aggregation identity is `consumer, method, path, type, message, stacktrace`; `sentry_event_id` is enrichment, and the latest non-empty value wins. Each validation detail contributes one count to its group. Counts MUST be positive and no greater than `UInt32`.
+
+Validation capture MUST use conservative framework-specific recognition of known validation responses, generally with status 400 or 422. `source` identifies the request component, normalized to values such as `body`, `query`, `path`, `header`, or `cookie`; framework terms such as `querystring`, `params`, and `headers` are normalized at the framework adapter boundary. `field` is an opaque human-readable field path. Validators that already provide a useful field string MUST preserve it rather than splitting and reconstructing it. An SDK MUST format a validator's structured field path once and MUST NOT split the normalized string afterward. An unavailable source or field uses the empty string.
+
+A request contributes a server error only when it has a captured exception and its final status is 500. A response with any other status does not contribute, even when an exception was captured. A deliberate 500 response without a captured exception does not contribute. Automatic framework hooks retain the exception in request-local state independently of whether a recording SERVER span exists. The public `capture_exception` helper records a standard exception event on a recording SERVER span but does not participate in server error capture. Request cancellation exceptions MUST NOT be retained or emitted as server errors. When several exception hooks observe one request, the last captured exception is used once.
+
+Validation and server errors MUST be captured for routed requests independently of trace recording, trace sampling including `sample_rate`, response sampling, trace exclusion, trace quota, and application log capture. They MUST be skipped for `OPTIONS`, websockets, and requests without a parameterized route. They MUST also be omitted when Apitally is disabled.
+
+Apply these limits before aggregation: method 2-12 letters or hyphens and uppercase; path 2,000 characters; consumer 128 characters; source 32 characters; field and validation message 2,048 characters; validation type 128 characters; exception type 256 characters; exception message 2,048 characters; stacktrace 65,536 characters; Sentry event ID 32 characters.
+
+Each SDK process MUST retain no more than 100 distinct validation groups and 100 distinct server groups between drains. It MUST continue incrementing retained groups and silently ignore later distinct groups. Aggregate events are drained immediately before the logs pipeline is flushed in regular and final export cycles. They use the ordinary logs queue and spool retention policy, with no separate priority or overflow telemetry.
+
 ## 10. Server responses and retry behavior
 
 Success is HTTP 200 / gRPC `OK` with an empty `Export*ServiceResponse` (no `partial_success`). Error bodies are protobuf `google.rpc.Status`. The endpoint publishes payload bytes without parsing them: a 200 means accepted, not validated — malformed protobuf is dropped at ingest.
@@ -234,9 +288,10 @@ Rate limits: 1800/minute and 200/second per app per signal. Retry behavior is ow
 
 Per-language idioms win; this aligns naming and setup UX across SDKs.
 
-- Setup is one unified entry point at the package root, e.g. `apitally.init(app, write_token=..., env=...)`, which detects the framework from the app instance and delegates to per-framework integrations (design doc §13) — the distro wires exporters, sampler, processors, and instrumentation internally; no OTel knowledge required from the user.
-- Config: `write_token` (snake/camel/Pascal per language), also readable from an `APITALLY_WRITE_TOKEN` env var; `env` defaulting to `dev`.
+- Setup is one unified entry point at the package root, e.g. `apitally.init(app, write_token=..., env=...)`, which detects the framework from the app instance and delegates to per-framework adapters (design doc §13) — the distro wires exporters, sampler, processors, and instrumentation internally; no OTel knowledge required from the user.
+- Config: `write_token` (snake/camel/Pascal per language), also readable from an `APITALLY_WRITE_TOKEN` env var; `env` defaulting to `prod`.
 - Consumer API keeps its name: `set_consumer(identifier, name=None, group=None)` / `setConsumer(...)`, writing the section 6.2 attributes.
+- Validation error capture is automatic; SDKs do not expose a public validation capture API or response-parser callbacks. `capture_exception` records a standard exception event on a recording SERVER span but does not participate in server error capture.
 - Request logging config stays close to the legacy SDK option names; renames for cross-option consistency are fine (e.g. Python drops the `_callback` suffix: `mask_request_body_callback` → `mask_request_body`, and the legacy `log_*` capture toggles become `capture_request_headers` / `capture_request_body` / `capture_response_headers` / `capture_response_body`, matching `capture_logs`). The legacy `exclude_callback` becomes the sampling callbacks `sample_on_request` / `sample_on_response`, which return a keep probability (`float` in `[0, 1]`, `bool`, or `None` to abstain) refining the static `sample_rate`; note that the meaning is reversed from exclude to keep.
 - Build on the official OTel SDK and contrib instrumentations of each language; do not reimplement OTLP export.
 
@@ -248,8 +303,8 @@ Per-language idioms win; this aligns naming and setup UX across SDKs.
 | Request counters + response time/size histograms (`app_sync`) | three `apitally`-scoped histograms (7.1) |
 | Request logs (`app_request_log`) | SERVER spans (6) |
 | Application logs (inside request log payload) | OTLP logs + `apitally.request.server_span_id` (8) |
-| Startup payload: paths, versions, client, OpenAPI (`app_startup`) | startup log event (9) |
+| Startup payload: paths, versions, client, OpenAPI (`app_startup`) | startup log event (9.1) |
 | Heartbeat / online status (`app_sync`) | 60 s metrics export + `Apitally-Env` header (7.3, 4) |
 | CPU/memory (`app_sync` resources) | `process.cpu.utilization` + `process.memory.usage` gauges (7.2) |
 | Consumer registration | `apitally.consumer.*` attributes (6.2) |
-| Validation errors, server errors | deferred — server-side derivation from traces; SDKs emit nothing |
+| Validation errors, server errors | standalone aggregated log events (9.2), independent of traces |
