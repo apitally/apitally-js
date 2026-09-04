@@ -1,4 +1,4 @@
-import { gunzipSync } from "node:zlib";
+import { brotliDecompressSync, unzipSync } from "node:zlib";
 import type { AnyValueMap } from "@opentelemetry/api-logs";
 import { MAX_BODY_SIZE } from "./bodyCapture.js";
 
@@ -163,12 +163,15 @@ export function parseJsonResponseBody(body: Buffer | undefined, contentEncoding:
   try {
     const encoding =
       typeof contentEncoding === "string" ? contentEncoding.trim().toLowerCase() : "";
-    if (encoding === "gzip") {
-      return JSON.parse(gunzipSync(body, { maxOutputLength: MAX_BODY_SIZE }).toString());
+    let decoded = body;
+    if (encoding === "br") {
+      decoded = brotliDecompressSync(body, { maxOutputLength: MAX_BODY_SIZE });
+    } else if (encoding === "gzip" || encoding === "deflate") {
+      decoded = unzipSync(body, { maxOutputLength: MAX_BODY_SIZE });
+    } else if (encoding !== "" && encoding !== "identity") {
+      return undefined;
     }
-    if (encoding === "" || encoding === "identity") {
-      return JSON.parse(body.toString());
-    }
+    return JSON.parse(decoded.toString());
   } catch {
     // A body that cannot be decoded as JSON carries no recognizable validation details.
   }

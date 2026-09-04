@@ -1,4 +1,4 @@
-import { gzipSync } from "node:zlib";
+import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
   addValidationErrors,
@@ -56,11 +56,13 @@ describe("validationErrors", () => {
     ]);
   });
 
-  it("parses identity and gzip JSON bodies and yields nothing for anything else", () => {
+  it("parses identity and compressed JSON bodies and yields nothing for anything else", () => {
     const body = Buffer.from(JSON.stringify({ ok: true }));
     expect(parseJsonResponseBody(body, undefined)).toEqual({ ok: true });
     expect(parseJsonResponseBody(gzipSync(body), "gzip")).toEqual({ ok: true });
-    expect(parseJsonResponseBody(body, "br")).toBeUndefined();
+    expect(parseJsonResponseBody(deflateSync(body), "deflate")).toEqual({ ok: true });
+    expect(parseJsonResponseBody(brotliCompressSync(body), "br")).toEqual({ ok: true });
+    expect(parseJsonResponseBody(body, "compress")).toBeUndefined();
     expect(parseJsonResponseBody(Buffer.from("[BODY_TOO_LARGE]"), undefined)).toBeUndefined();
     const oversized = Buffer.from(JSON.stringify({ padding: "a".repeat(60_000) }));
     expect(parseJsonResponseBody(gzipSync(oversized), "gzip")).toBeUndefined();
