@@ -9,7 +9,7 @@ import {
   truncateExceptionStackTrace,
 } from "./serverErrorCounter.js";
 import type { SpanData } from "./spanCollector.js";
-import TempGzipFile, { checkWritableFs } from "./tempGzipFile.js";
+import { checkWritableFs, TempGzipFile } from "./tempGzipFile.js";
 
 const MAX_BODY_SIZE = 50_000; // 50 KB (uncompressed)
 const MAX_FILE_SIZE = 1_000_000; // 1 MB (compressed)
@@ -660,3 +660,5 @@ function truncateLogMessage(msg: string) {
   }
   return msg;
 }
+
+export { RequestLogger };

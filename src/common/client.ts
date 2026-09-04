@@ -1,22 +1,22 @@
 import fetchRetry from "fetch-retry";
 import { randomUUID } from "node:crypto";
 
-import ConsumerRegistry from "./consumerRegistry.js";
+import { ConsumerRegistry } from "./consumerRegistry.js";
 import { getOrCreateInstanceUuid } from "./instance.js";
 import { Logger, getLogger } from "./logging.js";
 import { isValidClientId, isValidEnv } from "./paramValidation.js";
-import RequestCounter from "./requestCounter.js";
-import RequestLogger from "./requestLogger.js";
+import { RequestCounter } from "./requestCounter.js";
+import { RequestLogger } from "./requestLogger.js";
 import { getCpuMemoryUsage } from "./resources.js";
-import ServerErrorCounter from "./serverErrorCounter.js";
-import SpanCollector from "./spanCollector.js";
+import { ServerErrorCounter } from "./serverErrorCounter.js";
+import { SpanCollector } from "./spanCollector.js";
 import {
   ApitallyConfig,
   StartupData,
   StartupPayload,
   SyncPayload,
 } from "./types.js";
-import ValidationErrorCounter from "./validationErrorCounter.js";
+import { ValidationErrorCounter } from "./validationErrorCounter.js";
 
 const SYNC_INTERVAL = 60000; // 60 seconds
 const INITIAL_SYNC_INTERVAL = 10000; // 10 seconds

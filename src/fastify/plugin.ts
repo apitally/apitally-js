@@ -341,6 +341,8 @@ function extractNestValidationErrors(message: any[]): ValidationError[] {
 
 export { apitallyPlugin };
 
-export default fp(apitallyPlugin, {
+export const apitallyFastifyPlugin = fp(apitallyPlugin, {
   name: "apitally",
 });
+
+export default apitallyFastifyPlugin;

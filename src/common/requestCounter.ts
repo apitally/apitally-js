@@ -115,3 +115,5 @@ export default class RequestCounter {
     return data;
   }
 }
+
+export { RequestCounter };

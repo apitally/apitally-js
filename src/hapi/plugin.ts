@@ -296,3 +296,5 @@ export function setConsumer(
 ) {
   request.apitallyConsumer = consumer || undefined;
 }
+
+export { apitallyPlugin };
