@@ -44,7 +44,9 @@ describe("adonisjs configure", () => {
   it("configures a conventional application once with the selected capture options", {
     timeout: 15_000,
   }, async () => {
-    const projectRoot = await mkdtemp(join(process.cwd(), ".tmp-adonis-configure-"));
+    const fixtureRoot = join(process.cwd(), "node_modules/.cache");
+    await mkdir(fixtureRoot, { recursive: true });
+    const projectRoot = await mkdtemp(join(fixtureRoot, "apitally-adonis-configure-"));
     try {
       await writeProject(projectRoot);
       const app = new AppFactory().create(pathToFileURL(`${projectRoot}/`)) as ApplicationService;

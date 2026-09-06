@@ -280,6 +280,8 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 ### 25. The Adonis configure test writes its fixture into the repo root
 
+**Status:** Fixed. Temporary Adonis fixtures are created under the ignored `node_modules/.cache` directory instead of the repo root.
+
 **Evidence:** `tests/adonisjs/configure.test.ts:47` uses `mkdtemp(join(process.cwd(), ".tmp-adonis-configure-"))`; `.gitignore` has no matching entry. This is the "temporary Adonis fixture files" race recorded in round 1.
 
 **Explanation:** The location is needed so the fixture resolves `@adonisjs/core` from the repo's `node_modules`. But a crash before the `finally` leaves an untracked directory in the worktree, and Biome (`vcs.useIgnoreFile: true`) and knip scan it whenever `npm run check` overlaps a test run.
