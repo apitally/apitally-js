@@ -65,7 +65,9 @@ export function installH3RequestObservation(app: H3): void {
             ? clientAddress
             : typeof requestAddress === "string"
               ? requestAddress
-              : undefined,
+              : typeof request.ip === "string"
+                ? request.ip
+                : undefined,
       });
       observation = {
         ...started.observation,

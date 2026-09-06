@@ -88,6 +88,7 @@ function buildElysiaPlugin(
 ): AnyElysia {
   const observations = new WeakMap<Request, ElysiaRequestObservation>();
   const plugin = new ElysiaClass({ name: PLUGIN_NAME });
+  let startedApp: AnyElysia | undefined;
 
   plugin.wrap(
     ((dispatcher: ElysiaDispatcher, request: Request) =>
@@ -101,6 +102,7 @@ function buildElysiaPlugin(
           const started = startWebRequestObservation({
             request,
             tracerName: TRACER_NAME,
+            clientAddress: startedApp?.server?.requestIP(request)?.address,
           });
           observation = {
             ...started.observation,
@@ -137,6 +139,7 @@ function buildElysiaPlugin(
   );
 
   plugin.onStart((app) => {
+    startedApp = app;
     recordStartedApp?.(app);
   });
   plugin.onTransform({ as: "global" }, ({ request, route }) => {

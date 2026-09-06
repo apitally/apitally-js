@@ -155,7 +155,7 @@ function observeRequest(
   const started = startWebRequestObservation({
     request,
     tracerName: TRACER_NAME,
-    clientAddress: resolveNodeServerClientAddress(env),
+    clientAddress: resolveClientAddress(request, env),
   });
   const observation: RequestObservation = started.observation;
   observationsByRequestRecord.set(observation.requestRecord, observation);
@@ -307,11 +307,9 @@ function captureExceptionIfServerErrorResponse(error: unknown, response: unknown
   }
 }
 
-// @hono/node-server passes the Node request as env.incoming; runtimes without
-// that shape expose no client address and the attribute is omitted.
-function resolveNodeServerClientAddress(env: unknown): string | undefined {
-  const incoming = (env as { incoming?: unknown } | undefined | null)?.incoming;
-  const socket = (incoming as { socket?: unknown } | undefined | null)?.socket;
-  const remoteAddress = (socket as { remoteAddress?: unknown } | undefined | null)?.remoteAddress;
-  return typeof remoteAddress === "string" ? remoteAddress : undefined;
+// biome-ignore lint/suspicious/noExplicitAny: Hono's fetch environment has no shared adapter type.
+function resolveClientAddress(request: Request, env: any): string | undefined {
+  const address =
+    env?.incoming?.socket?.remoteAddress ?? (env?.server ?? env)?.requestIP?.(request)?.address;
+  return typeof address === "string" ? address : undefined;
 }

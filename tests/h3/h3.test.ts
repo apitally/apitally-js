@@ -387,6 +387,7 @@ describe("h3 integration", () => {
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].attributes["http.response.status_code"]).toBe(204);
+    expect(spans[0].attributes["client.address"]).toBe("127.0.0.1");
   });
 
   it("drops spans while keeping metrics with a zero sample rate", async () => {

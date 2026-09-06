@@ -136,17 +136,19 @@ Reproduced with the timeout scaled down: consumer attached immediately, first ch
 
 **Fix:** Make the timeout mean "no consumer ever pulled". Replace the `TransformStream` tee with a `ReadableStream({ pull, cancel })` that reads from `response.body.getReader()`, mark `readStarted` and clear the timer on the first `pull`, and count and forward the chunk there. This is also one fewer stream object per response. The existing never-read test keeps passing; add one for a slow first chunk with an active reader.
 
-### 9. `client.address` is never exported for H3 on Node, Elysia, or Hono on Bun
+### 9. `client.address` is never exported for H3 on Node or Bun, Elysia, or Hono on Bun
 
-**Evidence:** `src/h3/middleware.ts:57-68` reads only `requestContext?.clientAddress` and `request.context?.clientAddress`. Neither exists in production: srvx's Node `Request` exposes the trust-proxy-aware peer address as `request.ip` (`node_modules/srvx/dist/adapters/node.mjs:307-311`), and H3's own `getRequestIP` falls back to exactly that. No srvx adapter sets `context.clientAddress`; it is only what `app.request(url, init, { clientAddress })` passes, which is what `tests/h3/h3.test.ts:34-36` uses. `src/elysia/middleware.ts:101-104` never passes a client address at all, and `src/hono/middleware.ts:306-313` only recognizes `@hono/node-server`'s `env.incoming`, so Hono on Bun gets nothing either.
+**Status:** Fixed. H3 now falls back to srvx's trust-proxy-aware `request.ip` on Node and Bun. Hono recognizes both Bun server shapes supported by its adapter, and Elysia reads the Bun peer address from the app captured by its existing startup hook. Temporary real-server verification covered Bun and the supported Hono and Elysia peer floors.
+
+**Evidence:** `src/h3/middleware.ts:57-68` reads only `requestContext?.clientAddress` and `request.context?.clientAddress`. Neither exists in production: srvx's Node and Bun `Request` implementations expose the trust-proxy-aware peer address as `request.ip` (`node_modules/srvx/dist/adapters/node.mjs:307-311`, `node_modules/srvx/dist/adapters/bun.mjs:40-49`), and H3's own `getRequestIP` falls back to exactly that. No srvx adapter sets `context.clientAddress`; it is only what `app.request(url, init, { clientAddress })` passes, which is what `tests/h3/h3.test.ts:34-36` uses. `src/elysia/middleware.ts:101-104` never passes a client address at all, and `src/hono/middleware.ts:306-313` only recognizes `@hono/node-server`'s `env.incoming`, so Hono on Bun gets nothing either.
 
 Reproduced through `toNodeListener` on a real `http.Server`: `request.ip` is `127.0.0.1`, both context fields are `undefined`.
 
-**Scenario:** Every H3 deployment on Node, every Elysia deployment, every Hono-on-Bun deployment: no client address in request logs, no GeoIP, and for H3 the SDK also ignores the framework's configured trust-proxy policy, which round-1 finding #8 established as the rule. The README claims Bun support for all three.
+**Scenario:** H3 deployments on Node or Bun, standard Elysia Bun deployments using `.listen()`, and Hono-on-Bun deployments have no client address in request logs or GeoIP. For H3 the SDK also ignores the framework's configured trust-proxy policy, which round-1 finding #8 established as the rule. The README claims Bun support for all three.
 
 **Likelihood:** High (unconditional for those setups).
 
-**Fix:** H3: fall back to `request.ip` when it is a string, mirroring `getRequestIP`. Bun: duck-type `env?.requestIP?.(request)?.address` in Hono and `app.server?.requestIP(request)?.address` in Elysia (the plugin receives `app` in `onStart`). Extend the H3 Node-adapter test to assert `client.address`.
+**Fix:** H3: fall back to `request.ip` when it is a string, mirroring `getRequestIP`. Hono: retain the Node adapter lookup, then duck-type both Bun server shapes (`env` and `env.server`). Elysia: capture the started app inside the shared plugin builder and read `app.server?.requestIP(request)?.address`, covering both setup APIs. Extend the H3 Node-adapter test to assert `client.address`.
 
 ### 10. Hono exceptions handled by a mounted sub-app's own `onError` are never captured
 

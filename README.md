@@ -264,7 +264,7 @@ For further instructions, see our [setup guide for Koa](https://docs.apitally.io
 
 ## Trusted proxies
 
-When your application runs behind a reverse proxy, configure the framework's trusted-proxy setting so Apitally can record the client IP for GeoIP. The SDK uses the client address resolved by Express, Fastify, Koa, AdonisJS, or the corresponding NestJS adapter. It does not trust forwarding headers directly.
+When your application runs behind a reverse proxy, configure the framework's trusted-proxy setting so Apitally can record the client IP for GeoIP. The SDK uses the client address resolved by Express, Fastify, Koa, AdonisJS, H3, or the corresponding NestJS adapter. It does not trust forwarding headers directly. Hono and Elysia on Bun expose the socket peer address without a framework trusted-proxy resolver.
 
 ## Using Sentry
 
