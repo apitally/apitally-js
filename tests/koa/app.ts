@@ -12,6 +12,20 @@ export function buildAppFixture(options: ApitallyOptions = {}): Koa {
   const app = new Koa();
   app.silent = true;
   useApitally(app, { writeToken: WRITE_TOKEN, ...options });
+  app.use(async (ctx, next) => {
+    try {
+      await next();
+    } catch (error) {
+      if (ctx.query.errorHandler) {
+        ctx.app.emit("error", error, ctx);
+      }
+      if (ctx.query.errorHandler !== "respond") {
+        throw error;
+      }
+      ctx.status = 500;
+      ctx.body = "handled";
+    }
+  });
 
   const router = new Router();
   router.get("/items/:id", (ctx) => {

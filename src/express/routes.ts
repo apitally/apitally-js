@@ -1,3 +1,4 @@
+import { captureServerException } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import type { RoutePath } from "../startup.js";
 
@@ -259,8 +260,13 @@ function wrapMountHandler(
       'The routes of a mounted router were registered before Apitally could capture them, so they are omitted from startup path enumeration. To include them, add `import "apitally/express/register";` as the first line of your application\'s entry module.',
     );
   }
-  if (handler.length >= 4) {
-    // Error middleware never descends into route dispatch.
+  if (handler.length === 4) {
+    return (error: unknown, req: object, res: object, next: unknown) => {
+      captureServerException(error);
+      return handler(error, req, res, next);
+    };
+  }
+  if (handler.length > 4) {
     return handler;
   }
   const mountHandler = handler as (

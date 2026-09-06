@@ -17,6 +17,14 @@ export function captureException(error: unknown): void {
   }
 }
 
+export function captureServerException(error: unknown): void {
+  const record = getRequestRecord();
+  const status = resolveErrorStatus(error);
+  if (record && record.exception !== error && (status === undefined || status >= 500)) {
+    captureException(error);
+  }
+}
+
 export function resolveErrorStatus(error: unknown): number | undefined {
   const { status, statusCode } = (error ?? {}) as { status?: unknown; statusCode?: unknown };
   if (typeof status === "number") {

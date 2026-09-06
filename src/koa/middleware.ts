@@ -4,7 +4,7 @@ import type Koa = require("koa");
 
 import { activate, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
-import { captureException, resolveErrorStatus } from "../exceptions.js";
+import { captureServerException } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import { finalizeRequestObservation } from "../requestObservation.js";
 import {
@@ -35,7 +35,13 @@ export function installKoaMiddleware(app: Koa): void {
   markedApp[MIDDLEWARE_MARKER] = true;
   warnIfMiddlewareAlreadyRegistered(app);
 
+  let isErrorListenerRegistered = false;
   app.use(async (ctx, next) => {
+    if (!isErrorListenerRegistered) {
+      // Register after callback() so our listener does not suppress Koa's default error logger.
+      app.on("error", captureServerException);
+      isErrorListenerRegistered = true;
+    }
     let started: ObservedRequestStart | undefined;
     try {
       started = observeRequest(ctx);
@@ -50,10 +56,7 @@ export function installKoaMiddleware(app: Koa): void {
     try {
       await context.with(started.requestContext, next);
     } catch (error) {
-      const errorStatus = resolveErrorStatus(error);
-      if (errorStatus === undefined || errorStatus >= 500) {
-        context.with(started.requestContext, () => captureException(error));
-      }
+      context.with(started.requestContext, () => captureServerException(error));
       throw error;
     } finally {
       started.observation.route = resolveMatchedRoute(ctx);

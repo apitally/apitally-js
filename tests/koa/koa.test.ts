@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { type Attributes, context, SpanKind, trace } from "@opentelemetry/api";
 import Koa from "koa";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import { useApitally } from "../../src/koa/index.js";
 import { drainServerErrors } from "../../src/serverErrors.js";
@@ -183,20 +183,31 @@ describe("koa integration", () => {
 
   it("records the exception event on the SERVER span for an unhandled route error and exports a 5xx status", async () => {
     prepareFirstRequestActivation();
-    const { response } = await send(testServer.baseUrl, "/error");
-    expect(response.status).toBe(500);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    app.silent = false;
+    try {
+      await request(testServer.server).get("/error").expect(500);
+      await request(testServer.server).get("/error?errorHandler=respond").expect(500, "handled");
+      await request(testServer.server).get("/error?errorHandler=rethrow").expect(500);
+    } finally {
+      app.silent = true;
+    }
 
     const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("GET /error");
-    expect(spans[0].attributes["http.response.status_code"]).toBe(500);
-    expect(spans[0].events[0].name).toBe("exception");
-    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("boom");
+    expect(spans).toHaveLength(3);
+    for (const span of spans) {
+      expect(span.name).toBe("GET /error");
+      expect(span.attributes["http.response.status_code"]).toBe(500);
+      expect(span.events).toHaveLength(1);
+      expect(span.events[0].name).toBe("exception");
+      expect(span.events[0].attributes?.["exception.message"]).toBe("boom");
+    }
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("Error: boom"));
   });
 
   it("counts server errors independently of trace sampling", async () => {
     prepareFirstRequestActivation({ sampleRate: 0 });
-    const { response } = await send(testServer.baseUrl, "/error");
+    const { response } = await send(testServer.baseUrl, "/error?errorHandler=respond");
     expect(response.status).toBe(500);
 
     expect(await readActivationSpans()).toEqual([]);

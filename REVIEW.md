@@ -54,6 +54,8 @@ Reproduced: a `SpanPipeline` attached to a `NodeTracerProvider`, 1000 local-root
 
 ### 3. Express and Koa lose exception and server-error capture whenever the app has its own error handler that responds
 
+**Status:** Fixed for registered Express `app.use()`/`router.use()` error handlers and Koa error events, with duplicate capture suppressed. The README documents explicit capture for route-local Express handlers and errors caught without forwarding, rethrowing, or emitting.
+
 **Evidence:** `src/express/middleware.ts:39-53` appends the SDK error middleware through `app.use(...)` on the first request so it sits after every handler the app registered; `:46-52` is the only capture point. Koa: `src/koa/middleware.ts:50-57` captures only errors that propagate out of `next()`. `v1/design-js.md:78,106` describe the capture as automatic with no caveat, and the README does not mention `captureException` anywhere.
 
 Express dispatches an error to error-handling layers in stack order and stops at the first one that responds without calling `next(err)`. Because the SDK layer is appended last, it only sees errors the app's handler forwards. The documented Express pattern is exactly `app.use((err, req, res, next) => res.status(500).json({...}))` with no `next(err)`. Koa's idiom is the mirror image: a try/catch middleware registered right after `useApitally`, therefore inside the SDK middleware, that sets `ctx.status = 500`, sets a body, and emits `ctx.app.emit("error", err, ctx)` without rethrowing.
@@ -287,14 +289,6 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 **Evidence:** `.github/workflows/tests.yaml` scenario `h3` installs unpinned `h3`; `npm view h3 dist-tags` today is `{ beta: "2.0.0-beta.5", "1x": "1.15.11", latest: "2.0.0" }` where `2.0.0` is a deprecated placeholder, so `npm install h3` resolves to 1.15.11, which has no `H3` class. The newest version inside the peer range (`>=2.0.1-rc.26 <3`) is reachable only by explicit version. Hapi is absent from the scenario list entirely; it runs only in `test-coverage` on Node 24 at the devDependency version, so the `21.0.0` floor is never installed and the integration never runs on Node 20 or 22, contrary to `v1/design.md:208`.
 
 **Fix:** Pin the h3 lane to the newest satisfying release candidate (or resolve the range in the workflow) and add one README sentence on installing an h3 v2 release candidate; add `hapi` and `hapi-21.0` lanes.
-
-### 27. `v1/design-js.md` drift
-
-- §13 (`:162`) documents `setConsumer(identifier, { name?, group? })`; the implementation is `setConsumer(consumer: ApitallyConsumer | string)` (`src/consumer.ts:23`). Round 1 rejected changing the code (#15) but the doc was not corrected.
-- §13 (`:166`) says subpaths export exactly `useApitally` plus option types; `apitally/elysia`, `apitally/h3`, and `apitally/hapi` export `apitallyPlugin`, `apitally/adonisjs` exports `defineConfig` and `captureException(error, ctx)`, and the root exports `configure`. All are correct and README-documented; the sentence is stale.
-- §16 (`:190`) still says `tests/shared/<module>.test.ts`; round 2 fixed AGENTS.md but not this line.
-
-README examples, import paths, export names, and option names were all checked against the code and match.
 
 ## Rejected candidates
 

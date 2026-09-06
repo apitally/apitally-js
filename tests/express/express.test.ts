@@ -196,23 +196,26 @@ describe("express integration", () => {
   it("records the exception event on the SERVER span for an unhandled route error and exports a 5xx status", async () => {
     prepareFirstRequestActivation();
     await request(server).get("/error").expect(500);
+    await request(server).get("/error?errorHandler=respond").expect(500, "handled");
 
     const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("GET /error");
-    expect(spans[0].attributes["http.response.status_code"]).toBe(500);
-    expect(spans[0].events).toHaveLength(1);
-    expect(spans[0].events[0].name).toBe("exception");
-    const eventAttributes = spans[0].events[0].attributes ?? {};
-    expect(eventAttributes["exception.type"]).toBe("Error");
-    expect(eventAttributes["exception.message"]).toBe("boom");
-    expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
+    expect(spans).toHaveLength(2);
+    for (const span of spans) {
+      expect(span.name).toBe("GET /error");
+      expect(span.attributes["http.response.status_code"]).toBe(500);
+      expect(span.events).toHaveLength(1);
+      expect(span.events[0].name).toBe("exception");
+      const eventAttributes = span.events[0].attributes ?? {};
+      expect(eventAttributes["exception.type"]).toBe("Error");
+      expect(eventAttributes["exception.message"]).toBe("boom");
+      expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
+    }
   });
 
   it("counts validation and server errors independently of trace sampling", async () => {
     prepareFirstRequestActivation({ sampleRate: 0 });
     await request(server).post("/validate").send({}).expect(400);
-    await request(server).get("/error").expect(500);
+    await request(server).get("/error?errorHandler=respond").expect(500);
 
     expect(await readActivationSpans()).toEqual([]);
     expect(drainValidationErrors()).toEqual([

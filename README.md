@@ -132,6 +132,8 @@ useApitally(app, {
 
 The register import ensures routes are captured no matter where they are registered — including routers assembled at module scope. It's one rule for every app shape: first line of your entry module.
 
+Errors passed to error handlers registered with `app.use()` or `router.use()` are captured automatically. For errors handled entirely within a route, including error handlers passed directly to `app.get()` or other route methods, call `captureException(error)` from `apitally` before responding.
+
 For further instructions, see our [setup guide for Express](https://docs.apitally.io/setup-guides/express).
 
 ### Fastify
@@ -255,6 +257,8 @@ useApitally(app, {
 
 // register middleware and routes below this point
 ```
+
+Errors that propagate out of middleware or are emitted through `ctx.app.emit("error", error, ctx)` are captured automatically. If your error handler responds without rethrowing or emitting the error, call `captureException(error)` from `apitally` before responding.
 
 For further instructions, see our [setup guide for Koa](https://docs.apitally.io/setup-guides/koa).
 

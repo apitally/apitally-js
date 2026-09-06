@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import express, { type Express } from "express";
+import express, { type ErrorRequestHandler, type Express } from "express";
 import type { ApitallyOptions } from "../../src/config.js";
 import { useApitally } from "../../src/express/index.js";
 import { setConsumer } from "../../src/index.js";
@@ -54,6 +54,12 @@ export function buildAppFixture(options: ApitallyOptions = {}): Express {
   });
   apiRouter.use("/v2", versionRouter);
   app.use("/api", apiRouter);
+  app.use(((error, req, res, next) => {
+    if (req.query.errorHandler !== "respond") {
+      return next(error);
+    }
+    res.status(500).send("handled");
+  }) satisfies ErrorRequestHandler);
 
   return app;
 }
