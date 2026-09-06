@@ -5,7 +5,7 @@ import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BODY_TOO_LARGE, BODY_TOO_LARGE_BUFFER, MAX_BODY_SIZE } from "./bodyCapture.js";
-import { type BodyMaskingCallback, DEFAULT_ENV } from "./config.js";
+import type { BodyMaskingCallback } from "./config.js";
 import { serializeInChunksToSpool } from "./exportSerialization.js";
 import { logWarning } from "./logger.js";
 import { REDACTED, type Redaction } from "./redaction.js";
@@ -204,7 +204,7 @@ export class ApitallySpanExporter implements SpanExporter {
     const resourceEnv = resource.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
     const resourceInstanceId = resource.attributes[SERVICE_INSTANCE_ID];
     const envDiffers = typeof resourceEnv === "string" && resourceEnv !== this.env;
-    const envMissing = resourceEnv === undefined && this.env !== DEFAULT_ENV;
+    const envMissing = resourceEnv === undefined;
     const instanceIdDiffers = resourceInstanceId !== this.instanceId;
     if (!envDiffers && !envMissing && !instanceIdDiffers) {
       return resource;

@@ -278,7 +278,6 @@ describe("spanExporter", () => {
     const { pipeline, provider, tracer } = createExportPipeline({
       resource,
       userExporter,
-      env: "staging",
     });
     const lines = captureStderr();
     const { span, request } = startServerSpan(tracer);
@@ -288,7 +287,7 @@ describe("spanExporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe("staging");
+    expect(spans[0].resource.attributes["deployment.environment.name"]).toBe("dev");
     expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
     expect(lines).toEqual([]);
     const [userSpan] = userExporter.getFinishedSpans();

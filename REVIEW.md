@@ -70,6 +70,8 @@ Reproduced on Express 5.2.1: a route throws, a custom error handler responds 500
 
 ### 4. Adopted spans are exported without `deployment.environment.name` when the user's resource has no env and Apitally's env is the default, so the server files them under `prod`
 
+**Status:** Fixed. Export copies include the resolved environment whenever the resource omits it, including the default `dev`. The existing missing-environment test now covers the default and verifies that the user's resource stays unchanged.
+
 **Evidence:** `src/spanExporter.ts:207` (`const envMissing = resourceEnv === undefined && this.env !== DEFAULT_ENV;`), `:225-227`; spec §5 (`deployment.environment.name` "defaults to `prod` when absent" and "MUST match the `Apitally-Env` header value"); `v1/design-js.md:203` (D8).
 
 For a user-owned tracer provider, `resolveExportResource` adds `deployment.environment.name` to the export copy only when the resolved env is not `dev`. With the default env the attribute stays absent, and the server's absent default is `prod`. The `Apitally-Env` header (`src/exportWorker.ts:59`) and the private metrics and logs resource (`src/providers.ts:72`) both carry `dev`. Traces land in one environment, metrics, logs, and the startup event in another, and the header/attribute MUST is violated. Reproduced against `dist/`: with env `dev` the rewritten resource has no env key; with env `staging` it does.
