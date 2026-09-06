@@ -1,4 +1,4 @@
-import { ROOT_CONTEXT, TraceFlags, trace } from "@opentelemetry/api";
+import { ROOT_CONTEXT, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import {
   AlwaysOnSampler,
   BatchSpanProcessor,
@@ -7,8 +7,10 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { describe, expect, it } from "vitest";
+import { BodyCapture } from "../src/bodyCapture.js";
 import { type SamplingCallback, setConfig } from "../src/config.js";
 import type { RequestRecord } from "../src/context.js";
+import { startRequestObservation } from "../src/requestObservation.js";
 import {
   ApitallySpanProcessor,
   SpanPipeline,
@@ -401,7 +403,7 @@ describe("spanProcessor", () => {
     expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /second"]);
   });
 
-  it("receives spans through a user-owned provider while the user's exporters keep receiving all spans", () => {
+  it("exports only observed requests from a user-owned provider while the user's exporters keep receiving all spans", () => {
     const userExporter = new InMemorySpanExporter();
     const apitallyExporter = new InMemorySpanExporter();
     const pipeline = new SpanPipeline(new SimpleSpanProcessor(apitallyExporter));
@@ -412,12 +414,31 @@ describe("spanProcessor", () => {
     });
     const tracer = provider.getTracer("test");
     tracer.startSpan("background job").end();
-    const { span, request } = startServerSpan(tracer);
+    const unobserved = tracer.startSpan("GET /metrics", { kind: SpanKind.SERVER });
+    const child = tracer.startSpan("collect metrics", {}, trace.setSpan(ROOT_CONTEXT, unobserved));
+    child.end();
+    unobserved.end();
+    expect(pipeline.resolveServerSpanId(unobserved.spanContext().spanId)).toBeUndefined();
+    expect(pipeline.resolveServerSpanId(child.spanContext().spanId)).toBeUndefined();
+
+    const span = tracer.startSpan("GET /items", { kind: SpanKind.SERVER });
+    const { requestRecord } = startRequestObservation({
+      activeContext: trace.setSpan(ROOT_CONTEXT, span),
+      extractedContext: ROOT_CONTEXT,
+      tracerName: "test",
+      method: "GET",
+      startAttributes: { "http.request.method": "GET", "url.path": "/items" },
+      requestBodyCapture: new BodyCapture({ captureBody: false }),
+    });
     span.end();
-    pipeline.handleTransportCompletion(request.record);
+    expect(pipeline.isRequestInFlight(span.spanContext().spanId)).toBe(true);
+    expect(apitallyExporter.getFinishedSpans()).toEqual([]);
+    pipeline.handleTransportCompletion(requestRecord);
     expect(apitallyExporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
     expect(userExporter.getFinishedSpans().map((span) => span.name)).toEqual([
       "background job",
+      "collect metrics",
+      "GET /metrics",
       "GET /items",
     ]);
   });

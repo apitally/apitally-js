@@ -1,4 +1,4 @@
-import { ROOT_CONTEXT, trace } from "@opentelemetry/api";
+import { ROOT_CONTEXT, SpanKind, trace } from "@opentelemetry/api";
 import { describe, expect, it } from "vitest";
 import { setConfig } from "../src/config.js";
 import {
@@ -126,9 +126,9 @@ describe("logRecordProcessor", () => {
     expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
   });
 
-  it("drops log records emitted outside any request", () => {
+  it("drops log records emitted outside observed requests", () => {
     const { pipeline, tracer } = createTracePipeline();
-    const { loggerProvider, logExporter } = createLogRecordProcessor(pipeline);
+    const { loggerProvider, logRecordProcessor, logExporter } = createLogRecordProcessor(pipeline);
     const appLogger = loggerProvider.getLogger("myapp");
     appLogger.emit({ body: "no active span" });
     const backgroundRoot = tracer.startSpan("background job");
@@ -137,7 +137,15 @@ describe("logRecordProcessor", () => {
       context: trace.setSpan(ROOT_CONTEXT, backgroundRoot),
     });
     backgroundRoot.end();
+    const unobserved = tracer.startSpan("GET /metrics", { kind: SpanKind.SERVER });
+    appLogger.emit({
+      body: "metrics collected",
+      context: trace.setSpan(ROOT_CONTEXT, unobserved),
+    });
+    unobserved.end();
     expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
+    // An empty export alone cannot distinguish discarded logs from a retained buffer.
+    expect(Reflect.get(logRecordProcessor, "buffered")).toEqual(new Map());
   });
 
   it("exports apitally-scoped records emitted without request context", () => {

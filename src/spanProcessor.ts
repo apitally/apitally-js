@@ -236,6 +236,12 @@ export class SpanPipeline implements SpanProcessor {
         return;
       }
       if (spanId === entry.serverSpanId) {
+        if (!entry.record) {
+          this.removeCompletedRequestSpanIds(entry);
+          this.stash.delete(entry.serverSpanId);
+          this.onRequestFinished?.(entry.serverSpanId, false);
+          return;
+        }
         entry.endedServerSpan = span;
         this.releaseIfComplete(entry);
         return;
@@ -258,6 +264,13 @@ export class SpanPipeline implements SpanProcessor {
     }
   }
 
+  attachRequestRecord(serverSpanId: string, record: RequestRecord): void {
+    const entry = this.requests.get(serverSpanId);
+    if (entry) {
+      entry.record ??= record;
+    }
+  }
+
   // Transport completion triggers response sampling and metrics independently
   // of span-end timing. Map misses still record metrics and discard other data.
   handleTransportCompletion(record: RequestRecord): void {
@@ -266,8 +279,6 @@ export class SpanPipeline implements SpanProcessor {
       const entry =
         record.serverSpanId !== undefined ? this.requests.get(record.serverSpanId) : undefined;
       if (entry && !entry.transportCompleted && !entry.released) {
-        // The user-produced SERVER span started before the request record existed;
-        // attaching the record here carries transport attributes to the export copy.
         entry.record ??= record;
         entry.transportCompleted = true;
         if (!this.isResponseSampledIn(entry)) {

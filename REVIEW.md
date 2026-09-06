@@ -38,6 +38,8 @@ Reproduced in this review (all outside the repo, nothing written to the working 
 
 ### 2. SERVER spans that no Apitally middleware finalizes stay in the in-flight map forever
 
+**Status:** Fixed. Adoption attaches the request record immediately; unobserved requests and their buffered logs are discarded when the SERVER span ends. No timers or eviction limits are needed.
+
 **Evidence:** `src/spanProcessor.ts:161-166, 375-407` (`startRequest` inserts every sampled-in local-root SERVER span into `requests`), `:458-496` (removal happens only in `releaseRequest` or `dropRequestOnResponse`, both of which require `handleTransportCompletion`), `src/logRecordProcessor.ts:57-71` (log records for an in-flight request buffer until release).
 
 The design bounds the in-flight map per request (1,000 spans, 1,000 log records) and deliberately declines a global budget for long-lived streams (`v1/design-js.md:70`). That reasoning assumes every entry eventually completes. An entry whose request is never observed by an Apitally middleware has no completion at all: `transportCompleted` stays false, `releaseIfComplete` never fires, and the `RequestEntry`, the `Span` object with its attributes, the `spanIds` set, the ended SERVER span, every buffered child span, and every buffered log record stay referenced for the life of the process. There is no cap, no age-out, and no shutdown-independent path that clears them.

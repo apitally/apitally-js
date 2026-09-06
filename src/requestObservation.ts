@@ -99,6 +99,7 @@ export function startRequestObservation(
     // no second span, and the request runs under the user's context.
     spanHandle.span = activeSpan;
     requestRecord.serverSpanId = activeSpan.spanContext().spanId;
+    getActiveSpanPipeline()?.attachRequestRecord(requestRecord.serverSpanId, requestRecord);
     if (getActiveSpanPipeline()?.isRequestInFlight(requestRecord.serverSpanId) !== true) {
       requestRecord.dropReason = resolveUnavailableSpanDropReason();
     }
