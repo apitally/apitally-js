@@ -114,8 +114,8 @@ function hasRegisteredRoutes(app: Hono): boolean {
   }
 }
 
-// Registered before later routes, this middleware records the resolved route
-// and Hono body cache after next().
+// Registered before later routes, this middleware records the final context
+// and resolved route after next().
 const recordMatchedRouteAfterNext: MiddlewareHandler = async (c, next) => {
   const requestRecord = getRequestRecord();
   await next();
@@ -127,6 +127,10 @@ const recordMatchedRouteAfterNext: MiddlewareHandler = async (c, next) => {
     if (observation) {
       observation.honoContext = c;
       observation.route = resolveMatchedRoute(c);
+      const error = c.error;
+      if (error && c.res.status >= 500 && observation.requestRecord.exception !== error) {
+        captureException(error);
+      }
     }
   } catch (error) {
     logDebug(`Error recording the matched hono route: ${String(error)}`);

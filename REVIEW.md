@@ -150,6 +150,8 @@ Reproduced through `toNodeListener` on a real `http.Server`: `request.ip` is `12
 
 ### 10. Hono exceptions handled by a mounted sub-app's own `onError` are never captured
 
+**Status:** Fixed. The route-recording middleware captures a mounted sub-app's handled 5xx error from the Hono context while the existing root error-handler wrapper preserves capture for errors outside Hono's composed middleware path.
+
 **Evidence:** `src/hono/middleware.ts:265-304` wraps only the root `app.errorHandler`. Hono's `route()` (`node_modules/hono/dist/hono-base.js:115-118`) composes a sub-app that has a custom `errorHandler` as `compose([], app.errorHandler)(c, ...)`, so the throw is caught inside the sub-app's compose and the root handler, with the SDK wrapper, is never invoked.
 
 Reproduced: root app with the wrapped handler, `sub.onError(() => 500 JSON)`, `root.route("/api", sub)`, `GET /api/boom` returns 500 with zero root handler calls, no `exception` event, and no server-error aggregate.

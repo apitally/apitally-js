@@ -175,6 +175,26 @@ describe("hono integration", () => {
     expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
   });
 
+  it("captures an exception handled by a mounted sub-app", async () => {
+    prepareFirstRequestActivation();
+    const rootApp = new Hono();
+    useApitally(rootApp, { writeToken: WRITE_TOKEN });
+    const subApp = new Hono();
+    subApp.onError((error, c) => c.text(error.message, 500));
+    subApp.get("/error", () => {
+      throw new Error("sub-app failure");
+    });
+    rootApp.route("/api", subApp);
+
+    const response = await rootApp.request("/api/error");
+    await readResponseAndSettleTransport(response);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].events).toHaveLength(1);
+    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("sub-app failure");
+  });
+
   it("counts validation and server errors independently of trace sampling", async () => {
     prepareFirstRequestActivation({ sampleRate: 0 });
     const validationResponse = await app.request("/validate", { method: "POST" });
