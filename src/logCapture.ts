@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { format } from "node:util";
+import { type Context, context } from "@opentelemetry/api";
 import {
   type AnyValue,
   type Logger,
@@ -194,7 +195,8 @@ export function installNestLoggerCapture(loggerProvider: LoggerProvider): void {
 }
 
 // Capture uses `winston`'s transport contract so the `silent` option, level
-// filters, and formats run first. The write wrapper only attaches the transport.
+// filters, and formats run first. The write wrapper attaches the transport and
+// preserves each record's request context across asynchronous delivery.
 export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   let createProbeLogger: () => object;
   let TransportBase: new () => object;
@@ -222,6 +224,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
     return;
   }
   const logger = loggerProvider.getLogger("winston");
+  const logContexts = new WeakMap<object, Context>();
 
   class ApitallyTransport extends TransportBase {
     readonly [WINSTON_TRANSPORT_MARKER] = true;
@@ -229,11 +232,13 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
     log(info: { level?: unknown; message?: unknown }, callback?: () => void): void {
       const severityText = typeof info.level === "string" ? info.level : "";
       const severityNumber = WINSTON_LEVEL_SEVERITIES[severityText] ?? SeverityNumber.INFO;
-      if (logger.enabled({ severityNumber })) {
+      const logContext = logContexts.get(info);
+      if (logger.enabled({ severityNumber, context: logContext })) {
         emitCapturedLogRecord(logger, {
           severityNumber,
           severityText,
           body: info.message as AnyValue,
+          context: logContext,
         });
       }
       callback?.();
@@ -248,6 +253,10 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
   // reattaches after clear(), and drains `winston`'s zero-transport buffer.
   loggerPrototype.write = function (this: WinstonLoggerInstance, ...args: unknown[]): boolean {
     try {
+      const info = args[0];
+      if (typeof info === "object" && info !== null) {
+        logContexts.set(info, context.active());
+      }
       if (
         !this.transports.some((transport) => hasPatchMarker(transport, WINSTON_TRANSPORT_MARKER))
       ) {
@@ -257,7 +266,7 @@ export function installWinstonCapture(loggerProvider: LoggerProvider): void {
         attachedTransports.set(this, transport);
       }
     } catch {
-      // An attach failure must never break the application's logging.
+      // A capture failure must never break the application's logging.
     }
     return originalWrite.apply(this, args);
   };
@@ -410,6 +419,7 @@ export function emitCapturedLogRecord(
     body: AnyValue;
     attributes?: Record<string, AnyValue>;
     timestamp?: number;
+    context?: Context;
   },
 ): void {
   try {

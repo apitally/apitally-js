@@ -112,15 +112,17 @@ npm 7+ treats an unsatisfied optional peer that is present in the tree as an ERE
 
 ### 7. winston records are attributed to the wrong request under transport backpressure
 
+**Status:** Fixed. The write wrapper records each info object's active context in a WeakMap, and the Apitally transport passes it to both the OpenTelemetry enabled check and emitted record. Temporary reproductions covered wrong attribution, dropped records, and Winston's File and HTTP transports.
+
 **Evidence:** `src/logCapture.ts:226-241` (`ApitallyTransport.log` calls `emitCapturedLogRecord` without a `context`, so sdk-logs resolves `context.active()` at delivery time), `:249-263` (the `write` shadow only attaches the transport); `src/logRecordProcessor.ts:45-56` keys the record by the span in that context.
 
-winston delivers `info` objects to transports through the `Logger` Transform stream's pipe. While flowing, delivery happens synchronously inside `write()` and the context is the writer's. Once any transport's Writable buffer fills (object-mode high-water mark 16; the `File` transport defers its callback until the underlying `fs` stream drains, HTTP transports until the response), `pipe()` pauses, later records queue in the Transform, and they are delivered when `drain` fires, in the async context of whatever I/O completion triggered the drain, which is another request or no request at all. Reproduced with the real `installWinstonCapture` and a transport whose callback fires from I/O completion: request A logs 40 lines, request B logs 5 lines, all five B records were buffered under request A.
+winston delivers `info` objects to transports through the `Logger` Transform stream's pipe. While flowing, delivery happens synchronously inside `write()` and the context is the writer's. Once any transport's Writable buffer fills (object-mode high-water mark 16; the `File` transport can defer its callback for an underlying stream drain, file opening, or rotation, while the HTTP transport defers callbacks with `setImmediate`), `pipe()` pauses, later records queue in the Transform, and they are delivered when `drain` fires, in the async context that resumed delivery, which is another request or no request at all. Reproduced with the real `installWinstonCapture` and a transport whose callback fires from I/O completion: request A logs 40 lines, request B logs 5 lines, all five B records were buffered under request A.
 
 **Scenario:** Production winston with a `File` or HTTP transport under a logging burst: a handful of concurrent requests logging several lines each pushes the `fs` write stream past 16 KB and the transport past 16 queued objects. Logs then show up on the wrong request's page, or are silently dropped when the drain originates outside any request. pino is unaffected (its `streamWrite` hook runs synchronously inside `write`); console and Nest capture are synchronous.
 
-**Likelihood:** Medium under load.
+**Likelihood:** Low to medium overall; medium for bursty applications using File, HTTP, or asynchronous custom transports.
 
-**Fix:** The `write` shadow is a synchronous seam the SDK already owns. Stamp `context.active()` onto `info` under a `Symbol.for` key there (a symbol property is invisible to `JSON.stringify` and winston formats) and pass it as `context` in `logger.emit` from the transport, falling back to `context.active()` when a format returned a fresh object. Add a test with a slow transport and two request contexts.
+**Fix:** The `write` shadow is a synchronous seam the SDK already owns. Store `context.active()` for each info object in a WeakMap, then pass it as `context` to both `logger.enabled` and `logger.emit` from the transport. A logger-level format that replaces the info object falls back to `context.active()`.
 
 ### 8. Web response capture finalizes a streaming response after five seconds when the first chunk has not arrived, reporting a wrong duration and no size
 
