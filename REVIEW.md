@@ -24,6 +24,8 @@ Reproduced in this review (all outside the repo, nothing written to the working 
 
 ### 1. `url.query` redaction is bypassed when a query value contains a literal `?`
 
+**Status:** Fixed. Bare queries skip the separator search; the existing redaction test covers a literal `?` inside a value.
+
 **Evidence:** `src/redaction.ts:34-48`; caller `src/spanExporter.ts:144` (`redactQueryParams(value, key === "url.query")`); producer `src/requestObservationNode.ts:61`.
 
 `redactQueryParams` always splits at the first `?` and treats everything before it as the path, even when `assumeQuery` is true and the whole value is already a bare query string. `?` is legal and commonly unencoded inside query values (RFC 3986 allows it in `query`; `new URL()` leaves it in place, only `encodeURIComponent` escapes it). When a value contains one, every parameter before it lands in the untouched prefix and is exported raw. For `url.query = token=SECRET&redirect=https://app.example/cb?state=1`, the prefix is `token=SECRET&redirect=https://app.example/cb` and the token leaves the process in clear text, while `http.target` for the same request is redacted correctly because there the first `?` really is the path separator.

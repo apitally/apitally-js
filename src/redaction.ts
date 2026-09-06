@@ -32,7 +32,7 @@ export class Redaction {
   // Redacts matching parameter names in a path with a query, a full URL, or a
   // bare query string when `assumeQuery` is true.
   redactQueryParams(value: string, assumeQuery = true): string {
-    const separatorIndex = value.indexOf("?");
+    const separatorIndex = assumeQuery ? -1 : value.indexOf("?");
     if (separatorIndex === -1 && !assumeQuery) {
       return value;
     }
