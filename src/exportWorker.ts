@@ -182,7 +182,7 @@ export class ExportWorker {
       if (!final && sent > 0) {
         const pauseMillis = this.interSendPauseMillis();
         if (pauseMillis > 0) {
-          await new Promise<void>((resolve) => setTimeout(resolve, pauseMillis).unref());
+          await new Promise<void>((resolve) => setTimeout(resolve, pauseMillis));
         }
         if (signal.aborted) {
           return;
