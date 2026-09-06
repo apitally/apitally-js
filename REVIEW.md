@@ -264,6 +264,8 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 ### 22. The dispatch, observe, and finalize control flow is duplicated across the three web integrations
 
+**Status:** Rejected. The shared observation and finalization primitives are already centralized. The remaining control flow encodes framework-specific return timing, body capture, validation, header handling, route discovery, and cleanup; combining it would replace explicit adapter code with callback-heavy configuration.
+
 **Evidence:** `src/h3/middleware.ts:84-103, 156-234`, `src/elysia/middleware.ts:119-137, 179-293`, `src/hono/middleware.ts:81-97, 205-221`. `finalizeFailedRequestObservation` in H3 and Elysia is byte-identical apart from the WeakMap type; Hono's `finalizeRequestObservationAfterFetchRejection` differs only in not deleting from a map. The sync-or-promise dispatch block and the `observeResponse` catch fallback are copy-pasted with different log prefixes.
 
 **Fix:** One helper in `requestObservationWeb.ts`, for example `dispatchAndObserveWebResponse(observation, dispatch, onResponse)`, owning the sync/async branching, failure finalization, and the response tee, leaving each integration with route recording, client address, and its framework-specific error hook. Roughly 100 lines less and one place for the round-2 asymmetry (Hono's catch path not finalizing) to disappear.
