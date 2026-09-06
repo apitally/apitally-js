@@ -270,11 +270,15 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 ### 23. Every web response is teed even when nothing is captured and the size is declared
 
+**Status:** Rejected. The tee deliberately measures response completion rather than handler return. The proposed fast path would change duration and finalization semantics, and the claimed performance benefit has not been benchmarked.
+
 **Evidence:** `captureWebResponse` (`src/requestObservationWeb.ts:160-216`) always builds a `TransformStream` and a new `Response` unless the body is null. On `@hono/node-server`, touching `response.headers` and `response.body` materializes the adapter's lightweight `Response` and its string and `ArrayBuffer` fast path is replaced by pumping a `ReadableStream` for every JSON response; on Bun, `new Response(Bun.file())` static responses lose the native file fast path. The design accepts the tee for completion timing (`v1/design-js.md` §7), so this is a cost trade, not a defect; the fast-path claim is code-derived and was not benchmarked.
 
 **Fix, if wanted:** Skip the tee when `shouldCaptureBody` is false, a numeric `Content-Length` is declared, and the status is not 400 or 422; finalize at handler return with the size from the header. Streamed, chunked, and captured responses keep the tee. Finding 8's `pull`-based stream also reduces the per-response cost.
 
 ### 24. `readResponseAndSettleTransport` relies on scheduling rather than a deterministic seam
+
+**Status:** Rejected. Reading the response body followed by one macrotask reliably settles the current completion chain. The proposed callback would hang for excluded, sampled-out, and unobserved requests, can miss bodiless responses, and is not correlated to a specific request.
 
 **Evidence:** `tests/utils.ts:197-203` reads the body then awaits one `setImmediate` "so the response tee settles"; used 74 times across the Hono, H3, Elysia, and Node suites. A deterministic seam exists (`waitForNextRequestFinish`, `tests/utils.ts:207`) and is used only where completion is not client-observable.
 
