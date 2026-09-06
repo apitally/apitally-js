@@ -76,6 +76,8 @@ jobs:
           - fastify-4.10
           - h3
           - h3-2.0.1-rc.26
+          - hapi
+          - hapi-21.0
           - hono
           - hono-4.8
           - koa
@@ -119,11 +121,17 @@ jobs:
             packages: fastify@4.10.2
             testDir: tests/fastify
           - scenario: h3
-            packages: h3
+            packages: 'h3@">=2.0.1-rc.26 <3"'
             testDir: tests/h3
           - scenario: h3-2.0.1-rc.26
             packages: h3@2.0.1-rc.26
             testDir: tests/h3
+          - scenario: hapi
+            packages: "@hapi/hapi"
+            testDir: tests/hapi
+          - scenario: hapi-21.0
+            packages: "@hapi/hapi@21.0.0"
+            testDir: tests/hapi
           - scenario: hono
             packages: hono
             testDir: tests/hono

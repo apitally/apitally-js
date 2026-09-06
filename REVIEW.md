@@ -290,6 +290,8 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 ### 26. CI matrix gaps: the `h3` lane no longer installs h3 v2, and Hapi has no floor or Node lane
 
+**Status:** Fixed. The current H3 lane installs the newest supported v2 release candidate, and Hapi current and floor lanes run on every supported Node.js major.
+
 **Evidence:** `.github/workflows/tests.yaml` scenario `h3` installs unpinned `h3`; `npm view h3 dist-tags` today is `{ beta: "2.0.0-beta.5", "1x": "1.15.11", latest: "2.0.0" }` where `2.0.0` is a deprecated placeholder, so `npm install h3` resolves to 1.15.11, which has no `H3` class. The newest version inside the peer range (`>=2.0.1-rc.26 <3`) is reachable only by explicit version. Hapi is absent from the scenario list entirely; it runs only in `test-coverage` on Node 24 at the devDependency version, so the `21.0.0` floor is never installed and the integration never runs on Node 20 or 22, contrary to `v1/design.md:208`.
 
 **Fix:** Pin the h3 lane to the newest satisfying release candidate (or resolve the range in the workflow) and add one README sentence on installing an h3 v2 release candidate; add `hapi` and `hapi-21.0` lanes.
