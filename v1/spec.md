@@ -110,8 +110,8 @@ Redaction MUST run before any header or body attribute (6.1, 6.3) is set, and be
 
 | Target | Default name patterns |
 |---|---|
-| Query params (in `url.query`) | `auth`, `api-?key`, `secret`, `token`, `password`, `pwd` |
-| Headers | `auth`, `api-?key`, `secret`, `token`, `cookie` |
+| Query params (in `url.query`) | `auth`, `api[-_]?key`, `secret`, `token`, `password`, `pwd` |
+| Headers | `auth`, `api[-_]?key`, `secret`, `token`, `cookie` |
 | Body fields | `password`, `pwd`, `token`, `secret`, `auth`, `card[-_ ]?number`, `ccv`, `ssn` |
 
 Body fields are matched on object keys; only string values are replaced; nested objects and arrays are walked.

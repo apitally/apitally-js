@@ -24,7 +24,7 @@ Reproduced in this review (all outside the repo, nothing written to the working 
 
 ### 1. `url.query` redaction is bypassed when a query value contains a literal `?`
 
-**Status:** Fixed. Bare queries skip the separator search; the existing redaction test covers a literal `?` inside a value.
+**Status:** Fixed. Bare queries skip the separator search; the existing redaction test covers a literal `?` inside a value. The Python SDK had the same defect in `redact_query_params` and received the same fix.
 
 **Evidence:** `src/redaction.ts:34-48`; caller `src/spanExporter.ts:144` (`redactQueryParams(value, key === "url.query")`); producer `src/requestObservationNode.ts:61`.
 
@@ -183,6 +183,8 @@ Reproduced on Express 5.2.1: `useApitally(app)` followed by `app.set("case sensi
 **Fix:** In `installExpressIntegration`, peer-resolve `express` with `createRequire` and call the existing `installRouteCaptureFromExpress(expressModule)` (identical to `src/express/register.ts:8-21`), which patches the shared Router prototype through a throwaway `Router()` without touching the app. Fall back to `installRouteCaptureFromApp` only when resolution fails (the bundled-copy case) and note the ordering constraint for that fallback in the README.
 
 ### 12. The default `api-?key` pattern does not redact `api_key` in query parameters and body fields
+
+**Status:** Fixed. The default query parameter and header pattern is `api[-_]?key` in the spec (`../cloud/docs/sdks/spec.md` §6.7 and the `v1/spec.md` mirror), the JS SDK, and the Python SDK; the existing redaction test covers `api_key`. The body-field defaults never included an API key pattern, so body redaction is unchanged.
 
 **Evidence:** `src/config.ts:42-53`; header matching normalizes `_` to `-` (`src/redaction.ts:87-93`) but `shouldRedactQueryParam` and `shouldRedactBodyField` do not. Verified: `?api_key=SECRET` exports unredacted in `http.target` and `url.query`, while the header `x_api_key` is redacted.
 

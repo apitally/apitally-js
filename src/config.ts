@@ -39,8 +39,15 @@ const DEFAULT_OTLP_ENDPOINT = "https://otlp.apitally.io";
 export const DEFAULT_ENV = "dev";
 
 // User-supplied patterns extend these defaults, never replace them.
-export const DEFAULT_MASK_QUERY_PARAMS = ["auth", "api-?key", "secret", "token", "password", "pwd"];
-export const DEFAULT_MASK_HEADERS = ["auth", "api-?key", "secret", "token", "cookie"];
+export const DEFAULT_MASK_QUERY_PARAMS = [
+  "auth",
+  "api[-_]?key",
+  "secret",
+  "token",
+  "password",
+  "pwd",
+];
+export const DEFAULT_MASK_HEADERS = ["auth", "api[-_]?key", "secret", "token", "cookie"];
 export const DEFAULT_MASK_BODY_FIELDS = [
   "password",
   "pwd",

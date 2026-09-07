@@ -9,10 +9,10 @@ describe("redaction", () => {
     const redaction = new Redaction();
     expect(
       redaction.redactQueryParams(
-        "user=alice&apiKey=abc123&PASSWORD=hunter2&custom_id=7&redirect=https://app.example/cb?state=1",
+        "user=alice&apiKey=abc123&api_key=k1&PASSWORD=hunter2&custom_id=7&redirect=https://app.example/cb?state=1",
       ),
     ).toBe(
-      "user=alice&apiKey=%5BREDACTED%5D&PASSWORD=%5BREDACTED%5D&custom_id=%5BREDACTED%5D&redirect=https%3A%2F%2Fapp.example%2Fcb%3Fstate%3D1",
+      "user=alice&apiKey=%5BREDACTED%5D&api_key=%5BREDACTED%5D&PASSWORD=%5BREDACTED%5D&custom_id=%5BREDACTED%5D&redirect=https%3A%2F%2Fapp.example%2Fcb%3Fstate%3D1",
     );
     expect(redaction.redactQueryParams("/items?secret=1&q=2", false)).toBe(
       "/items?secret=%5BREDACTED%5D&q=2",
@@ -41,7 +41,7 @@ describe("redaction", () => {
     ]);
     expect(redaction.redactHeaderValue("x-api-key", ["abc", "def"])).toEqual([REDACTED]);
     expect(redaction.redactHeaderValue("authorization", "Bearer xyz")).toBe(REDACTED);
-    expect(redaction.redactHeaderValue("x-internal-id", ["1"])).toEqual([REDACTED]);
+    expect(redaction.redactHeaderValue("x_internal_id", ["1"])).toEqual([REDACTED]);
     expect(redaction.redactHeaderValue("x_api_key", ["ghi"])).toEqual([REDACTED]);
   });
 
