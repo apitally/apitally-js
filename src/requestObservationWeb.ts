@@ -198,7 +198,7 @@ export function captureWebResponse(
   let readTimeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<WebResponseCompletion>((resolve) => {
     readTimeout = setTimeout(() => {
-      if (!readStarted) {
+      if (!readStarted && !readable.locked) {
         resolve({ completedAtMillis: performance.now() });
       }
     }, readTimeoutMillis);

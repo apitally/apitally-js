@@ -118,6 +118,21 @@ describe("requestObservationWeb", () => {
     expect(result.completedAtMillis).toBeGreaterThan(0);
   });
 
+  it("waits for a consumed response whose first chunk is delayed", async () => {
+    const { response, pushChunk, closeStream } = createChunkedResponse();
+    const captured = captureWebResponse(response, true, 0);
+    const reader = readerFrom(captured.response);
+    const firstRead = readText(reader);
+    setTimeout(() => {
+      pushChunk("delayed");
+      closeStream();
+    }, 0);
+
+    await expect(firstRead).resolves.toBe("delayed");
+    expect((await reader.read()).done).toBe(true);
+    expect((await captured.completion).size).toBe(7);
+  });
+
   it("suppresses a partial body when the response stream fails", async () => {
     const { response, pushChunk, errorStream } = createChunkedResponse();
     const captured = captureWebResponse(response, true);

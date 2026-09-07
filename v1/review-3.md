@@ -126,6 +126,8 @@ winston delivers `info` objects to transports through the `Logger` Transform str
 
 ### 8. Web response capture finalizes a streaming response after five seconds when the first chunk has not arrived, reporting a wrong duration and no size
 
+**Status:** Fixed. The unread-response timeout now leaves an actively consumed stream pending when its first chunk is delayed, while retaining the timeout for a response whose stream remains unlocked.
+
 **Evidence:** `src/requestObservationWeb.ts:182-206, 212-214`. `readStarted` is set only inside `TransformStream.transform`, which runs when the first body chunk passes through, not when the consumer attaches. The timer resolves `completion` with only `completedAtMillis` whenever no chunk has arrived, and `Promise.race` discards the later `pipePromise` result. All three integrations feed `completion` straight into `finalizeRequestObservation` (`src/hono/middleware.ts:170-171`, `src/h3/middleware.ts:174-186`, `src/elysia/middleware.ts:211-223`).
 
 Reproduced with the timeout scaled down: consumer attached immediately, first chunk after the timeout, `completion` resolved at the timeout with `size: undefined`, while the wire finished later with all bytes delivered.
