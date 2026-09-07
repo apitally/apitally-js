@@ -70,7 +70,7 @@ describe("NestJS integration", () => {
           paths: { method: string; path: string }[];
         };
         expect(startup.framework).toBe("nestjs");
-        expect(startup.versions.nestjs).toMatch(/^(10|11)\./);
+        expect(startup.versions.nestjs).toMatch(/^(10|11|12)\./);
         expect(startup.paths).toEqual([
           { method: "GET", path: "/items/:id" },
           { method: "GET", path: "/bad-request" },

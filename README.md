@@ -51,7 +51,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/setup-guides/hapi) |
 | [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/setup-guides/hono) |
 | [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/setup-guides/koa) |
-| [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x` | [Link](https://docs.apitally.io/setup-guides/nestjs) |
+| [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x`, `12.x` | [Link](https://docs.apitally.io/setup-guides/nestjs) |
 
 \* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 

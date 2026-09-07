@@ -100,6 +100,8 @@ Node exits when no referenced handles remain, regardless of pending promises. A 
 
 ### 6. `npm install apitally` fails in every NestJS 12 project
 
+**Status:** Fixed. Both optional peer ranges now include NestJS 12, and the version matrix covers its Express and Fastify adapters. Source comparison and real-app verification found that the existing integration paths require no runtime changes.
+
 **Evidence:** `package.json` peers `"@nestjs/common": ">=10 <12"` and `"@nestjs/core": ">=10 <12"`; `npm view @nestjs/core dist-tags.latest` is `12.0.1` (published 2026-08-27). The README table lists `10.x`, `11.x` and the CI matrix has `nestjs-10` and `nestjs-11` lanes.
 
 npm 7+ treats an unsatisfied optional peer that is present in the tree as an ERESOLVE conflict, so the upper bound is an install failure, not a warning. Reproduced in a scratch project with `@nestjs/core@12`: `Could not resolve dependency: peerOptional @nestjs/common@">=10 <12" from apitally@1.0.0-alpha.0`.

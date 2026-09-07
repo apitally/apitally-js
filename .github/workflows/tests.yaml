@@ -84,6 +84,7 @@ jobs:
           - koa-2
           - nestjs-10
           - nestjs-11
+          - nestjs-12
         exclude:
           - node: "20"
             scenario: adonisjs-7
@@ -149,6 +150,9 @@ jobs:
             testDir: tests/nestjs
           - scenario: nestjs-11
             packages: "@nestjs/common@11 @nestjs/core@11 @nestjs/platform-express@11 @nestjs/platform-fastify@11"
+            testDir: tests/nestjs
+          - scenario: nestjs-12
+            packages: "@nestjs/common@12 @nestjs/core@12 @nestjs/platform-express@12 @nestjs/platform-fastify@12"
             testDir: tests/nestjs
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
