@@ -244,6 +244,8 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 ### 17. A second SDK observation of the same request adopts the SDK's own SERVER span and double-counts metrics
 
+**Status:** Rejected. `useApitally` is called once on the root application; mounting one instrumented application inside another is not a supported setup.
+
 **Evidence:** `src/requestObservation.ts:97-105` adopts any recording SERVER span in the active context, including the SDK's own (placed there at `:139`); `src/spanProcessor.ts:277` calls `metricsRecorder(record)` unconditionally, so a second record for the same server span id records the histograms again. H3 guards against this (`src/h3/middleware.ts:46-48`, early return when `getRequestRecord()` exists); Express, Koa, Fastify, Hapi, Hono, and Elysia do not.
 
 **Scenario:** An Express app factory that calls `useApitally` (supported per design §3), with one factory-made app mounted into another through `app.use("/api", api)`: the inner `app.handle` wrap adopts the outer span, patches `res.write` and `res.end` again, runs route tracking twice, and finalizes twice, so every `/api` request counts twice in metrics and the error accounting.
@@ -251,6 +253,8 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 **Likelihood:** Low, both apps must be instrumented. **Fix:** Return early in `startRequestObservation` when `getRequestRecord(activeContext)` already exists, mirroring H3.
 
 ### 18. pino `stdTimeFunctions.unixTime` timestamps are interpreted as monotonic-clock offsets
+
+**Status:** Fixed. The pino capture no longer passes the line's `time` field; the capture runs inside pino's synchronous stream-write hook, so the record is stamped at emit time like every other captured log.
 
 **Evidence:** `src/logCapture.ts:336` passes `parsed.time` as `timestamp`; sdk-logs runs it through `timeInputToHrTime`, which treats numbers below `performance.timeOrigin` as `performance.now()` offsets. Seconds since the epoch (about 1.79e9) is far below the origin (about 1.79e12 ms). Reproduced: a `unixTime` value from now is recorded about 20 days in the future.
 

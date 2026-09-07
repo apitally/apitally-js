@@ -342,7 +342,6 @@ export function installPinoCapture(loggerProvider: LoggerProvider): void {
         severityNumber,
         severityText: severityTextFromNumber(severityNumber),
         body: message as AnyValue,
-        timestamp: typeof parsed.time === "number" ? parsed.time : undefined,
       });
     } catch {
       // Capture must never throw into the application's logging path.
