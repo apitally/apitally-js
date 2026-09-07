@@ -208,6 +208,8 @@ Reproduced on Express 5.2.1: `useApitally(app)` followed by `app.set("case sensi
 
 ### 14. `drainAndStop` emits error events into an already shut-down `LoggerProvider`, producing an OpenTelemetry diag warning on every shutdown
 
+**Status:** Fixed. Shutdown drains the worker before shutting down the logger provider, and the final cycle's flush callback is the only place that emits the error events. The earlier reproduction records no diag warning.
+
 **Evidence:** `src/activation.ts:352-355` calls `emitErrorEvents` then `loggerProvider.shutdown()`, then `worker.finalDrain()` runs the flush callbacks at `:303-308`, which call `emitErrorEvents(loggerProvider)` again. `node_modules/@opentelemetry/sdk-logs/build/src/LoggerProvider.js:38-41`: `getLogger` after shutdown emits `diag.warn("A shutdown LoggerProvider cannot provide a Logger")` and returns a noop logger.
 
 Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN level records that message.

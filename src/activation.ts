@@ -350,9 +350,8 @@ function createUndiciInstrumentation(otlpEndpoint: string): UndiciInstrumentatio
 async function drainAndStop(handles: ActivationHandles): Promise<void> {
   try {
     await handles.spanPipeline.shutdown();
-    emitErrorEvents(handles.loggerProvider);
-    await handles.loggerProvider.shutdown();
     await handles.worker.finalDrain();
+    await handles.loggerProvider.shutdown();
     await handles.worker.stop();
   } catch (error) {
     logWarning(`Error draining telemetry on shutdown: ${String(error)}`);
