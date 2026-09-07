@@ -196,6 +196,8 @@ Reproduced on Express 5.2.1: `useApitally(app)` followed by `app.set("case sensi
 
 ### 13. Two headline behaviors have no test
 
+**Status:** Partially fixed. The activation suite asserts that `captureLogs: false` still exports the startup and server error events while a console call inside a request produces no record. The per-framework log linkage tests are rejected: the consumer test in every framework suite already proves that handlers run inside the request context, and the console patch and the span id stamping are shared code covered by the logCapture and logRecordProcessor suites.
+
 **Evidence:** `grep -rn "captureLogs: false" tests` returns nothing; `grep -rln server_span_id tests/*/` matches only `tests/hapi/hapi.test.ts` (Hapi's `request.log()`).
 
 `captureLogs: false` is specified (`v1/design.md` §9, `v1/design-js.md` §8) as disabling only the application-log patches while the startup event and the validation and server error events keep flowing. A plausible edit that gates `emitErrorEvents` or the startup event on `captureLogs` would break that silently. Request-scoped log linkage through a real framework is asserted nowhere except Hapi: no Express, Fastify, Koa, Hono, H3, or Elysia test checks that a `console.log` (or winston or pino write) inside a handler exports with the request's `apitally.request.server_span_id`. The unit tier covers the processor and the patches in isolation, but the wiring that makes the README's correlation claim true (context binding of `req` and `res`, async-local storage through the framework's chain) is integration behavior and exactly what a middleware-order or context change would break. AGENTS.md assigns wiring to the framework suites.

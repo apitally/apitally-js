@@ -97,6 +97,26 @@ describe("activation", () => {
     });
   });
 
+  it("emits the startup and error events without capturing application logs when captureLogs is false", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    spyOnSuccessfulFetch();
+    registerStartupEventInfo({ framework: "express", resolvePaths: () => [] });
+    const handles = configureAndActivate({ captureLogs: false });
+    await runInsideRequest(
+      { pipeline: handles.spanPipeline, tracer: trace.getTracer("test") },
+      () => {
+        console.info("application log");
+      },
+    );
+    addServerError(undefined, "GET", "/items", new Error("boom"), undefined);
+    await flushTelemetry();
+
+    expect(readSerializedLogRecords().map((record) => record.eventName)).toEqual([
+      "apitally.app.startup",
+      "apitally.request.server_error",
+    ]);
+  });
+
   it("sets the semconv opt-in env var at configure when it is unset", () => {
     configure({ writeToken: WRITE_TOKEN });
     expect(process.env.OTEL_SEMCONV_STABILITY_OPT_IN).toBe("http/dup");
