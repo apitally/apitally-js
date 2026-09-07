@@ -33,21 +33,24 @@ describe("logRecordProcessor", () => {
     expect(record.instrumentationScope.name).toBe("myapp");
   });
 
-  it("truncates log strings before buffering them for an in-flight request", () => {
+  it("truncates string bodies and attribute values at 2,048 characters, leaving apitally-scoped records intact", () => {
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider, logExporter } = createLogRecordProcessor(pipeline);
     const { span, request } = startServerSpan(tracer);
     loggerProvider.getLogger("myapp").emit({
       body: "a".repeat(3_000),
-      attributes: { detail: "b".repeat(3_000) },
+      attributes: { detail: "b".repeat(3_000), count: 7 },
       context: trace.setSpan(request.context, span),
     });
     span.end();
     pipeline.handleTransportCompletion(request.record);
+    loggerProvider.getLogger("apitally").emit({ body: "c".repeat(3_000) });
 
-    const [record] = logExporter.getFinishedLogRecords();
-    expect(record.body).toBe("a".repeat(2_048));
-    expect(record.attributes.detail).toBe("b".repeat(2_048));
+    const [appRecord, apitallyRecord] = logExporter.getFinishedLogRecords();
+    expect(appRecord.body).toBe("a".repeat(2_048));
+    expect(appRecord.attributes.detail).toBe("b".repeat(2_048));
+    expect(appRecord.attributes.count).toBe(7);
+    expect(apitallyRecord.body).toBe("c".repeat(3_000));
   });
 
   it("exports a log emitted after the emitting child span ended while the request is in flight with the request association", () => {

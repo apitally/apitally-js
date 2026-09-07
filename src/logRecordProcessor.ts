@@ -2,10 +2,10 @@ import { type Context, trace } from "@opentelemetry/api";
 import type { InstrumentationScope } from "@opentelemetry/core";
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import { logDebug, logWarning } from "./logger.js";
-import { truncateLogStringValue } from "./logRecordTruncation.js";
 import type { SpanPipeline } from "./spanProcessor.js";
 
 const MAX_BUFFERED_LOG_RECORDS = 1_000;
+const MAX_LOG_STRING_LENGTH = 2_048;
 
 const SERVER_SPAN_ID_ATTRIBUTE = "apitally.request.server_span_id";
 const APITALLY_SCOPE_NAME = "apitally";
@@ -54,6 +54,7 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
         return;
       }
       logRecord.setAttribute(SERVER_SPAN_ID_ATTRIBUTE, serverSpanId);
+      truncateLogRecordStrings(logRecord);
       if (!this.spanPipeline.isRequestInFlight(serverSpanId)) {
         this.downstream.onEmit(logRecord, context);
         return;
@@ -63,7 +64,6 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
         logDebug("Apitally log buffer cap reached, dropping the log record");
         return;
       }
-      truncateBufferedLogRecordStrings(logRecord);
       if (buffer) {
         buffer.push(logRecord);
       } else {
@@ -97,18 +97,13 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
   }
 }
 
-function truncateBufferedLogRecordStrings(logRecord: SdkLogRecord): void {
-  const body = logRecord.body;
-  if (typeof body === "string") {
-    const truncatedBody = truncateLogStringValue(body);
-    if (truncatedBody !== body) {
-      logRecord.setBody(truncatedBody);
-    }
+function truncateLogRecordStrings(logRecord: SdkLogRecord): void {
+  if (typeof logRecord.body === "string" && logRecord.body.length > MAX_LOG_STRING_LENGTH) {
+    logRecord.setBody(logRecord.body.slice(0, MAX_LOG_STRING_LENGTH));
   }
   for (const [key, value] of Object.entries(logRecord.attributes)) {
-    const truncatedValue = truncateLogStringValue(value);
-    if (truncatedValue !== value) {
-      logRecord.setAttribute(key, truncatedValue);
+    if (typeof value === "string" && value.length > MAX_LOG_STRING_LENGTH) {
+      logRecord.setAttribute(key, value.slice(0, MAX_LOG_STRING_LENGTH));
     }
   }
 }

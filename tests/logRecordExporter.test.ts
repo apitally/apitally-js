@@ -12,7 +12,7 @@ import {
 } from "./utils.js";
 
 describe("logRecordExporter", () => {
-  it("truncates string bodies and attribute values at 2,048 characters on export, leaving apitally-scoped records intact", async () => {
+  it("serializes released records to the spool with their request association", async () => {
     const spool = createInMemorySpool();
     const { pipeline, tracer } = createTracePipeline();
     const { loggerProvider } = createLogRecordProcessor(
@@ -24,13 +24,13 @@ describe("logRecordExporter", () => {
     );
     const { span, request } = startServerSpan(tracer);
     loggerProvider.getLogger("myapp").emit({
-      body: "a".repeat(3_000),
-      attributes: { note: "b".repeat(3_000), count: 7 },
+      body: "inside request",
+      attributes: { count: 7 },
       context: trace.setSpan(request.context, span),
     });
     span.end();
     pipeline.handleTransportCompletion(request.record);
-    loggerProvider.getLogger("apitally").emit({ body: "c".repeat(3_000) });
+    loggerProvider.getLogger("apitally").emit({ body: "startup" });
 
     await loggerProvider.forceFlush();
     const records = readSerializedLogRecords();
@@ -39,11 +39,10 @@ describe("logRecordExporter", () => {
       "apitally",
     ]);
     const [appRecord, apitallyRecord] = records;
-    expect(appRecord.body).toBe("a".repeat(2_048));
+    expect(appRecord.body).toBe("inside request");
     expect(appRecord.spanContext?.traceId).toBe(span.spanContext().traceId);
-    expect(appRecord.attributes.note).toBe("b".repeat(2_048));
     expect(appRecord.attributes.count).toBe(7);
     expect(appRecord.attributes["apitally.request.server_span_id"]).toBe(span.spanContext().spanId);
-    expect(apitallyRecord.body).toBe("c".repeat(3_000));
+    expect(apitallyRecord.body).toBe("startup");
   });
 });
