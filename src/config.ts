@@ -222,6 +222,10 @@ function isSameConfig(a: ApitallyConfig, b: ApitallyConfig): boolean {
     if (Array.isArray(left) && Array.isArray(right)) {
       return left.length === right.length && left.every((item, index) => item === right[index]);
     }
+    // Callback identity says nothing about sameness; app factories create them inline.
+    if (typeof left === "function" && typeof right === "function") {
+      return true;
+    }
     return left === right;
   });
 }
@@ -231,5 +235,5 @@ function isTruthyEnvValue(value: string | undefined): boolean {
 }
 
 function nonEmptyEnvVar(name: string): string | undefined {
-  return process.env[name] || undefined;
+  return process.env[name]?.trim() || undefined;
 }

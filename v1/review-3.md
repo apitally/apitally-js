@@ -230,7 +230,11 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 **Likelihood:** Medium (a well-known secrets footgun), impact bounded by the error log. **Fix:** Trim in `nonEmptyEnvVar`.
 
+**Status:** Fixed. Environment variable values are trimmed; the env fallback test sets the token with a trailing newline.
+
 ### 16. `isSameConfig` compares callback options by reference, so legitimate re-calls with inline callbacks warn
+
+**Status:** Fixed. Two function-valued options compare as equal; the same-options re-call test passes inline callbacks.
 
 **Evidence:** `src/config.ts:211-220` (`left === right` for `maskRequestBody`, `maskResponseBody`, `sampleOnRequest`, `sampleOnResponse`); `v1/design.md` §3 says repeated app-factory calls must stay quiet.
 

@@ -10,7 +10,7 @@ describe("config", () => {
   });
 
   it("falls back to environment variables for omitted options", () => {
-    process.env.APITALLY_WRITE_TOKEN = WRITE_TOKEN;
+    process.env.APITALLY_WRITE_TOKEN = `${WRITE_TOKEN}\n`;
     process.env.APITALLY_ENV = "dev";
     process.env.APITALLY_OTLP_ENDPOINT = "http://127.0.0.1:4318";
     const config = setConfig();
@@ -151,8 +151,16 @@ describe("config", () => {
 
   it("returns the first configuration without logging when called again with the same options", () => {
     const lines = captureStderr();
-    const first = setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
-    const second = setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
+    const first = setConfig({
+      writeToken: WRITE_TOKEN,
+      env: "staging",
+      sampleOnResponse: () => true,
+    });
+    const second = setConfig({
+      writeToken: WRITE_TOKEN,
+      env: "staging",
+      sampleOnResponse: () => true,
+    });
     expect(second).toBe(first);
     expect(lines).toHaveLength(0);
   });
