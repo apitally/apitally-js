@@ -77,8 +77,8 @@ describe("adonisjs configure", () => {
       expect(envFile).toContain("APITALLY_ENV=prod-us");
       expect(envExample).toContain(`APITALLY_WRITE_TOKEN=${WRITE_TOKEN}`);
       expect(envExample).toContain("APITALLY_ENV=prod-us");
-      expect(count(envSchema, "APITALLY_WRITE_TOKEN: Env.schema.string()")).toBe(1);
-      expect(count(envSchema, "APITALLY_ENV: Env.schema.string()")).toBe(1);
+      expect(count(envSchema, "APITALLY_WRITE_TOKEN: Env.schema.string.optional()")).toBe(1);
+      expect(count(envSchema, "APITALLY_ENV: Env.schema.string.optional()")).toBe(1);
       expect(handler).toMatch(/import \{ captureException \} from ["']apitally\/adonisjs["']/);
       expect(count(handler, "captureException(error, ctx)")).toBe(1);
       expect(handler.indexOf("await super.handle(error, ctx)")).toBeLessThan(

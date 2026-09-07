@@ -280,7 +280,11 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 **Likelihood:** Low, but a boot failure is a hard outcome. **Fix:** `Env.schema.string.optional()` for both.
 
+**Status:** Fixed. The configure command registers both variables as optional; the configure test asserts the optional schema.
+
 ### 21. Elysia `aot: false` silently disables the integration
+
+**Status:** Fixed. The plugin's `onStart` hook warns once when the started app has `aot: false`, naming the cause. `onStart` runs from `listen()`, which the Node test suite cannot exercise; verified with a temporary Bun server.
 
 **Evidence:** `src/elysia/middleware.ts:92` relies on `plugin.wrap()`. Elysia applies `extender.higherOrderFunctions` only in `composeGeneralHandler` (`node_modules/elysia/dist/compose.mjs:1093`); the dynamic handler used when `config.aot === false` never references them. Result: no spans, no metrics, no startup event, no warning. `@elysiajs/opentelemetry` has the same limitation.
 

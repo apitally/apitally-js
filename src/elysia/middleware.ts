@@ -141,6 +141,12 @@ function buildElysiaPlugin(
   plugin.onStart((app) => {
     startedApp = app;
     recordStartedApp?.(app);
+    // Elysia's dynamic handler for aot: false never applies plugin wrap() functions.
+    if (app.config.aot === false) {
+      logWarning(
+        "Apitally does not observe requests on an Elysia app with aot: false. To resolve this, remove the aot: false option.",
+      );
+    }
   });
   plugin.onTransform({ as: "global" }, ({ request, route }) => {
     try {

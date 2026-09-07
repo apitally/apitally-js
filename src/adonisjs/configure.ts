@@ -43,8 +43,8 @@ export async function configure(command: Configure): Promise<void> {
   });
   await codemods.defineEnvValidations({
     variables: {
-      APITALLY_WRITE_TOKEN: "Env.schema.string()",
-      APITALLY_ENV: "Env.schema.string()",
+      APITALLY_WRITE_TOKEN: "Env.schema.string.optional()",
+      APITALLY_ENV: "Env.schema.string.optional()",
     },
   });
   await updateExceptionHandler(codemods, command);
