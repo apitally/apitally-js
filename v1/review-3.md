@@ -170,6 +170,8 @@ Reproduced: root app with the wrapped handler, `sub.onError(() => 500 JSON)`, `r
 
 ### 11. `useApitally(app)` on Express instantiates the app router at setup, freezing routing settings applied afterwards
 
+**Status:** Rejected. Express routing settings are configured before middleware, routes, and framework integrations. `useApitally` is the integration setup boundary, so preserving routing setting changes made afterward is not part of the supported setup contract.
+
 **Evidence:** `src/express/install.ts:20` calls `installRouteCaptureFromApp`, whose `resolveAppRouter` (`src/express/routes.ts:331-353`) calls `app.lazyrouter()` on Express 4 or reads `app.router` on Express 5. Both create the router on first access with the current `case sensitive routing` and `strict routing` settings baked in; Express 4 additionally bakes in `query parser`.
 
 Reproduced on Express 5.2.1: `useApitally(app)` followed by `app.set("case sensitive routing", true)` and `app.get("/items")`; `GET /ITEMS` returns 200 with the SDK and 404 without.
