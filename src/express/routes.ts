@@ -31,6 +31,7 @@ interface RouteTrackingState {
   mountSegments: string[];
   mountBaseUrls: string[];
   assembledTemplate?: string;
+  isRegExpRoute?: boolean;
 }
 
 interface RouteTrackingResult {
@@ -81,7 +82,7 @@ export function finishRouteTracking(req: object, requestPath: string): RouteTrac
   }
   assembleMatchedRoute(state, req);
   if (state.assembledTemplate !== undefined) {
-    if (matchesTemplate(state.assembledTemplate, requestPath, "prefix")) {
+    if (state.isRegExpRoute || matchesTemplate(state.assembledTemplate, requestPath, "prefix")) {
       return {
         route: state.assembledTemplate,
         matchedUncapturedRegistration: false,
@@ -413,25 +414,23 @@ function assembleMatchedRoute(state: RouteTrackingState, req: object): void {
   if (routePath === undefined) {
     return;
   }
-  state.assembledTemplate ??= assembleTemplate(state.mountSegments, routePath);
+  if (state.assembledTemplate === undefined) {
+    state.assembledTemplate = assembleTemplate(state.mountSegments, routePath);
+    state.isRegExpRoute = request.route?.path instanceof RegExp;
+  }
 }
 
 // The dispatched route's registered path: arrays resolve to the member
-// matching the request's remaining path, regular expressions have no template.
+// matching the request's remaining path.
 function resolveDispatchedRoutePath(routePath: unknown, requestUrl: unknown): string | undefined {
-  if (typeof routePath === "string") {
-    return normalizeInlineRegexParams(routePath);
+  if (!Array.isArray(routePath)) {
+    return routePathTemplate(routePath);
   }
-  if (Array.isArray(routePath)) {
-    const templates = routePath
-      .filter((path): path is string => typeof path === "string")
-      .map(normalizeInlineRegexParams);
-    const remainingPath = typeof requestUrl === "string" ? requestUrl.split("?")[0] : "";
-    return (
-      templates.find((template) => matchesTemplate(template, remainingPath, "full")) ?? templates[0]
-    );
-  }
-  return undefined;
+  const templates = routePathTemplates(routePath);
+  const remainingPath = typeof requestUrl === "string" ? requestUrl.split("?")[0] : "";
+  return (
+    templates.find((template) => matchesTemplate(template, remainingPath, "full")) ?? templates[0]
+  );
 }
 
 // Joins mount segments and the route path into the full template, dropping
@@ -464,15 +463,17 @@ function normalizeInlineRegexParams(path: string): string {
 }
 
 function routePathTemplates(routePath: unknown): string[] {
-  if (typeof routePath === "string") {
-    return [normalizeInlineRegexParams(routePath)];
+  return (Array.isArray(routePath) ? routePath : [routePath])
+    .map(routePathTemplate)
+    .filter((template): template is string => template !== undefined);
+}
+
+// A regular expression route uses the expression as its template, like the Koa integration.
+function routePathTemplate(path: unknown): string | undefined {
+  if (typeof path === "string") {
+    return normalizeInlineRegexParams(path);
   }
-  if (Array.isArray(routePath)) {
-    return routePath
-      .filter((path): path is string => typeof path === "string")
-      .map(normalizeInlineRegexParams);
-  }
-  return [];
+  return path instanceof RegExp ? path.toString() : undefined;
 }
 
 function joinTemplateParts(prefix: string, part: string): string {

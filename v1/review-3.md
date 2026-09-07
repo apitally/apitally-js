@@ -264,6 +264,8 @@ Reproduced: `configure()`, `activate()`, `shutdown()` with a diag logger at WARN
 
 ### 19. Regex routes are exported inconsistently: Koa emits the regex source as `http.route`, Express emits no route
 
+**Status:** Fixed. Express regular expression routes use the expression as their template, matching Koa, both per request and in startup enumeration. Regular expression mount paths are unchanged.
+
 **Evidence:** `src/koa/routes.ts:60-65` returns `value.toString()` for a `RegExp` (pinned by `tests/koa/routes.test.ts:41-42,62`); `src/express/routes.ts:415-429` returns `undefined` for a `RegExp` `req.route.path`, so the request exports with an empty route and is skipped by the histograms.
 
 **Scenario:** `@koa/router` and Express both accept regex paths; the same route gets metrics in Koa and none in Express.

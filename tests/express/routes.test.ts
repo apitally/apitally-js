@@ -88,6 +88,7 @@ describe("express routes", () => {
     app.get("/items/:id", respondOk);
     app.get("/items/:id", respondOk);
     app.post("/items", respondOk);
+    app.get(/^\/regex\/\d+$/, respondOk);
     const child = express.Router();
     child.get("/deep", respondOk);
     app.use("/api", child);
@@ -96,6 +97,7 @@ describe("express routes", () => {
       { method: "get", path: "/items/:id" },
       { method: "get", path: "/items/:id" },
       { method: "post", path: "/items" },
+      { method: "get", path: "/^\\/regex\\/\\d+$/" },
       { method: "get", path: "/api/deep" },
     ]);
   });
@@ -108,10 +110,12 @@ describe("express routes", () => {
     child.get("/items/:id", respondOk);
     child.use("/nested/:nid", grandchild);
     fixture.app.use("/api", child);
+    fixture.app.get(/^\/regex\/\d+$/, respondOk);
 
     const routeResults = await sendRequestsAndResolveRoutes(fixture, [
       "/api/items/42",
       "/api/nested/9/deep/1",
+      "/regex/7",
     ]);
     expect(routeResults).toEqual([
       {
@@ -120,6 +124,10 @@ describe("express routes", () => {
       },
       {
         route: "/api/nested/:nid/deep/:x",
+        matchedUncapturedRegistration: false,
+      },
+      {
+        route: "/^\\/regex\\/\\d+$/",
         matchedUncapturedRegistration: false,
       },
     ]);
