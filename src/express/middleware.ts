@@ -13,9 +13,12 @@ import {
   registerServerCloseFlush,
   startNodeRequestObservation,
 } from "../requestObservationNode.js";
-import { isValidationResponseStatus, parseJsonResponseBody } from "../validationErrors.js";
+import {
+  extractExpressValidationErrors,
+  isValidationResponseStatus,
+  parseJsonResponseBody,
+} from "../validationErrors.js";
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
-import { extractExpressValidationErrors } from "./validationErrors.js";
 
 const HANDLE_WRAP_MARKER = Symbol.for("apitally.expressHandleWrap");
 const TRACER_NAME = "apitally.express";
