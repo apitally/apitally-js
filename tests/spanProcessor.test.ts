@@ -76,6 +76,7 @@ describe("spanProcessor", () => {
     { attributes: { "url.scheme": "ws", "url.path": "/ws" } },
     { attributes: { "http.scheme": "wss", "http.target": "/ws" } },
     { attributes: { "http.request.method": "GET", "url.path": "/healthz" } },
+    { attributes: { "http.request.method": "GET", "url.path": "/healthz/" } },
     {
       attributes: {
         "http.request.method": "GET",

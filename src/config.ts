@@ -59,12 +59,12 @@ export const DEFAULT_MASK_BODY_FIELDS = [
   "ssn",
 ];
 export const DEFAULT_EXCLUDE_PATHS = [
-  "/_?healthz?$",
-  "/_?health[-_]?checks?$",
-  "/_?heart[-_]?beats?$",
-  "/ping$",
-  "/ready$",
-  "/live$",
+  "/_?healthz?/?$",
+  "/_?health[-_]?checks?/?$",
+  "/_?heart[-_]?beats?/?$",
+  "/ping/?$",
+  "/ready/?$",
+  "/live/?$",
   "/favicon(?:-[\\w-]+)?\\.(ico|png|svg)$",
   "/apple-touch-icon(?:-[\\w-]+)?\\.png$",
   "/robots\\.txt$",
