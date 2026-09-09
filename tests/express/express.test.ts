@@ -7,7 +7,7 @@ import { gunzipSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import compression from "compression";
-import express, { type Express } from "express";
+import express, { type ErrorRequestHandler, type Express } from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
@@ -210,6 +210,38 @@ describe("express integration", () => {
       expect(eventAttributes["exception.message"]).toBe("boom");
       expect(typeof eventAttributes["exception.stacktrace"]).toBe("string");
     }
+  });
+
+  it("keeps the original exception when error middleware replaces it", async () => {
+    prepareFirstRequestActivation();
+    const replacementApp = express();
+    useApitally(replacementApp, { writeToken: WRITE_TOKEN });
+    replacementApp.get("/error", () => {
+      throw new Error("original error");
+    });
+    replacementApp.use(((_error, _req, _res, next) => {
+      next(new Error("replacement error"));
+    }) satisfies ErrorRequestHandler);
+    replacementApp.use(((error, _req, res, _next) => {
+      res.status(500).send(String(error));
+    }) satisfies ErrorRequestHandler);
+
+    await request(replacementApp).get("/error").expect(500);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].events).toHaveLength(1);
+    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("original error");
+    expect(drainServerErrors()).toEqual([
+      {
+        method: "GET",
+        path: "/error",
+        type: "Error",
+        message: "original error",
+        stacktrace: expect.stringContaining("Error: original error"),
+        count: 1,
+      },
+    ]);
   });
 
   it("counts validation and server errors independently of trace sampling", async () => {

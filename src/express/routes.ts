@@ -1,4 +1,4 @@
-import { captureServerException } from "../exceptions.js";
+import { captureException, resolveErrorStatus } from "../exceptions.js";
 import { logDebug, logWarning } from "../logger.js";
 import type { RoutePath } from "../startup.js";
 
@@ -263,7 +263,10 @@ function wrapMountHandler(
   }
   if (handler.length === 4) {
     return (error: unknown, req: object, res: object, next: unknown) => {
-      captureServerException(error);
+      const status = resolveErrorStatus(error);
+      if (status === undefined || status >= 500) {
+        captureException(error);
+      }
       return handler(error, req, res, next);
     };
   }

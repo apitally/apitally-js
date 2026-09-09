@@ -5,6 +5,9 @@ import { logDebug } from "./logger.js";
 export function captureException(error: unknown): void {
   try {
     const requestRecord = getRequestRecord();
+    if (requestRecord?.exception !== undefined) {
+      return;
+    }
     if (requestRecord) {
       requestRecord.exception = error;
     }
@@ -14,14 +17,6 @@ export function captureException(error: unknown): void {
     }
   } catch (captureError) {
     logDebug(`Error capturing exception: ${String(captureError)}`);
-  }
-}
-
-export function captureServerException(error: unknown): void {
-  const record = getRequestRecord();
-  const status = resolveErrorStatus(error);
-  if (record && record.exception !== error && (status === undefined || status >= 500)) {
-    captureException(error);
   }
 }
 

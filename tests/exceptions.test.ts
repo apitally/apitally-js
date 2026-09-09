@@ -4,22 +4,23 @@ import { captureException, coerceToException } from "../src/exceptions.js";
 import { createTracePipeline, enableAsyncContextManager, startServerSpan } from "./utils.js";
 
 describe("exceptions", () => {
-  it("records captureException events on the server span", () => {
+  it("records only the first captureException call on the server span", () => {
     enableAsyncContextManager();
     const { pipeline, tracer, exporter } = createTracePipeline();
     const { span, request } = startServerSpan(tracer);
+    const firstError = new Error("request failed");
     context.with(trace.setSpan(request.context, span), () => {
-      captureException(new Error("request failed"));
+      captureException(firstError);
       captureException(42);
     });
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const [exported] = exporter.getFinishedSpans();
-    expect(exported.events).toHaveLength(2);
+    expect(request.record.exception).toBe(firstError);
+    expect(exported.events).toHaveLength(1);
     expect(exported.events[0].name).toBe("exception");
     expect(exported.events[0].attributes?.["exception.type"]).toBe("Error");
     expect(exported.events[0].attributes?.["exception.message"]).toBe("request failed");
-    expect(exported.events[1].attributes?.["exception.message"]).toBe("42");
   });
 
   it("records a custom Error subclass by its constructor name", () => {
