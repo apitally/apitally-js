@@ -102,16 +102,16 @@ describe("config", () => {
     { option: "maskBodyFields" },
     { option: "excludePaths" },
   ] as const)(
-    "drops an invalid $option pattern with an error log and keeps the remaining patterns",
+    "drops a non-RegExp $option pattern with an error log and keeps the remaining patterns",
     ({ option }) => {
       const lines = captureStderr();
       const options: ApitallyOptions = { writeToken: WRITE_TOKEN };
-      options[option] = ["valid", "(unclosed"];
+      options[option] = [/^valid$/, "invalid" as unknown as RegExp];
       const config = setConfig(options);
-      expect(config[option]).toEqual(["valid"]);
+      expect(config[option]).toEqual([/^valid$/]);
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain(option);
-      expect(lines[0]).toContain("(unclosed");
+      expect(lines[0]).toContain("invalid");
     },
   );
 
@@ -154,11 +154,13 @@ describe("config", () => {
     const first = setConfig({
       writeToken: WRITE_TOKEN,
       env: "staging",
+      maskHeaders: [/^x-custom$/i],
       sampleOnResponse: () => true,
     });
     const second = setConfig({
       writeToken: WRITE_TOKEN,
       env: "staging",
+      maskHeaders: [/^x-custom$/i],
       sampleOnResponse: () => true,
     });
     expect(second).toBe(first);
@@ -167,10 +169,10 @@ describe("config", () => {
 
   it("warns and keeps the first configuration when called again with different options", () => {
     const lines = captureStderr();
-    const first = setConfig({ writeToken: WRITE_TOKEN, env: "staging" });
-    const second = setConfig({ writeToken: WRITE_TOKEN, env: "dev" });
+    const first = setConfig({ writeToken: WRITE_TOKEN, maskHeaders: [/^x-custom$/] });
+    const second = setConfig({ writeToken: WRITE_TOKEN, maskHeaders: [/^x-custom$/i] });
     expect(second).toBe(first);
-    expect(second.env).toBe("staging");
+    expect(second.maskHeaders).toEqual([/^x-custom$/]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("called again with different options");
   });

@@ -5,14 +5,14 @@ import { WRITE_TOKEN } from "./utils.js";
 
 describe("redaction", () => {
   it("masks default and user-configured query params in bare query strings, request targets, and full URLs", () => {
-    setConfig({ writeToken: WRITE_TOKEN, maskQueryParams: ["custom"] });
+    setConfig({ writeToken: WRITE_TOKEN, maskQueryParams: [/^custom_id$/] });
     const redaction = new Redaction();
     expect(
       redaction.redactQueryParams(
-        "user=alice&apiKey=abc123&api_key=k1&PASSWORD=hunter2&custom_id=7&redirect=https://app.example/cb?state=1",
+        "user=alice&apiKey=abc123&api_key=k1&PASSWORD=hunter2&custom_id=7&CUSTOM_ID=8&redirect=https://app.example/cb?state=1",
       ),
     ).toBe(
-      "user=alice&apiKey=%5BREDACTED%5D&api_key=%5BREDACTED%5D&PASSWORD=%5BREDACTED%5D&custom_id=%5BREDACTED%5D&redirect=https%3A%2F%2Fapp.example%2Fcb%3Fstate%3D1",
+      "user=alice&apiKey=%5BREDACTED%5D&api_key=%5BREDACTED%5D&PASSWORD=%5BREDACTED%5D&custom_id=%5BREDACTED%5D&CUSTOM_ID=8&redirect=https%3A%2F%2Fapp.example%2Fcb%3Fstate%3D1",
     );
     expect(redaction.redactQueryParams("/items?secret=1&q=2", false)).toBe(
       "/items?secret=%5BREDACTED%5D&q=2",
@@ -34,7 +34,7 @@ describe("redaction", () => {
   });
 
   it("redacts scalar and list header values matching default and user-configured patterns", () => {
-    setConfig({ writeToken: WRITE_TOKEN, maskHeaders: ["x-internal"] });
+    setConfig({ writeToken: WRITE_TOKEN, maskHeaders: [/^X-Internal-ID$/i] });
     const redaction = new Redaction();
     expect(redaction.redactHeaderValue("content-type", ["application/json"])).toEqual([
       "application/json",
@@ -56,7 +56,7 @@ describe("redaction", () => {
   });
 
   it("masks nested JSON body fields matching default and user-configured patterns, leaving other fields untouched", () => {
-    setConfig({ writeToken: WRITE_TOKEN, maskBodyFields: ["nickname"] });
+    setConfig({ writeToken: WRITE_TOKEN, maskBodyFields: [/^nickname$/g] });
     const redaction = new Redaction();
     const body = Buffer.from(
       JSON.stringify(
@@ -66,6 +66,7 @@ describe("redaction", () => {
           card_number: "4111111111111111",
           auth: { nested: "keep" },
           note: "hi",
+          nickname: "second",
         },
         null,
         2,
@@ -78,6 +79,7 @@ describe("redaction", () => {
         card_number: REDACTED,
         auth: { nested: "keep" },
         note: "hi",
+        nickname: REDACTED,
       }),
     );
   });

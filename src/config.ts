@@ -14,12 +14,12 @@ export interface ApitallyOptions {
   captureRequestBody?: boolean;
   captureResponseHeaders?: boolean;
   captureResponseBody?: boolean;
-  maskQueryParams?: string[];
-  maskHeaders?: string[];
-  maskBodyFields?: string[];
+  maskQueryParams?: RegExp[];
+  maskHeaders?: RegExp[];
+  maskBodyFields?: RegExp[];
   maskRequestBody?: BodyMaskingCallback;
   maskResponseBody?: BodyMaskingCallback;
-  excludePaths?: string[];
+  excludePaths?: RegExp[];
   sampleRate?: number;
   sampleOnRequest?: SamplingCallback;
   sampleOnResponse?: SamplingCallback;
@@ -123,11 +123,17 @@ export function isApitallyDisabledViaEnv(): boolean {
 }
 
 export function matchesAny(patterns: RegExp[], value: string): boolean {
-  return patterns.some((pattern) => pattern.test(value));
+  return patterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  });
 }
 
-export function compilePatterns(defaults: string[], userPatterns: string[] = []): RegExp[] {
-  return [...defaults, ...userPatterns].map((pattern) => new RegExp(pattern, "i"));
+export function compilePatterns(defaults: string[], userPatterns: RegExp[] = []): RegExp[] {
+  return [
+    ...defaults.map((pattern) => new RegExp(pattern, "i")),
+    ...userPatterns.map((pattern) => new RegExp(pattern)),
+  ];
 }
 
 function resolveConfig(options: ApitallyOptions): {
@@ -147,12 +153,12 @@ function resolveConfig(options: ApitallyOptions): {
     captureRequestBody: options.captureRequestBody ?? false,
     captureResponseHeaders: options.captureResponseHeaders ?? true,
     captureResponseBody: options.captureResponseBody ?? false,
-    maskQueryParams: dropInvalidPatterns("maskQueryParams", options.maskQueryParams),
-    maskHeaders: dropInvalidPatterns("maskHeaders", options.maskHeaders),
-    maskBodyFields: dropInvalidPatterns("maskBodyFields", options.maskBodyFields),
+    maskQueryParams: dropNonRegExpPatterns("maskQueryParams", options.maskQueryParams),
+    maskHeaders: dropNonRegExpPatterns("maskHeaders", options.maskHeaders),
+    maskBodyFields: dropNonRegExpPatterns("maskBodyFields", options.maskBodyFields),
     maskRequestBody: options.maskRequestBody,
     maskResponseBody: options.maskResponseBody,
-    excludePaths: dropInvalidPatterns("excludePaths", options.excludePaths),
+    excludePaths: dropNonRegExpPatterns("excludePaths", options.excludePaths),
     // An invalid sampleRate resolves to capturing everything: no data is lost, so no warning.
     sampleRate:
       typeof options.sampleRate === "number" && options.sampleRate >= 0 && options.sampleRate <= 1
@@ -201,17 +207,14 @@ function isHttpUrl(value: string): boolean {
   return url.protocol === "http:" || url.protocol === "https:";
 }
 
-// An invalid pattern without an error could leave data unredacted, so invalid
-// patterns are logged and omitted.
-function dropInvalidPatterns(optionName: string, patterns: string[] = []): string[] {
+// Invalid pattern values could leave data unredacted, so they are logged and omitted.
+function dropNonRegExpPatterns(optionName: string, patterns: RegExp[] = []): RegExp[] {
   return patterns.filter((pattern) => {
-    try {
-      new RegExp(pattern);
+    if (pattern instanceof RegExp) {
       return true;
-    } catch {
-      logError(`Invalid regular expression pattern in ${optionName} ignored: ${pattern}`);
-      return false;
     }
+    logError(`Pattern in ${optionName} ignored because it is not a RegExp: ${String(pattern)}`);
+    return false;
   });
 }
 
@@ -220,7 +223,18 @@ function isSameConfig(a: ApitallyConfig, b: ApitallyConfig): boolean {
     const left = a[key];
     const right = b[key];
     if (Array.isArray(left) && Array.isArray(right)) {
-      return left.length === right.length && left.every((item, index) => item === right[index]);
+      return (
+        left.length === right.length &&
+        left.every((item, index) => {
+          const other = right[index];
+          return (
+            item instanceof RegExp &&
+            other instanceof RegExp &&
+            item.source === other.source &&
+            item.flags === other.flags
+          );
+        })
+      );
     }
     // Callback identity says nothing about sameness; app factories create them inline.
     if (typeof left === "function" && typeof right === "function") {

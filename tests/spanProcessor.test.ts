@@ -111,7 +111,7 @@ describe("spanProcessor", () => {
   );
 
   it("adds user-configured exclude path patterns to the defaults", () => {
-    setConfig({ writeToken: WRITE_TOKEN, excludePaths: ["^/internal/"] });
+    setConfig({ writeToken: WRITE_TOKEN, excludePaths: [/^\/INTERNAL\//i] });
     const { pipeline, tracer, exporter } = createTracePipeline();
     for (const path of ["/internal/jobs", "/healthz", "/items"]) {
       const { span, request } = startServerSpan(tracer, {
