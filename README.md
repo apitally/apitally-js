@@ -330,7 +330,7 @@ process.on("SIGTERM", () => {
 ## Runtime support
 
 - **Node.js** `>= 20.6`
-- **Bun** is supported for Elysia, H3 and Hono apps
+- **Bun** `>= 1.1.13`
 
 For edge and serverless runtimes like Cloudflare Workers, use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 

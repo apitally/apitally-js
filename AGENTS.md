@@ -10,7 +10,7 @@ Status: This branch (v1) is a new agent-generated codebase, largely untested and
 ## Code style
 
 - Write the least amount of code that gets the job done.
-- Write modern, idiomatic, strictly typed TypeScript within the supported range of Node.js >= 20.6.0: use what the floor version provides, nothing that requires a newer runtime.
+- Write modern, idiomatic, strictly typed TypeScript within the supported ranges of Node.js >= 20.6.0 and Bun >= 1.1.13: use what the floor versions provide, nothing that requires a newer runtime.
 - Imports are static and sit at the top of the module. Optional peer dependencies (winston, pino, @sentry/node, express) are resolved with a synchronous `createRequire` at activation, never with static imports or dynamic `import()` - activation is synchronous and module load stays side-effect-free.
 - Every SDK-created promise chain carries rejection handling: timer callbacks, event listeners, and fire-and-forget sends must never produce an unhandled rejection, because an unhandled rejection crashes the host process.
 - Privacy comes from not exporting. No underscore prefixes.

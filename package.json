@@ -40,7 +40,8 @@
   "homepage": "https://apitally.io",
   "type": "module",
   "engines": {
-    "node": ">=20.6.0"
+    "node": ">=20.6.0",
+    "bun": ">=1.1.13"
   },
   "sideEffects": [
     "./dist/express/register.js",
