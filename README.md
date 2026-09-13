@@ -43,15 +43,15 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 | Framework | Supported versions | Setup guide |
 | --- | --- | --- |
-| [**AdonisJS**](https://github.com/adonisjs/core) | `>= 6.3`, `< 8` | [Link](https://docs.apitally.io/setup-guides/adonisjs) |
-| [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/setup-guides/elysia) |
-| [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/express) |
-| [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/setup-guides/fastify) |
-| [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/setup-guides/h3) |
-| [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/setup-guides/hapi) |
-| [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/setup-guides/hono) |
-| [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/setup-guides/koa) |
-| [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x`, `12.x` | [Link](https://docs.apitally.io/setup-guides/nestjs) |
+| [**AdonisJS**](https://github.com/adonisjs/core) | `>= 6.3`, `< 8` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/adonisjs) |
+| [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/elysia) |
+| [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express) |
+| [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/fastify) |
+| [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3) |
+| [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hapi) |
+| [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hono) |
+| [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa) |
+| [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x`, `12.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/nestjs) |
 
 \* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 
@@ -89,7 +89,7 @@ Request headers, request bodies, and response bodies are opt-in prompts during s
 
 The SDK-wide environment default is `dev`. `APITALLY_ENV` is deployment-specific, so set it appropriately for staging and production.
 
-For further instructions, see our [setup guide for AdonisJS](https://docs.apitally.io/setup-guides/adonisjs).
+For further instructions, see our [setup guide for AdonisJS](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/adonisjs).
 
 ### Elysia
 
@@ -110,7 +110,7 @@ const app = new Elysia()
   .get("/items/:id", ({ params }) => ({ id: params.id }));
 ```
 
-For further instructions, see our [setup guide for Elysia](https://docs.apitally.io/setup-guides/elysia).
+For further instructions, see our [setup guide for Elysia](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/elysia).
 
 ### Express
 
@@ -134,7 +134,7 @@ The register import ensures routes are captured no matter where they are registe
 
 Errors passed to error handlers registered with `app.use()` or `router.use()` are captured automatically. For errors handled entirely within a route, including error handlers passed directly to `app.get()` or other route methods, call `captureException(error)` from `apitally` before responding.
 
-For further instructions, see our [setup guide for Express](https://docs.apitally.io/setup-guides/express).
+For further instructions, see our [setup guide for Express](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express).
 
 ### Fastify
 
@@ -154,7 +154,7 @@ useApitally(app, {
 // register plugins and routes below this point
 ```
 
-For further instructions, see our [setup guide for Fastify](https://docs.apitally.io/setup-guides/fastify).
+For further instructions, see our [setup guide for Fastify](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/fastify).
 
 ### NestJS
 
@@ -175,7 +175,7 @@ useApitally(app, {
 await app.listen(3000);
 ```
 
-For further instructions, see our [setup guide for NestJS](https://docs.apitally.io/setup-guides/nestjs).
+For further instructions, see our [setup guide for NestJS](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/nestjs).
 
 ### H3
 
@@ -195,7 +195,7 @@ const app = new H3({
 });
 ```
 
-For further instructions, see our [setup guide for H3](https://docs.apitally.io/setup-guides/h3).
+For further instructions, see our [setup guide for H3](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3).
 
 ### Hapi
 
@@ -218,7 +218,7 @@ await server.register(
 await server.start();
 ```
 
-For further instructions, see our [setup guide for Hapi](https://docs.apitally.io/setup-guides/hapi).
+For further instructions, see our [setup guide for Hapi](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hapi).
 
 ### Hono
 
@@ -238,7 +238,7 @@ useApitally(app, {
 // register middleware and routes below this point
 ```
 
-For further instructions, see our [setup guide for Hono](https://docs.apitally.io/setup-guides/hono).
+For further instructions, see our [setup guide for Hono](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hono).
 
 ### Koa
 
@@ -260,7 +260,7 @@ useApitally(app, {
 
 Errors that propagate out of middleware or are emitted through `ctx.app.emit("error", error, ctx)` are captured automatically. If your error handler responds without rethrowing or emitting the error, call `captureException(error)` from `apitally` before responding.
 
-For further instructions, see our [setup guide for Koa](https://docs.apitally.io/setup-guides/koa).
+For further instructions, see our [setup guide for Koa](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa).
 
 ## Trusted proxies
 
