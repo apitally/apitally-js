@@ -353,6 +353,7 @@ describe("adonisjs integration", () => {
       expect(startupRecord).toBeDefined();
       expect(JSON.parse(String(startupRecord?.body))).toEqual({
         framework: "adonisjs",
+        config: expect.any(Object),
         versions: {
           node: process.versions.node,
           adonisjs: resolvePackageVersion("@adonisjs/core"),

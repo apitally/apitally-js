@@ -28,7 +28,7 @@ export function emitStartupEvent(loggerProvider: LoggerProvider, info: StartupEv
   if (info.frameworkVersion) {
     versions[info.framework] = info.frameworkVersion;
   }
-  const appVersion = getConfig().appVersion;
+  const { writeToken, otlpEndpoint, disabled, env, appVersion, ...config } = getConfig();
   if (appVersion) {
     versions.app = appVersion;
   }
@@ -39,8 +39,10 @@ export function emitStartupEvent(loggerProvider: LoggerProvider, info: StartupEv
     logDebug(`Error resolving the app's routes for the startup event: ${String(error)}`);
   }
   const body =
-    serializePayload({ framework: info.framework, versions, paths }) ??
-    (paths !== undefined ? serializePayload({ framework: info.framework, versions }) : undefined);
+    serializePayload({ framework: info.framework, versions, paths, config }) ??
+    (paths !== undefined
+      ? serializePayload({ framework: info.framework, versions, config })
+      : undefined);
   if (body === undefined) {
     return;
   }
@@ -79,9 +81,15 @@ function serializePayload(payload: {
   framework: string;
   versions: Record<string, string>;
   paths?: RoutePath[];
+  config: Record<string, unknown>;
 }): string | undefined {
   try {
-    return JSON.stringify(payload);
+    return JSON.stringify(payload, (_key, value: unknown) => {
+      if (typeof value === "function") {
+        return true;
+      }
+      return value instanceof RegExp ? value.toString() : value;
+    });
   } catch (error) {
     logDebug(`Error serializing the startup event payload: ${String(error)}`);
     return undefined;

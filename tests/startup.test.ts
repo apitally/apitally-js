@@ -4,7 +4,7 @@ import {
   LoggerProvider,
   SimpleLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { setConfig } from "../src/config.js";
 import { emitStartupEvent } from "../src/startup.js";
 import { enableAsyncContextManager, WRITE_TOKEN } from "./utils.js";
@@ -55,7 +55,39 @@ describe("startup", () => {
         app: "2.3.1",
       },
       paths: PATHS,
+      config: expect.any(Object),
     });
+  });
+
+  it("includes settings with callback presence and regex strings, without credentials or metadata", () => {
+    const maskRequestBody = vi.fn((body: Buffer) => body);
+    setConfig({
+      writeToken: WRITE_TOKEN,
+      env: "prod",
+      appVersion: "2.3.1",
+      captureRequestBody: true,
+      maskBodyFields: [/email/i],
+      maskRequestBody,
+      sampleRate: 0.25,
+    });
+    const { loggerProvider, logExporter } = createLoggerProvider();
+    emitStartupEvent(loggerProvider, { framework: "express", resolvePaths: () => PATHS });
+
+    const [record] = logExporter.getFinishedLogRecords();
+    expect(JSON.parse(record.body as string).config).toEqual({
+      captureLogs: true,
+      captureRequestHeaders: false,
+      captureRequestBody: true,
+      captureResponseHeaders: true,
+      captureResponseBody: false,
+      maskQueryParams: [],
+      maskHeaders: [],
+      maskBodyFields: ["/email/i"],
+      maskRequestBody: true,
+      excludePaths: [],
+      sampleRate: 0.25,
+    });
+    expect(maskRequestBody).not.toHaveBeenCalled();
   });
 
   it("normalizes, filters, and deduplicates paths in first-seen order", () => {
@@ -124,6 +156,7 @@ describe("startup", () => {
     expect(JSON.parse(record.body as string)).toEqual({
       framework: "express",
       versions: { node: process.versions.node, express: "4.21.2" },
+      config: expect.any(Object),
     });
   });
 
@@ -143,6 +176,7 @@ describe("startup", () => {
     expect(JSON.parse(record.body as string)).toEqual({
       framework: "express",
       versions: { node: process.versions.node },
+      config: expect.any(Object),
     });
   });
 });
