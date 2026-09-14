@@ -226,22 +226,24 @@ describe("express integration", () => {
       res.status(500).send(String(error));
     }) satisfies ErrorRequestHandler);
 
-    await request(replacementApp).get("/error").expect(500);
+    await withServer(replacementApp, async (replacementServer) => {
+      await request(replacementServer).get("/error").expect(500);
 
-    const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    expect(spans[0].events).toHaveLength(1);
-    expect(spans[0].events[0].attributes?.["exception.message"]).toBe("original error");
-    expect(drainServerErrors()).toEqual([
-      {
-        method: "GET",
-        path: "/error",
-        type: "Error",
-        message: "original error",
-        stacktrace: expect.stringContaining("Error: original error"),
-        count: 1,
-      },
-    ]);
+      const spans = await readActivationSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].events).toHaveLength(1);
+      expect(spans[0].events[0].attributes?.["exception.message"]).toBe("original error");
+      expect(drainServerErrors()).toEqual([
+        {
+          method: "GET",
+          path: "/error",
+          type: "Error",
+          message: "original error",
+          stacktrace: expect.stringContaining("Error: original error"),
+          count: 1,
+        },
+      ]);
+    });
   });
 
   it("counts validation and server errors independently of trace sampling", async () => {
