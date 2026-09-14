@@ -12,15 +12,15 @@ import { writeRequestAttribute } from "./requestAttributes.js";
 
 export interface ApitallyConsumer {
   identifier: string;
-  name?: string;
-  group?: string;
+  name?: string | null;
+  group?: string | null;
 }
 
 const CONSUMER_IDENTIFIER_ATTRIBUTE = "apitally.consumer.identifier";
 const CONSUMER_NAME_ATTRIBUTE = "apitally.consumer.name";
 const CONSUMER_GROUP_ATTRIBUTE = "apitally.consumer.group";
 
-export function setConsumer(consumer: ApitallyConsumer | string): void {
+export function setConsumer(consumer: ApitallyConsumer | string | null | undefined): void {
   try {
     const holder = getConsumerHolder();
     const record = getRequestRecord();
@@ -73,9 +73,7 @@ function writeConsumerAttributes(
   }
 }
 
-function normalizeConsumer(
-  consumer: ApitallyConsumer | string | number | null | undefined,
-): ApitallyConsumer | undefined {
+function normalizeConsumer(consumer: ApitallyConsumer | string | number | null | undefined) {
   if (typeof consumer === "object" && consumer !== null) {
     const identifier = trimAndCap(consumer.identifier, 128);
     if (!identifier) {
