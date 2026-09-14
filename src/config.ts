@@ -1,9 +1,11 @@
-import type { SdkLogRecord } from "@opentelemetry/sdk-logs";
+import type { ReadWriteLogRecord } from "@opentelemetry/sdk-logs";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { logError, logWarning } from "./logger.js";
 
 export type BodyMaskingCallback = (body: Buffer, span: ReadableSpan) => Buffer | null;
-export type LogRecordMaskingCallback = (logRecord: SdkLogRecord) => SdkLogRecord | null | undefined;
+export type LogRecordMaskingCallback = (
+  logRecord: ReadWriteLogRecord,
+) => ReadWriteLogRecord | null | undefined;
 export type SamplingCallback = (span: ReadableSpan) => number | boolean | undefined;
 
 export interface ApitallyOptions {

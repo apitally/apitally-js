@@ -1,6 +1,6 @@
 import { type Context, trace } from "@opentelemetry/api";
 import type { InstrumentationScope } from "@opentelemetry/core";
-import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
+import type { LogRecordProcessor, ReadWriteLogRecord } from "@opentelemetry/sdk-logs";
 import type { LogRecordMaskingCallback } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
 import type { SpanPipeline } from "./spanProcessor.js";
@@ -18,7 +18,7 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
   private readonly downstream: LogRecordProcessor;
   private readonly spanPipeline: SpanPipeline;
   private readonly maskLogRecord?: LogRecordMaskingCallback;
-  private readonly buffered = new Map<string, SdkLogRecord[]>();
+  private readonly buffered = new Map<string, ReadWriteLogRecord[]>();
 
   constructor(
     downstream: LogRecordProcessor,
@@ -47,7 +47,7 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
     return spanId !== undefined && this.spanPipeline.resolveServerSpanId(spanId) !== undefined;
   }
 
-  onEmit(logRecord: SdkLogRecord, context?: Context): void {
+  onEmit(logRecord: ReadWriteLogRecord, context?: Context): void {
     try {
       const emittingSpanId = logRecord.spanContext?.spanId;
       const serverSpanId =
@@ -124,7 +124,7 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
   }
 }
 
-function truncateLogRecordStrings(logRecord: SdkLogRecord): void {
+function truncateLogRecordStrings(logRecord: ReadWriteLogRecord): void {
   if (typeof logRecord.body === "string" && logRecord.body.length > MAX_LOG_STRING_LENGTH) {
     logRecord.setBody(logRecord.body.slice(0, MAX_LOG_STRING_LENGTH));
   }
