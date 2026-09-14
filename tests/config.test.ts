@@ -71,12 +71,14 @@ describe("config", () => {
     expect(config.disabled).toBe(true);
   });
 
-  it("prefers an explicit disabled option over the disable environment variables", () => {
-    process.env.APITALLY_DISABLED = "1";
-    process.env.OTEL_SDK_DISABLED = "1";
-    const config = setConfig({ writeToken: WRITE_TOKEN, disabled: false });
-    expect(config.disabled).toBe(false);
-  });
+  it.each([{ envVar: "APITALLY_DISABLED" }, { envVar: "OTEL_SDK_DISABLED" }])(
+    "disables the SDK when $envVar is true despite an explicit disabled option of false",
+    ({ envVar }) => {
+      process.env[envVar] = "1";
+      const config = setConfig({ writeToken: WRITE_TOKEN, disabled: false });
+      expect(config.disabled).toBe(true);
+    },
+  );
 
   it("keeps a sampleRate of zero", () => {
     const config = setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0 });

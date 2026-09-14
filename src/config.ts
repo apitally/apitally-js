@@ -145,9 +145,9 @@ function resolveConfig(options: ApitallyOptions): {
     env: options.env ?? nonEmptyEnvVar("APITALLY_ENV") ?? DEFAULT_ENV,
     appVersion: options.appVersion,
     disabled:
-      options.disabled ??
-      (isTruthyEnvValue(process.env.APITALLY_DISABLED) ||
-        isTruthyEnvValue(process.env.OTEL_SDK_DISABLED)),
+      options.disabled === true ||
+      isTruthyEnvValue(process.env.APITALLY_DISABLED) ||
+      isTruthyEnvValue(process.env.OTEL_SDK_DISABLED),
     captureLogs: options.captureLogs ?? true,
     captureRequestHeaders: options.captureRequestHeaders ?? false,
     captureRequestBody: options.captureRequestBody ?? false,
