@@ -1,6 +1,7 @@
 import { type Context, trace } from "@opentelemetry/api";
 import type { InstrumentationScope } from "@opentelemetry/core";
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
+import type { LogRecordMaskingCallback } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
 import type { SpanPipeline } from "./spanProcessor.js";
 
@@ -16,11 +17,17 @@ const APITALLY_SCOPE_NAME = "apitally";
 export class ApitallyLogRecordProcessor implements LogRecordProcessor {
   private readonly downstream: LogRecordProcessor;
   private readonly spanPipeline: SpanPipeline;
+  private readonly maskLogRecord?: LogRecordMaskingCallback;
   private readonly buffered = new Map<string, SdkLogRecord[]>();
 
-  constructor(downstream: LogRecordProcessor, spanPipeline: SpanPipeline) {
+  constructor(
+    downstream: LogRecordProcessor,
+    spanPipeline: SpanPipeline,
+    maskLogRecord?: LogRecordMaskingCallback,
+  ) {
     this.downstream = downstream;
     this.spanPipeline = spanPipeline;
+    this.maskLogRecord = maskLogRecord;
     spanPipeline.onRequestFinished = (serverSpanId, kept) => {
       this.releaseRequestLogRecords(serverSpanId, kept);
     };
@@ -52,6 +59,26 @@ export class ApitallyLogRecordProcessor implements LogRecordProcessor {
           this.downstream.onEmit(logRecord, context);
         }
         return;
+      }
+      if (this.maskLogRecord && logRecord.instrumentationScope.name !== APITALLY_SCOPE_NAME) {
+        let masked: unknown;
+        try {
+          masked = this.maskLogRecord(logRecord);
+        } catch {
+          logWarning(
+            "The Apitally maskLogRecord callback threw an error, so the log record was dropped",
+          );
+          return;
+        }
+        if (masked === null || masked === undefined) {
+          return;
+        }
+        if (masked !== logRecord) {
+          logWarning(
+            "The Apitally maskLogRecord callback returned an invalid value, so the log record was dropped. Mask callbacks must synchronously return the input log record, null, or undefined.",
+          );
+          return;
+        }
       }
       logRecord.setAttribute(SERVER_SPAN_ID_ATTRIBUTE, serverSpanId);
       truncateLogRecordStrings(logRecord);

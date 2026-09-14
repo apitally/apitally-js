@@ -37,6 +37,7 @@ describe("config", () => {
       maskBodyFields: [],
       maskRequestBody: undefined,
       maskResponseBody: undefined,
+      maskLogRecord: undefined,
       excludePaths: [],
       sampleRate: 1,
       sampleOnRequest: undefined,

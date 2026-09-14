@@ -97,6 +97,33 @@ describe("activation", () => {
     });
   });
 
+  it("masks and drops captured logs without changing console output", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
+    const handles = configureAndActivate({
+      maskLogRecord(record) {
+        if (record.body === "ignore") {
+          return null;
+        }
+        record.body = "[REDACTED]";
+        return record;
+      },
+    });
+    await runInsideRequest(
+      { pipeline: handles.spanPipeline, tracer: trace.getTracer("test") },
+      () => {
+        console.info("token=secret");
+        console.info("ignore");
+      },
+    );
+    await handles.loggerProvider.forceFlush();
+
+    const records = readSerializedLogRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0].body).toBe("[REDACTED]");
+    expect(records[0].instrumentationScope.name).toBe("console");
+    expect(consoleInfo.mock.calls).toEqual([["token=secret"], ["ignore"]]);
+  });
+
   it("emits the startup and error events without capturing application logs when captureLogs is false", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     spyOnSuccessfulFetch();

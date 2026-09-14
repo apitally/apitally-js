@@ -11,7 +11,8 @@ import { useApitally as useApitallyKoa } from "./koa/index.js";
 export { shutdown } from "./activation.js";
 export type {
   ApitallyOptions,
-  BodyMaskingCallback as BodyMaskCallback,
+  BodyMaskingCallback,
+  LogRecordMaskingCallback,
   SamplingCallback,
 } from "./config.js";
 export type { ApitallyConsumer } from "./consumer.js";

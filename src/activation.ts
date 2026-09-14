@@ -290,7 +290,11 @@ function startPipelines(
     maxQueueSize: BATCH_MAX_QUEUE_SIZE,
     maxExportBatchSize: BATCH_MAX_EXPORT_BATCH_SIZE,
   });
-  const logRecordProcessor = new ApitallyLogRecordProcessor(batchLogProcessor, spanPipeline);
+  const logRecordProcessor = new ApitallyLogRecordProcessor(
+    batchLogProcessor,
+    spanPipeline,
+    config.maskLogRecord,
+  );
   const loggerProvider = createLoggerProvider(resource, [logRecordProcessor]);
   const metricsPipeline = new MetricsPipeline(resource, spool);
   spanPipeline.metricsRecorder = (record) => metricsPipeline.recordFromRequest(record);
