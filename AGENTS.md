@@ -1,7 +1,5 @@
 # Agent guidance
 
-Status: This branch (v1) is a full rewrite of the v0 SDK. We're in the process of preparing it for a release. The v1 SDK in this branch will supersede the v0 SDK in the main branch eventually.
-
 ## Checks
 
 - Verify code changes with the npm scripts, never with hand-picked subsets of them: `npm run check` (Biome lint and format, tsc) and `npm test` (vitest). CI runs the same commands, so only their complete output counts as green.
