@@ -282,7 +282,7 @@
     "@types/express": "^5.0.6",
     "@types/koa": "^3.0.3",
     "@types/koa-route": "^3.2.9",
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.0.0",
     "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "^4.1.10",
     "compression": "^1.8.1",
