@@ -25,21 +25,28 @@
 [![Codecov](https://codecov.io/gh/apitally/apitally-js/graph/badge.svg?token=j5jqlrL7Pd)](https://codecov.io/gh/apitally/apitally-js)
 [![npm](https://img.shields.io/npm/v/apitally?logo=npm&color=%23cb0000)](https://www.npmjs.com/package/apitally)
 
-API monitoring, analytics and request logging for [AdonisJS](https://github.com/adonisjs/core), [Elysia](https://github.com/elysiajs/elysia), [Express](https://github.com/expressjs/express), [Fastify](https://github.com/fastify/fastify), [H3](https://github.com/h3js/h3), [Hapi](https://github.com/hapijs/hapi), [Hono](https://github.com/honojs/hono), [Koa](https://github.com/koajs/koa) and [NestJS](https://github.com/nestjs/nest), built on OpenTelemetry. One line of setup instruments your app and streams traces, logs and metrics to Apitally. No OpenTelemetry knowledge, infrastructure changes or dashboards are required.
+Apitally is a simple API monitoring and analytics tool that makes it easy to understand API usage, monitor performance, and troubleshoot issues.
+Get started in minutes by just adding a few lines of code. No infrastructure changes required, no dashboards to build.
+
+The SDK is an [OpenTelemetry](https://opentelemetry.io) distribution and works alongside an existing OpenTelemetry setup.
 
 Learn more about Apitally on our 🌎 [website](https://apitally.io) or check out the 📚 [documentation](https://docs.apitally.io).
 
+> [!IMPORTANT]
+> **Upgrading from 0.x?** Version 1.0 is a full rewrite with a new setup API. See the [migration guide](MIGRATION.md) for a full 0.x to 1.x mapping.
+
 ## Key features
 
-- **API analytics**: Traffic, error and performance metrics for your API, each endpoint, and individual API consumers.
-- **Request logging**: Every request as a searchable log entry, with optional capture of headers and request/response bodies.
-- **Application logs**: Logs written via `console`, winston, pino, Hapi's `request.log()` or Nest's default `ConsoleLogger` are captured automatically and correlated with the request they belong to.
-- **Distributed tracing**: Requests are exported as OpenTelemetry spans, including spans from any other instrumentations you run.
-- **Error tracking**: Exceptions with stack traces for server errors, automatically linked to Sentry events if you use Sentry.
-- **Server metrics**: CPU, memory and uptime of your app's processes.
-- **Data privacy built in**: Sensitive headers and query parameters are masked by default, with configurable masking for anything else, plus sampling to control data volume.
+- **API analytics**: Traffic, error and performance metrics for your API, each endpoint, and per API consumer. Drill down from metrics to individual API requests.
+- **Request logs and traces**: Every request as a searchable log entry, with optional capture of headers and request/response bodies. Requests are exported as OpenTelemetry spans, including spans from any other instrumentations you have.
+- **Application logs**: Logs written via `console` and other supported loggers are captured automatically and correlated with the requests they belong to.
+- **Error tracking**: Validation errors and exceptions with stack traces for server errors, automatically linked to Sentry events if you use Sentry.
+- **Server metrics**: CPU and memory usage of your app's processes.
+- **API monitoring & alerts**: Get notified if something isn't right using custom alerts, synthetic uptime checks and heartbeat monitoring. Alert notifications can be delivered via email, Slack and Microsoft Teams.
 
 ## Supported frameworks
+
+The SDK supports **Node.js** `>= 20.6` and **Bun** `>= 1.1.13`.
 
 | Framework | Supported versions | Setup guide |
 | --- | --- | --- |
@@ -47,7 +54,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 | [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/elysia) |
 | [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/fastify) |
-| [**H3**](https://github.com/h3js/h3) \* | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3) |
+| [**H3**](https://github.com/h3js/h3) | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3) |
 | [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hapi) |
 | [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hono) |
 | [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa) |
@@ -59,15 +66,15 @@ Apitally also supports many other web frameworks in [Python](https://github.com/
 
 ## Getting started
 
-If you don't have an Apitally account yet, first [sign up here](https://app.apitally.io/?signup). Then create an app in the Apitally dashboard. You'll see detailed setup instructions with code snippets you can copy and paste, including your write token.
+If you don't have an Apitally account yet, first [sign up here](https://app.apitally.io/?signup). Then create an app in the Apitally dashboard. You'll see detailed setup instructions with code snippets you can copy and paste. These also include your write token.
 
-Install the SDK. AdonisJS applications should use the Ace command in the next section instead.
+To install the SDK as a dependency in your project run:
 
 ```bash
 npm install apitally
 ```
 
-Pass the write token via the `writeToken` option, or set the `APITALLY_WRITE_TOKEN` environment variable. See the [SDK reference](https://docs.apitally.io/sdk-reference/javascript) for all available configuration options, including how to mask sensitive data, customize request logging, and more.
+See the [SDK reference](https://docs.apitally.io/sdk-reference/javascript/v1/configuration) for all available configuration options, including how to mask sensitive data, capture request and response payloads, and more.
 
 ### AdonisJS
 
@@ -79,15 +86,7 @@ node ace add apitally
 
 The command installs and configures Apitally. It creates `config/apitally.ts`, adds the required environment declarations, registers the service provider and server middleware, and updates the conventional exception handler to capture validation and server errors.
 
-If Apitally is already installed, or to rerun setup, use:
-
-```bash
-node ace configure apitally
-```
-
-Request headers, request bodies, and response bodies are opt-in prompts during setup. Response headers are enabled by default. You can change these settings later in `config/apitally.ts`.
-
-The SDK-wide environment default is `dev`. `APITALLY_ENV` is deployment-specific, so set it appropriately for staging and production.
+If needed, you can change settings in `config/apitally.ts`.
 
 For further instructions, see our [setup guide for AdonisJS](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/adonisjs).
 
@@ -126,13 +125,9 @@ const app = express();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "dev", // optional, defaults to "dev"
+  env: "dev", // or "prod" etc.
 });
 ```
-
-The register import ensures routes are captured no matter where they are registered — including routers assembled at module scope. It's one rule for every app shape: first line of your entry module.
-
-Errors passed to error handlers registered with `app.use()` or `router.use()` are captured automatically. For errors handled entirely within a route, including error handlers passed directly to `app.get()` or other route methods, call `captureException(error)` from `apitally` before responding.
 
 For further instructions, see our [setup guide for Express](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express).
 
@@ -148,7 +143,7 @@ const app = Fastify();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "dev", // optional, defaults to "dev"
+  env: "dev", // or "prod" etc.
 });
 
 // register plugins and routes below this point
@@ -158,7 +153,7 @@ For further instructions, see our [setup guide for Fastify](https://docs.apitall
 
 ### NestJS
 
-Call the synchronous `useApitally(app)` immediately after creating the Nest application, before `app.init()` or `app.listen()`:
+Call `useApitally(app)` immediately after creating the Nest application, before `app.init()` or `app.listen()`:
 
 ```javascript
 import { NestFactory } from "@nestjs/core";
@@ -169,7 +164,7 @@ const app = await NestFactory.create(AppModule);
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "dev", // optional, defaults to "dev"
+  env: "dev", // or "prod" etc.
 });
 
 await app.listen(3000);
@@ -189,7 +184,7 @@ const app = new H3({
   plugins: [
     apitallyPlugin({
       writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-      env: "dev", // optional, defaults to "dev"
+      env: "dev", // or "prod" etc.
     }),
   ],
 });
@@ -210,7 +205,7 @@ const server = Hapi.server({ port: 3000 });
 await server.register(
   apitallyPlugin({
     writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-    env: "dev", // optional, defaults to "dev"
+    env: "dev", // or "prod" etc.
   }),
 );
 
@@ -222,7 +217,7 @@ For further instructions, see our [setup guide for Hapi](https://docs.apitally.i
 
 ### Hono
 
-Call `useApitally(app)` immediately after creating the app — before registering middleware and routes, and before `app.fetch` is handed to the server:
+Call `useApitally(app)` immediately after creating the app, before registering middleware and routes:
 
 ```javascript
 import { Hono } from "hono";
@@ -232,7 +227,7 @@ const app = new Hono();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "dev", // optional, defaults to "dev"
+  env: "dev", // or "prod" etc.
 });
 
 // register middleware and routes below this point
@@ -252,38 +247,64 @@ const app = new Koa();
 
 useApitally(app, {
   writeToken: "your-write-token", // or set APITALLY_WRITE_TOKEN
-  env: "dev", // optional, defaults to "dev"
+  env: "dev", // or "prod" etc.
 });
 
 // register middleware and routes below this point
 ```
 
-Errors that propagate out of middleware or are emitted through `ctx.app.emit("error", error, ctx)` are captured automatically. If your error handler responds without rethrowing or emitting the error, call `captureException(error)` from `apitally` before responding.
-
 For further instructions, see our [setup guide for Koa](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa).
 
-## Trusted proxies
+## Configuration
 
-When your application runs behind a reverse proxy, configure the framework's trusted-proxy setting so Apitally can record the client IP for GeoIP. The SDK uses the client address resolved by Express, Fastify, Koa, AdonisJS, H3, or the corresponding NestJS adapter. It does not trust forwarding headers directly. Hono and Elysia on Bun expose the socket peer address without a framework trusted-proxy resolver.
+The write token and environment can also be provided via the `APITALLY_WRITE_TOKEN` and `APITALLY_ENV` environment variables instead of the `writeToken` and `env` options. The environment defaults to `dev`.
 
-## Using Sentry
-
-Sentry's Node.js SDK registers an OpenTelemetry tracer provider by default. If you use Sentry for error monitoring without performance tracing, let Apitally configure OpenTelemetry by disabling Sentry's setup:
+By default, Apitally captures response headers but not request headers or request and response bodies. You can opt in with options:
 
 ```javascript
-Sentry.init({
-  dsn: "your-sentry-dsn",
-  skipOpenTelemetrySetup: true,
+useApitally(app, {
+  writeToken: "your-write-token",
+  env: "dev",
+  captureRequestHeaders: true,
+  captureRequestBody: true,
+  captureResponseBody: true,
 });
 ```
 
-This keeps Sentry error reporting and Apitally's request logs and traces working together. If you use Sentry performance tracing, configure a shared OpenTelemetry provider and include `ApitallySpanProcessor` as described below.
+Sensitive values in query parameters, headers, and body fields are masked automatically based on built-in patterns, and you can add your own via the `maskQueryParams`, `maskHeaders`, and `maskBodyFields` options.
 
-## Works with your existing OpenTelemetry setup
+On high-traffic applications you can capture logs and traces for only a fraction of requests by setting `sampleRate` (e.g. `0.1` for 10%), or decide per request with the `sampleOnRequest` and `sampleOnResponse` callbacks. Metrics always count every request, regardless of sampling.
 
-If your app doesn't use OpenTelemetry, you don't need to know it's there — the SDK sets up a private, fully configured pipeline.
+Application logs written via `console` and other supported loggers are captured and correlated with requests by default. Use `maskLogRecord` to transform or drop Apitally's captured copy, or opt out with `captureLogs: false`.
 
-If your app already registers its own tracer provider (e.g. via `NodeSDK`), Apitally never replaces it. Instead, add the `ApitallySpanProcessor` to your provider's span processors:
+See the [SDK reference](https://docs.apitally.io/sdk-reference/javascript/v1/configuration) for all configuration options.
+
+## Identifying consumers and more
+
+The top-level `apitally` package provides functions you can call from anywhere in your request handling code:
+
+```javascript
+import { setConsumer, setRequestAttribute, captureException } from "apitally";
+
+// Associate the current request with an API consumer
+setConsumer({ identifier: user.identifier, name: user.name, group: user.group });
+
+// Attach a custom attribute to the current request
+setRequestAttribute("tenant", tenantId);
+
+// Capture a handled exception for the current request
+captureException(error);
+```
+
+`setConsumer()` also accepts an identifier string, for example `setConsumer(user.identifier)`.
+
+For further details, check out our [documentation](https://docs.apitally.io).
+
+## Existing OpenTelemetry setup
+
+If your app doesn't already use OpenTelemetry, you don't need to know it's there. The Apitally SDK configures OpenTelemetry automatically.
+
+If your app already registers its own tracer provider (e.g. via `NodeSDK`), Apitally does not replace it. Instead, you need to add the `ApitallySpanProcessor` to your provider's span processors:
 
 ```javascript
 import { NodeSDK } from "@opentelemetry/sdk-node";
@@ -295,7 +316,32 @@ const sdk = new NodeSDK({
 });
 ```
 
-Your existing exporters keep seeing everything they already see: Apitally adopts the spans your instrumentation produces instead of creating duplicates, and its meter and logger providers stay private, so nothing leaks into your own pipelines.
+Your tracer provider's sampling settings also affect Apitally. Requests excluded by the sampler will not have request logs or traces in Apitally. Metrics still include all requests, regardless of sampling.
+
+### Sentry
+
+Sentry's Node.js SDK configures OpenTelemetry automatically. To use Apitally alongside Sentry, add `ApitallySpanProcessor` to Sentry's configuration and call `Sentry.init()` before `useApitally()`:
+
+```javascript
+import * as Sentry from "@sentry/node";
+import { ApitallySpanProcessor } from "apitally";
+
+Sentry.init({
+  dsn: "your-sentry-dsn",
+  // Enable tracing
+  tracesSampleRate: 1.0,
+  // Add Apitally's span processor
+  openTelemetrySpanProcessors: [new ApitallySpanProcessor()],
+  // Optional: send only errors to Sentry
+  beforeSendTransaction: () => null,
+});
+```
+
+Apitally uses the spans recorded by Sentry, so tracing must be enabled in Sentry. Requests excluded by Sentry's sampler will also be missing from Apitally's request logs and traces.
+
+Returning `null` from `beforeSendTransaction` prevents traces from being sent to Sentry without affecting Apitally's request logs and traces.
+
+### Elysia's OpenTelemetry plugin
 
 When using Elysia's `@elysia/opentelemetry` plugin, register Apitally first so it adopts the OpenTelemetry SERVER span:
 
@@ -309,30 +355,23 @@ const app = new Elysia()
   .use(opentelemetry());
 ```
 
+## Trusted proxies
+
+If your application runs behind a reverse proxy or load balancer, configure trusted proxies in your framework so Apitally can record the real client IP for GeoIP. Apitally uses the client IP reported by your framework. It does not read forwarding headers itself to determine the client IP.
+
 ## Graceful shutdown
 
-Telemetry is exported in the background roughly every 15 seconds. After successful activation, Apitally installs `SIGTERM` and `SIGINT` listeners by default on supported POSIX main-thread processes. There is no opt-out, and the fixed five-second timeout is not configurable.
+Apitally sends telemetry in batches and automatically attempts a final export during normal process shutdown.
 
-On either signal, Apitally makes a non-destructive best-effort final drain of completed telemetry for up to five seconds. If another listener exists for that signal, that listener retains application lifecycle ownership. It must eventually terminate the process or allow it to drain naturally. If Apitally is the sole listener, it removes its listeners before draining and then restores the signal's original termination behavior. A repeated signal is therefore not delayed by another Apitally drain.
-
-Use the  `shutdown()` function for the coordinated full teardown path. Stop traffic and wait for in-flight work before awaiting it:
+If your code calls `process.exit()`, await `shutdown()` first to give Apitally time to send buffered telemetry. Close your server and let any remaining requests finish before doing this:
 
 ```javascript
 import { shutdown } from "apitally";
 
-process.on("SIGTERM", () => {
-  server.close(async () => {
-    await shutdown();
-  });
-});
+// After the server has closed and requests have finished:
+await shutdown();
+process.exit(0);
 ```
-
-## Runtime support
-
-- **Node.js** `>= 20.6`
-- **Bun** `>= 1.1.13`
-
-For edge and serverless runtimes like Cloudflare Workers, use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 
 ## Getting help
 
