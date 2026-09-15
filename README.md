@@ -7,6 +7,7 @@
     </picture>
   </a>
 </p>
+<!-- Temporary verification of the v0 documentation-only CI gate. -->
 <p align="center"><b>API monitoring & analytics made simple</b></p>
 <p align="center" style="color: #ccc;">Metrics, logs, traces, and alerts for your APIs — with just a few lines of code.</p>
 <br>
