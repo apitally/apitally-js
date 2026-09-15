@@ -284,7 +284,7 @@
     "@types/koa-route": "^3.2.9",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.2.1",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^5.0.0",
     "compression": "^1.8.1",
     "elysia": "^1.4.29",
     "esbuild-fix-imports-plugin": "^1.0.23",
@@ -301,7 +301,7 @@
     "supertest": "^7.2.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10",
+    "vitest": "^5.0.0",
     "winston": "^3.19.0"
   }
 }
