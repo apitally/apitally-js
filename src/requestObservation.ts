@@ -104,7 +104,7 @@ export function startRequestObservation(
       requestRecord.dropReason = resolveUnavailableSpanDropReason();
     }
     requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
-  } else if (activeSpan && !activeSpan.isRecording()) {
+  } else if (activeSpan && !activeSpan.isRecording() && !activeSpan.spanContext().isRemote) {
     requestRecord.dropReason = resolveUnavailableSpanDropReason();
     if (requestRecord.dropReason === "sampled-out") {
       warnAboutNonRecordingServerSpan();
