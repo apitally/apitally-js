@@ -48,7 +48,7 @@
     "./dist/express/register.cjs"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsdown",
     "check": "biome check . && tsc --noEmit && knip",
     "check:package": "attw --pack . --profile node16",
     "format": "biome check --write .",
@@ -287,7 +287,6 @@
     "@vitest/coverage-v8": "^5.0.0",
     "compression": "^1.8.1",
     "elysia": "^1.4.29",
-    "esbuild-fix-imports-plugin": "^1.0.23",
     "express": "^5.2.1",
     "fastify": "^5.11.0",
     "h3": "2.0.1-rc.31",
@@ -299,7 +298,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "supertest": "^7.2.2",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.23.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.0",
     "winston": "^3.19.0"
