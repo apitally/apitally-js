@@ -114,7 +114,7 @@ export function captureNodeResponse(
           ? shouldCaptureBody(response.statusCode)
           : shouldCaptureBody,
       contentType: firstStringValue(resolveResponseHeader("content-type")),
-      contentEncoding: resolveResponseHeader("content-encoding") as string | string[] | undefined,
+      contentEncoding: resolveResponseHeader("content-encoding")?.toString(),
       contentLength: resolveResponseHeader("content-length"),
       transferEncoding: resolveResponseHeader("transfer-encoding") as string | string[] | undefined,
     });
