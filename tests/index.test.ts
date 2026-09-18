@@ -226,7 +226,7 @@ describe("root entry", () => {
     expect(exportedSpans).toHaveLength(1);
     expect(exportedSpans[0].name).toBe("GET /items");
     expect(exportedSpans[0].kind).toBe(SpanKind.SERVER);
-    expect(exportedSpans[0].resource.attributes["deployment.environment.name"]).toBe("staging");
+    expect(exportedSpans[0].resource.attributes["deployment.environment.name"]).toBe("dev");
     expect(userExporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
   });
 

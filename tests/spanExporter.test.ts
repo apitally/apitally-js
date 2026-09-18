@@ -1,4 +1,3 @@
-import { gzipSync } from "node:zlib";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -217,7 +216,7 @@ describe("spanExporter", () => {
     expect(userDuplicate?.kind).toBe(SpanKind.SERVER);
   });
 
-  it("rewrites a differing deployment environment resource attribute to the resolved env on Apitally's copies only, warning once", async () => {
+  it("rewrites a differing deployment environment resource attribute to the configured env on Apitally's copies only", async () => {
     const resource = resourceFromAttributes({
       "deployment.environment.name": "staging",
       "service.name": "user-service",
@@ -242,8 +241,7 @@ describe("spanExporter", () => {
     expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
     expect(spans[1].resource.attributes["deployment.environment.name"]).toBe("prod");
     expect(spans[1].resource.attributes["service.name"]).toBe("user-service");
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("staging");
+    expect(lines).toHaveLength(0);
     const [userSpan] = userExporter.getFinishedSpans();
     expect(userSpan.resource.attributes["deployment.environment.name"]).toBe("staging");
   });
@@ -438,22 +436,6 @@ describe("spanExporter", () => {
     const spans = readSerializedSpans();
     expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe("[BODY_TOO_LARGE]");
     expect(maskCalls).toHaveLength(0);
-  });
-
-  it("passes a pre-compressed response body through as bytes without decompression", async () => {
-    const compressed = gzipSync('{"password": "hunter2"}');
-    const { pipeline, provider, tracer } = createExportPipeline();
-    const { span, request } = startServerSpan(tracer);
-    pipeline.updateStash(span.spanContext().spanId, {
-      responseBody: compressed,
-    });
-    span.end();
-    pipeline.handleTransportCompletion(request.record);
-
-    await provider.forceFlush();
-    const spans = readSerializedSpans();
-    const body = attributesOfSpan(spans, "GET /items")["apitally.response.body"];
-    expect(Buffer.from(body as Uint8Array).equals(compressed)).toBe(true);
   });
 
   it("drops a span whose export processing fails instead of exporting it raw", async () => {

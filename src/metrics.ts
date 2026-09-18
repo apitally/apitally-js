@@ -5,21 +5,13 @@ import type { Resource } from "@opentelemetry/resources";
 import {
   AggregationTemporality,
   AggregationType,
-  DataPointType,
-  type ExponentialHistogram,
   InstrumentType,
   type MeterProvider,
-  type MetricData,
   MetricReader,
-  type ResourceMetrics,
 } from "@opentelemetry/sdk-metrics";
 import type { RequestRecord } from "./context.js";
 import { createMeterProvider } from "./providers.js";
 import type { Spool } from "./spool.js";
-
-// Apitally request histograms use scale 3, but @opentelemetry/sdk-metrics has
-// no scale option; higher-scale points are downscaled before serialization.
-const MAX_EXPORTED_HISTOGRAM_SCALE = 3;
 
 // Request histograms use finalized transport data, independent of span timing and sampling.
 export class MetricsPipeline {
@@ -98,9 +90,7 @@ export class MetricsPipeline {
 
   async collectAndExport(): Promise<void> {
     const { resourceMetrics } = await this.reader.collect();
-    const payload = ProtobufMetricsSerializer.serializeRequest(
-      downscaleExponentialHistograms(resourceMetrics),
-    );
+    const payload = ProtobufMetricsSerializer.serializeRequest(resourceMetrics);
     if (payload) {
       await this.spool.append("metrics", payload);
     }
@@ -141,60 +131,4 @@ class OnDemandMetricReader extends MetricReader {
   protected onShutdown(): Promise<void> {
     return Promise.resolve();
   }
-}
-
-// Downscaling operates on rewritten copies built for serialization only; the
-// collected data points are never mutated.
-function downscaleExponentialHistograms(resourceMetrics: ResourceMetrics): ResourceMetrics {
-  return {
-    resource: resourceMetrics.resource,
-    scopeMetrics: resourceMetrics.scopeMetrics.map((scopeMetrics) => ({
-      scope: scopeMetrics.scope,
-      metrics: scopeMetrics.metrics.map(downscaleMetricData),
-    })),
-  };
-}
-
-function downscaleMetricData(metric: MetricData): MetricData {
-  if (metric.dataPointType !== DataPointType.EXPONENTIAL_HISTOGRAM) {
-    return metric;
-  }
-  return {
-    ...metric,
-    dataPoints: metric.dataPoints.map((dataPoint) =>
-      dataPoint.value.scale <= MAX_EXPORTED_HISTOGRAM_SCALE
-        ? dataPoint
-        : { ...dataPoint, value: downscaleDataPointValue(dataPoint.value) },
-    ),
-  };
-}
-
-// Exponential buckets nest by powers of two, so index merging matches native
-// aggregation at the configured export scale.
-function downscaleDataPointValue(value: ExponentialHistogram): ExponentialHistogram {
-  const scaleReduction = value.scale - MAX_EXPORTED_HISTOGRAM_SCALE;
-  return {
-    ...value,
-    scale: MAX_EXPORTED_HISTOGRAM_SCALE,
-    positive: mergeBuckets(value.positive, scaleReduction),
-    negative: mergeBuckets(value.negative, scaleReduction),
-  };
-}
-
-function mergeBuckets(
-  buckets: ExponentialHistogram["positive"],
-  scaleReduction: number,
-): ExponentialHistogram["positive"] {
-  if (buckets.bucketCounts.length === 0) {
-    return buckets;
-  }
-  const factor = 2 ** scaleReduction;
-  // Math.floor keeps negative indices in the lower bucket.
-  const firstIndex = Math.floor(buckets.offset / factor);
-  const lastIndex = Math.floor((buckets.offset + buckets.bucketCounts.length - 1) / factor);
-  const bucketCounts = new Array<number>(lastIndex - firstIndex + 1).fill(0);
-  for (let i = 0; i < buckets.bucketCounts.length; i++) {
-    bucketCounts[Math.floor((buckets.offset + i) / factor) - firstIndex] += buckets.bucketCounts[i];
-  }
-  return { offset: firstIndex, bucketCounts };
 }
