@@ -49,10 +49,7 @@ export class BodyCapture {
       ? undefined
       : parseContentLength(options.contentLength);
     this.shouldCountOnly =
-      options.captureBody &&
-      isContentTypeAllowed &&
-      !isEncodingSupported &&
-      this.declaredSize === undefined;
+      options.captureBody && isContentTypeAllowed && this.declaredSize === undefined;
     this.tooLarge =
       this.shouldCapture && this.declaredSize !== undefined && this.declaredSize > MAX_BODY_SIZE;
   }
@@ -62,7 +59,7 @@ export class BodyCapture {
   }
 
   get shouldReadBody(): boolean {
-    return this.isBuffering || (this.shouldCountOnly && this.observedLength <= MAX_BODY_SIZE);
+    return this.isBuffering || this.shouldCountOnly;
   }
 
   addChunk(chunk: Buffer | Uint8Array | string, encoding?: BufferEncoding): void {
