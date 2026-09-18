@@ -1,9 +1,9 @@
-import { gunzipSync } from "node:zlib";
+import { brotliCompressSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import { Hono } from "hono";
-import { compress } from "hono/compress";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
+import type { ApitallyOptions } from "../../src/config.js";
 import { useApitally } from "../../src/hono/index.js";
 import { drainServerErrors } from "../../src/serverErrors.js";
 import { drainValidationErrors } from "../../src/validationErrors.js";
@@ -368,42 +368,6 @@ describe("hono integration", () => {
     expect(dataPoints[0].attributes["http.route"]).toBe("/unsampled");
   });
 
-  it("captures, masks, and redacts request and response bodies per configuration and keeps captured payloads off the live span", async () => {
-    let sampledAttributes: Attributes | undefined;
-    prepareFirstRequestActivation({
-      captureRequestBody: true,
-      captureResponseBody: true,
-      maskRequestBody: (body) => Buffer.from(body.toString().replace("Widget", "Gadget")),
-      sampleOnResponse: (span) => {
-        sampledAttributes = { ...span.attributes };
-        return true;
-      },
-    });
-    const response = await app.request("/items", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "Widget", password: "hunter2" }),
-    });
-    expect(response.status).toBe(201);
-    await readResponseAndSettleTransport(response);
-
-    const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    const attributes = spans[0].attributes;
-    expect(attributes["apitally.request.body"]).toBe(
-      JSON.stringify({ name: "Gadget", password: "[REDACTED]" }),
-    );
-    expect(attributes["apitally.response.body"]).toBe(
-      JSON.stringify({
-        received: { name: "Widget", password: "[REDACTED]" },
-      }),
-    );
-    expect(sampledAttributes).toBeDefined();
-    expect(sampledAttributes?.["http.route"]).toBe("/items");
-    expect(sampledAttributes?.["apitally.request.body"]).toBeUndefined();
-    expect(sampledAttributes?.["apitally.response.body"]).toBeUndefined();
-  });
-
   it("reports correct sizes and complete body capture for streaming responses", async () => {
     prepareFirstRequestActivation({ captureResponseBody: true });
     const response = await app.request("/stream");
@@ -418,33 +382,104 @@ describe("hono integration", () => {
     expect(attributes["apitally.response.body"]).toBe("chunk-1\nchunk-2\nchunk-3\n");
   });
 
-  it("captures the compressed wire bytes of the response body with matching size attributes when compression middleware is active", async () => {
-    prepareFirstRequestActivation({ captureResponseBody: true });
-    const compressedApp = new Hono();
-    useApitally(compressedApp, {
+  it("decodes, masks, and redacts compressed bodies with header capture disabled, preserves transport sizes, and keeps captured payloads off the live span", async () => {
+    let sampledAttributes: Attributes | undefined;
+    const options: ApitallyOptions = {
       writeToken: WRITE_TOKEN,
+      captureRequestHeaders: false,
+      captureResponseHeaders: false,
+      captureRequestBody: true,
       captureResponseBody: true,
+      maskRequestBody: (body) => Buffer.from(body.toString().replace("Widget", "Gadget")),
+      sampleOnResponse: (span) => {
+        sampledAttributes = { ...span.attributes };
+        return true;
+      },
+    };
+    prepareFirstRequestActivation(options);
+    const compressedApp = new Hono();
+    useApitally(compressedApp, options);
+    const requestPayload = { name: "Widget", password: "request-secret" };
+    const responsePayload = { data: "x".repeat(2048), password: "response-secret" };
+    const requestBytes = brotliCompressSync(JSON.stringify(requestPayload));
+    const responseBytes = brotliCompressSync(JSON.stringify(responsePayload));
+    let receivedBody: Buffer | undefined;
+    compressedApp.post("/compressed", async (c) => {
+      receivedBody = Buffer.from(await c.req.arrayBuffer());
+      return new Response(responseBytes, {
+        headers: { "content-type": "application/json", "content-encoding": "br" },
+      });
     });
-    compressedApp.use(compress());
-    const payload = { data: "x".repeat(2048) };
-    compressedApp.get("/compressed", (c) => c.json(payload));
     const response = await compressedApp.request("/compressed", {
-      headers: { "accept-encoding": "gzip" },
+      method: "POST",
+      headers: { "content-type": "application/json", "content-encoding": "br" },
+      body: requestBytes,
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-encoding")).toBe("gzip");
+    expect(response.headers.get("content-encoding")).toBe("br");
     const wireBytes = await readResponseAndSettleTransport(response);
-    expect(gunzipSync(wireBytes).toString()).toBe(JSON.stringify(payload));
+    expect(wireBytes).toEqual(responseBytes);
+    expect(receivedBody).toEqual(requestBytes);
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     const attributes = spans[0].attributes;
-    const capturedResponseBody = attributes["apitally.response.body"];
-    if (!(capturedResponseBody instanceof Uint8Array)) {
-      throw new Error("Expected a byte-valued response body");
-    }
-    expect(Buffer.from(capturedResponseBody).equals(wireBytes)).toBe(true);
-    expect(attributes["http.response.body.size"]).toBe(wireBytes.length);
+    expect(attributes["apitally.request.body"]).toBe(
+      JSON.stringify({ name: "Gadget", password: "[REDACTED]" }),
+    );
+    expect(attributes["apitally.response.body"]).toBe(
+      JSON.stringify({ ...responsePayload, password: "[REDACTED]" }),
+    );
+    expect(attributes["http.request.body.size"]).toBe(requestBytes.length);
+    expect(attributes["http.response.body.size"]).toBe(responseBytes.length);
+    expect(Object.keys(attributes).filter((key) => key.includes(".header."))).toEqual([]);
+    expect(sampledAttributes).toBeDefined();
+    expect(sampledAttributes?.["http.route"]).toBe("/compressed");
+    expect(sampledAttributes?.["apitally.request.body"]).toBeUndefined();
+    expect(sampledAttributes?.["apitally.response.body"]).toBeUndefined();
+  });
+
+  it("omits unsupported encoded bodies while preserving headers, transport sizes, and client bytes", async () => {
+    const options = {
+      writeToken: WRITE_TOKEN,
+      captureRequestHeaders: true,
+      captureResponseHeaders: true,
+      captureRequestBody: true,
+      captureResponseBody: true,
+    };
+    prepareFirstRequestActivation(options);
+    const encodedApp = new Hono();
+    useApitally(encodedApp, options);
+    const requestBytes = Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x01]);
+    const responseBytes = Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x02, 0x03]);
+    let receivedBody: Buffer | undefined;
+    encodedApp.post("/encoded", async (c) => {
+      receivedBody = Buffer.from(await c.req.arrayBuffer());
+      return new Response(responseBytes, {
+        status: 400,
+        headers: { "content-type": "application/json", "content-encoding": "zstd" },
+      });
+    });
+    const response = await encodedApp.request("/encoded", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-encoding": "zstd" },
+      body: requestBytes,
+    });
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-length")).toBeNull();
+    expect(await readResponseAndSettleTransport(response)).toEqual(responseBytes);
+    expect(receivedBody).toEqual(requestBytes);
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    const attributes = spans[0].attributes;
+    expect(attributes["apitally.request.body"]).toBeUndefined();
+    expect(attributes["apitally.response.body"]).toBeUndefined();
+    expect(attributes["http.request.body.size"]).toBe(requestBytes.length);
+    expect(attributes["http.response.body.size"]).toBe(responseBytes.length);
+    expect(attributes["http.request.header.content-encoding"]).toEqual(["zstd"]);
+    expect(attributes["http.response.header.content-encoding"]).toEqual(["zstd"]);
+    expect(drainValidationErrors()).toEqual([]);
   });
 
   it("propagates a consumer set in a handler to the metrics dimensions", async () => {

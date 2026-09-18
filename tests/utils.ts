@@ -21,6 +21,7 @@ import {
   ProtobufMetricsSerializer,
   ProtobufTraceSerializer,
 } from "@opentelemetry/otlp-transformer";
+import { ProtobufReader } from "@opentelemetry/otlp-transformer/build/src/common/protobuf/protobuf-reader.js";
 import type { Resource } from "@opentelemetry/resources";
 import {
   InMemoryLogRecordExporter,
@@ -242,12 +243,16 @@ export class CollectingSpanProcessor implements SpanProcessor {
 export function createTracePipeline(
   options: {
     downstream?: SpanProcessor;
+    flushExporter?: () => Promise<void>;
     extraSpanProcessors?: SpanProcessor[];
     resource?: Resource;
   } = {},
 ): TracePipeline {
   const exporter = new InMemorySpanExporter();
-  const pipeline = new SpanPipeline(options.downstream ?? new SimpleSpanProcessor(exporter));
+  const pipeline = new SpanPipeline(
+    options.downstream ?? new SimpleSpanProcessor(exporter),
+    options.flushExporter,
+  );
   const provider = new NodeTracerProvider({
     sampler: new AlwaysOnSampler(),
     resource: options.resource,
@@ -352,6 +357,24 @@ export function readSerializedSpans(): ReadableSpan[] {
   return vi.mocked(ProtobufTraceSerializer.serializeRequest).mock.calls.flatMap(([spans]) => spans);
 }
 
+export function readProtobufSpanStringAttributes(payload: Uint8Array): Record<string, string>[] {
+  const spans = readProtobufMessages(payload, 1)
+    .flatMap((resource) => readProtobufMessages(resource, 2))
+    .flatMap((scope) => readProtobufMessages(scope, 2));
+  return spans.map((span) => {
+    const attributes: Record<string, string> = {};
+    for (const attribute of readProtobufMessages(span, 9)) {
+      const [key] = readProtobufMessages(attribute, 1);
+      const [value] = readProtobufMessages(attribute, 2);
+      const [text] = readProtobufMessages(value, 1);
+      if (text) {
+        attributes[Buffer.from(key).toString()] = Buffer.from(text).toString();
+      }
+    }
+    return attributes;
+  });
+}
+
 export function readSerializedLogRecords(): ReadableLogRecord[] {
   return vi
     .mocked(ProtobufLogsSerializer.serializeRequest)
@@ -399,4 +422,18 @@ export function captureStderr(): string[] {
     return true;
   });
   return written;
+}
+
+function readProtobufMessages(payload: Uint8Array, field: number): Uint8Array[] {
+  const reader = new ProtobufReader(payload);
+  const messages: Uint8Array[] = [];
+  while (!reader.isAtEnd()) {
+    const { fieldNumber, wireType } = reader.readTag();
+    if (fieldNumber === field && wireType === 2) {
+      messages.push(reader.readBytes());
+    } else {
+      reader.skip(wireType);
+    }
+  }
+  return messages;
 }

@@ -238,10 +238,12 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
     const requestBody = options.capturedRequestBody?.body;
     if (requestBody) {
       stash.requestBody = requestBody;
+      stash.requestContentEncoding = getHeaderValue(options.requestHeaders, "content-encoding");
     }
     const responseBody = options.capturedResponseBody?.body;
     if (responseBody && config.captureResponseBody) {
       stash.responseBody = responseBody;
+      stash.responseContentEncoding = getHeaderValue(options.responseHeaders, "content-encoding");
     }
     if (Object.keys(stash).length > 0) {
       getActiveSpanPipeline()?.updateStash(requestRecord.serverSpanId, stash);
@@ -271,6 +273,21 @@ export function finalizeRequestObservationWithError(
     spanHandle.ownSpan.end();
   }
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
+}
+
+function getHeaderValue(
+  headers: Headers | Record<string, string | number | string[] | undefined>,
+  name: string,
+): string | undefined {
+  if (isWebHeaders(headers)) {
+    return headers.get(name) ?? undefined;
+  }
+  for (const [headerName, value] of Object.entries(headers)) {
+    if (headerName.toLowerCase() === name) {
+      return Array.isArray(value) ? value.join(",") : value?.toString();
+    }
+  }
+  return undefined;
 }
 
 // Values remain raw so all redaction happens at the export boundary.

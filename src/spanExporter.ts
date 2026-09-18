@@ -1,10 +1,17 @@
+import { setImmediate } from "node:timers/promises";
+import { brotliDecompress, gunzip, inflate } from "node:zlib";
 import type { Attributes } from "@opentelemetry/api";
 import { SpanKind } from "@opentelemetry/api";
-import type { ExportResult } from "@opentelemetry/core";
+import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
-import { BODY_TOO_LARGE, BODY_TOO_LARGE_BUFFER, MAX_BODY_SIZE } from "./bodyCapture.js";
+import {
+  BODY_TOO_LARGE,
+  BODY_TOO_LARGE_BUFFER,
+  isSupportedContentEncoding,
+  MAX_BODY_SIZE,
+} from "./bodyCapture.js";
 import type { BodyMaskingCallback } from "./config.js";
 import { serializeInChunksToSpool } from "./exportSerialization.js";
 import { logWarning } from "./logger.js";
@@ -36,6 +43,7 @@ export class ApitallySpanExporter implements SpanExporter {
   private readonly spool: Spool;
   private readonly maskRequestBody?: BodyMaskingCallback;
   private readonly maskResponseBody?: BodyMaskingCallback;
+  private readonly activeExports = new Set<Promise<void>>();
 
   constructor(options: ApitallySpanExporterOptions) {
     this.redaction = options.redaction;
@@ -47,39 +55,57 @@ export class ApitallySpanExporter implements SpanExporter {
   }
 
   export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
+    const work = this.prepareAndExport(spans).then(resultCallback, (error: unknown) =>
+      resultCallback({
+        code: ExportResultCode.FAILED,
+        error: error instanceof Error ? error : new Error(String(error)),
+      }),
+    );
+    this.activeExports.add(work);
+    void work.then(
+      () => this.activeExports.delete(work),
+      () => this.activeExports.delete(work),
+    );
+  }
+
+  async forceFlush(): Promise<void> {
+    await Promise.all(this.activeExports);
+  }
+
+  shutdown(): Promise<void> {
+    return this.forceFlush();
+  }
+
+  private async prepareAndExport(spans: ReadableSpan[]): Promise<ExportResult> {
+    // A full OTel batch can invoke export directly from request completion.
+    await setImmediate();
     // Rewritten resources are shared across the batch: the serializer groups
     // resourceSpans by object identity, never by attribute equality.
     const rewrittenResources = new Map<Resource, Resource>();
     const exportCopies: ReadableSpan[] = [];
     for (const span of spans) {
       try {
-        exportCopies.push(this.buildExportCopy(span, rewrittenResources));
+        exportCopies.push(await this.buildExportCopy(span, rewrittenResources));
       } catch {
         // A span that failed redaction must never leave the process.
         logWarning("Failed to prepare a span for export to Apitally, so the span was dropped");
       }
     }
-    serializeInChunksToSpool(
-      exportCopies,
-      (chunk) => ProtobufTraceSerializer.serializeRequest(chunk),
-      this.spool,
-      "traces",
-      resultCallback,
-    );
+    return new Promise((resolve) => {
+      serializeInChunksToSpool(
+        exportCopies,
+        (chunk) => ProtobufTraceSerializer.serializeRequest(chunk),
+        this.spool,
+        "traces",
+        resolve,
+      );
+    });
   }
 
-  forceFlush(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  shutdown(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  private buildExportCopy(
+  private async buildExportCopy(
     span: ReadableSpan,
     rewrittenResources: Map<Resource, Resource>,
-  ): ReadableSpan {
+  ): Promise<ReadableSpan> {
     const data = (span as SpanCopy).apitallyData;
     const stash = data?.stash;
     // The record is applied last: a transport-observed value wins over anything
@@ -117,20 +143,28 @@ export class ApitallySpanExporter implements SpanExporter {
       const snapshot = copySpan(copy);
       snapshot.attributes = { ...attributes } as Attributes;
       if (stash.requestBody !== undefined) {
-        attributes["apitally.request.body"] = this.processBody(
+        const body = await this.processBody(
           snapshot,
           stash.requestBody,
+          stash.requestContentEncoding,
           this.maskRequestBody,
           "maskRequestBody",
         );
+        if (body !== undefined) {
+          attributes["apitally.request.body"] = body;
+        }
       }
       if (stash.responseBody !== undefined) {
-        attributes["apitally.response.body"] = this.processBody(
+        const body = await this.processBody(
           snapshot,
           stash.responseBody,
+          stash.responseContentEncoding,
           this.maskResponseBody,
           "maskResponseBody",
         );
+        if (body !== undefined) {
+          attributes["apitally.response.body"] = body;
+        }
       }
     }
     return copy;
@@ -158,14 +192,48 @@ export class ApitallySpanExporter implements SpanExporter {
 
   // Bodies are masked, parsed, field-redacted, and serialized in that order.
   // Masking failures redact the entire body.
-  private processBody(
+  private async processBody(
     snapshot: ReadableSpan,
     body: Buffer,
+    contentEncoding: string | undefined,
     maskCallback: BodyMaskingCallback | undefined,
     optionName: string,
-  ): string | Buffer {
+  ): Promise<string | Buffer | undefined> {
     if (body.equals(BODY_TOO_LARGE_BUFFER)) {
       return BODY_TOO_LARGE;
+    }
+    if (!isSupportedContentEncoding(contentEncoding)) {
+      return REDACTED;
+    }
+    const encoding = contentEncoding?.trim().toLowerCase();
+    if (encoding && encoding !== "identity") {
+      const decompress: typeof gunzip =
+        encoding === "gzip" ? gunzip : encoding === "deflate" ? inflate : brotliDecompress;
+      const decoded = await new Promise<Buffer | string>((resolve) => {
+        decompress(body, { maxOutputLength: MAX_BODY_SIZE, info: true }, (error, result) => {
+          if (error) {
+            resolve(
+              (error as NodeJS.ErrnoException).code === "ERR_BUFFER_TOO_LARGE"
+                ? BODY_TOO_LARGE
+                : REDACTED,
+            );
+            return;
+          }
+          // Node's types omit the result shape returned with info: true.
+          const { buffer, engine } = result as unknown as {
+            buffer: Buffer;
+            engine: { bytesWritten: number };
+          };
+          resolve(engine.bytesWritten === body.length ? buffer : REDACTED);
+        });
+      });
+      if (typeof decoded === "string") {
+        return decoded;
+      }
+      if (decoded.length === 0) {
+        return undefined;
+      }
+      body = decoded;
     }
     let processed = body;
     if (maskCallback) {

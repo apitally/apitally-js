@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { BODY_TOO_LARGE_BUFFER, BodyCapture, MAX_BODY_SIZE } from "../src/bodyCapture.js";
-import { captureWebRequestBody, captureWebResponse } from "../src/requestObservationWeb.js";
+import {
+  captureWebRequestBody,
+  captureWebResponse,
+  startWebRequestObservation,
+} from "../src/requestObservationWeb.js";
+import { configureAndActivate } from "./utils.js";
 
 function createChunkedResponse(): {
   response: Response;
@@ -55,6 +60,22 @@ describe("requestObservationWeb", () => {
     expect(bodyCapture.body).toEqual(Buffer.from(wireBody));
     expect(bodyCapture.size).toBe(Buffer.byteLength(wireBody));
     await expect(request.text()).resolves.toBe(wireBody);
+  });
+
+  it("counts an unsupported encoded request without retaining its body and leaves the original readable", async () => {
+    configureAndActivate({ captureRequestBody: true });
+    const request = new Request("http://localhost/items", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-encoding": "zstd" },
+      body: "opaque encoded bytes",
+    });
+    const { observation } = startWebRequestObservation({ request, tracerName: "test" });
+
+    await captureWebRequestBody(request, observation.requestBodyCapture);
+
+    expect(observation.requestBodyCapture.body).toBeUndefined();
+    expect(observation.requestBodyCapture.size).toBe(20);
+    await expect(request.text()).resolves.toBe("opaque encoded bytes");
   });
 
   it("stops reading a cloned request after the body exceeds the capture limit", async () => {

@@ -1,3 +1,4 @@
+import { gunzipSync, gzipSync } from "node:zlib";
 import { SpanKind, trace } from "@opentelemetry/api";
 import {
   ProtobufLogsSerializer,
@@ -30,10 +31,12 @@ import {
   configureAndActivate,
   readActivationSpans,
   readFetchPaths,
+  readProtobufSpanStringAttributes,
   readSerializedLogRecords,
   readSerializedSpans,
   runInsideRequest,
   spyOnSuccessfulFetch,
+  startServerSpan,
   UNROUTABLE_ENDPOINT,
   WRITE_TOKEN,
   withServer,
@@ -332,6 +335,49 @@ describe("activation", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("0.9.0");
   });
+
+  it.each(["flush", "shutdown"] as const)(
+    "finishes already-started compressed exports before %s resolves",
+    async (operation) => {
+      const fetchSpy = spyOnSuccessfulFetch();
+      const handles = configureAndActivate({ captureRequestBody: true });
+      const tracer = trace.getTracer("test");
+      for (let index = 0; index < 32; index++) {
+        const { span, request } = startServerSpan(tracer);
+        handles.spanPipeline.updateStash(span.spanContext().spanId, {
+          requestBody: gzipSync('{"password":"secret"}'),
+          requestContentEncoding: "gzip",
+        });
+        span.end();
+        handles.spanPipeline.handleTransportCompletion(request.record);
+      }
+      if (operation === "shutdown") {
+        await shutdown();
+      } else {
+        await handles.tracerProvider?.forceFlush();
+      }
+      expect(readSerializedSpans()).toHaveLength(32);
+      let payloads: Buffer[];
+      if (operation === "shutdown") {
+        payloads = fetchSpy.mock.calls
+          .filter(([url]) => new URL(String(url)).pathname === "/v1/traces")
+          .map(([, init]) => gunzipSync(init?.body as Buffer));
+      } else {
+        await handles.spool.rotateForExport();
+        payloads = await Promise.all(
+          handles.spool
+            .pendingFiles()
+            .filter((file) => file.signal === "traces")
+            .map(async (file) => gunzipSync(await file.readStoredBytes())),
+        );
+      }
+      expect(payloads.flatMap(readProtobufSpanStringAttributes)).toEqual(
+        Array.from({ length: 32 }, () => ({
+          "apitally.request.body": '{"password":"[REDACTED]"}',
+        })),
+      );
+    },
+  );
 
   it("resolves shutdown before activation without effect", async () => {
     await shutdown();

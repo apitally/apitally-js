@@ -41,7 +41,7 @@
   "type": "module",
   "engines": {
     "node": ">=20.6.0",
-    "bun": ">=1.1.13"
+    "bun": ">=1.2.0"
   },
   "sideEffects": [
     "./dist/express/register.js",

@@ -17,6 +17,7 @@ const ALLOWED_CONTENT_TYPES = [
 interface BodyCaptureOptions {
   captureBody: boolean;
   contentType?: string | null;
+  contentEncoding?: string | string[] | null;
   contentLength?: string | number | string[] | null;
   transferEncoding?: string | string[] | null;
 }
@@ -25,6 +26,7 @@ interface BodyCaptureOptions {
 // observed bytes still count toward size.
 export class BodyCapture {
   private shouldCapture: boolean;
+  private shouldCountOnly: boolean;
   private readonly declaredSize?: number;
   private tooLarge: boolean;
   private chunks: Uint8Array[] = [];
@@ -33,7 +35,9 @@ export class BodyCapture {
   private completed = false;
 
   constructor(options: BodyCaptureOptions) {
-    this.shouldCapture = options.captureBody && isAllowedContentType(options.contentType);
+    const isContentTypeAllowed = isAllowedContentType(options.contentType);
+    const isEncodingSupported = isSupportedContentEncoding(options.contentEncoding);
+    this.shouldCapture = options.captureBody && isContentTypeAllowed && isEncodingSupported;
     // Transfer-Encoding: chunked makes Content-Length unusable, so observed
     // decoded bytes determine size.
     const transferEncoding = Array.isArray(options.transferEncoding)
@@ -44,12 +48,21 @@ export class BodyCapture {
     this.declaredSize = isChunkedTransferEncoding
       ? undefined
       : parseContentLength(options.contentLength);
+    this.shouldCountOnly =
+      options.captureBody &&
+      isContentTypeAllowed &&
+      !isEncodingSupported &&
+      this.declaredSize === undefined;
     this.tooLarge =
       this.shouldCapture && this.declaredSize !== undefined && this.declaredSize > MAX_BODY_SIZE;
   }
 
   get isBuffering(): boolean {
     return this.shouldCapture && !this.tooLarge;
+  }
+
+  get shouldReadBody(): boolean {
+    return this.isBuffering || (this.shouldCountOnly && this.observedLength <= MAX_BODY_SIZE);
   }
 
   addChunk(chunk: Buffer | Uint8Array | string, encoding?: BufferEncoding): void {
@@ -73,6 +86,7 @@ export class BodyCapture {
 
   stopBuffering(): void {
     this.shouldCapture = false;
+    this.shouldCountOnly = false;
     this.tooLarge = false;
     this.chunks = [];
     this.bufferedLength = 0;
@@ -107,6 +121,15 @@ export class BodyCapture {
 export interface CapturedBody {
   body?: Buffer;
   size?: number;
+}
+
+export function isSupportedContentEncoding(
+  encoding: string | string[] | null | undefined,
+): boolean {
+  const normalized = (Array.isArray(encoding) ? encoding.join(",") : encoding)
+    ?.trim()
+    .toLowerCase();
+  return !normalized || ["identity", "gzip", "deflate", "br"].includes(normalized);
 }
 
 function isAllowedContentType(contentType: string | null | undefined): boolean {
