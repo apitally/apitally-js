@@ -58,7 +58,7 @@ describe("bodyCapture", () => {
     expect(capture.size).toBe(60_000);
   });
 
-  it("short-circuits to the sentinel when the declared content length exceeds the cap", () => {
+  it("short-circuits eligible bodies to the sentinel when the declared content length exceeds the cap", () => {
     const capture = new BodyCapture({
       captureBody: true,
       contentType: "application/json",
@@ -66,6 +66,15 @@ describe("bodyCapture", () => {
     });
     expect(capture.body).toEqual(Buffer.from("[BODY_TOO_LARGE]"));
     expect(capture.size).toBe(60_000);
+
+    const unsupportedCapture = new BodyCapture({
+      captureBody: true,
+      contentType: "application/json",
+      contentEncoding: "zstd",
+      contentLength: "60000",
+    });
+    expect(unsupportedCapture.body).toBeUndefined();
+    expect(unsupportedCapture.size).toBe(60_000);
   });
 
   it.each([

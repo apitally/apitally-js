@@ -46,7 +46,7 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 ## Supported frameworks
 
-The SDK supports **Node.js** `>= 20.6` and **Bun** `>= 1.1.13`.
+The SDK supports **Node.js** `>= 20.6` and **Bun** `>= 1.2.0`.
 
 | Framework | Supported versions | Setup guide |
 | --- | --- | --- |

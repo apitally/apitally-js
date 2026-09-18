@@ -1,3 +1,4 @@
+import { deflateSync, gunzipSync, gzipSync } from "node:zlib";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -6,7 +7,7 @@ import {
   type ReadableSpan,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MAX_BODY_SIZE } from "../src/bodyCapture.js";
 import { type BodyMaskingCallback, getConfig, setConfig } from "../src/config.js";
 import { Redaction } from "../src/redaction.js";
@@ -16,6 +17,7 @@ import {
   createBatchProcessorOptions,
   createInMemorySpool,
   createTracePipeline,
+  readProtobufSpanStringAttributes,
   readSerializedSpans,
   startServerSpan,
   WRITE_TOKEN,
@@ -44,12 +46,13 @@ function createExportPipeline(
   const downstream = new BatchSpanProcessor(spanExporter, createBatchProcessorOptions());
   const { pipeline, provider, tracer } = createTracePipeline({
     downstream,
+    flushExporter: () => spanExporter.forceFlush(),
     extraSpanProcessors: options.userExporter
       ? [new SimpleSpanProcessor(options.userExporter)]
       : [],
     resource: options.resource,
   });
-  return { pipeline, provider, tracer };
+  return { pipeline, provider, tracer, spool };
 }
 
 function attributesOfSpan(spans: ReadableSpan[], name: string): Record<string, unknown> {
@@ -125,7 +128,7 @@ describe("spanExporter", () => {
   it("keeps captured headers and bodies off the live span and out of user exporters", async () => {
     setConfig({ writeToken: WRITE_TOKEN });
     const userExporter = new InMemorySpanExporter();
-    const { pipeline, provider, tracer } = createExportPipeline({
+    const { pipeline, provider, tracer, spool } = createExportPipeline({
       userExporter,
     });
     const { span, request } = startServerSpan(tracer, { name: "POST /items" });
@@ -133,11 +136,13 @@ describe("spanExporter", () => {
       requestHeaders: {
         authorization: ["Bearer secret123"],
       },
-      requestBody: Buffer.from('{"password": "hunter2"}'),
+      requestBody: gzipSync('{"password": "hunter2"}'),
+      requestContentEncoding: "gzip",
       responseHeaders: {
         "set-cookie": ["session=abc123"],
       },
-      responseBody: Buffer.from('{"token": "xyz", "id": 7}'),
+      responseBody: deflateSync('{"token": "xyz", "id": 7}'),
+      responseContentEncoding: "deflate",
     });
     span.end();
     pipeline.handleTransportCompletion(request.record);
@@ -153,6 +158,15 @@ describe("spanExporter", () => {
     const [userSpan] = userExporter.getFinishedSpans();
     expect(userSpan.attributes).toEqual({});
     expect("apitallyData" in userSpan).toBe(false);
+    await spool.rotateForExport();
+    const files = spool.pendingFiles();
+    expect(files).toHaveLength(1);
+    expect(readProtobufSpanStringAttributes(gunzipSync(await files[0].readStoredBytes()))).toEqual([
+      {
+        "apitally.request.body": '{"password":"[REDACTED]"}',
+        "apitally.response.body": '{"token":"[REDACTED]","id":7}',
+      },
+    ]);
   });
 
   it("exports a nested SERVER span as INTERNAL on Apitally's copy and warns once naming the producing scope", async () => {
@@ -381,39 +395,118 @@ describe("spanExporter", () => {
     expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe("[BODY_TOO_LARGE]");
   });
 
-  it("runs the mask callback on the raw body before parsing, field redaction, and serialization", async () => {
+  it("runs mask callbacks on decoded bodies before parsing, field redaction, and serialization", async () => {
     const seen: { body: Buffer; ended: boolean; attributes: unknown }[] = [];
+    const maskBody: BodyMaskingCallback = (body, span) => {
+      seen.push({ body, ended: span.ended, attributes: span.attributes });
+      return Buffer.from('{"a":2,"password":"hunter2","nested":{"nickname":"secret"}}');
+    };
     setConfig({
       writeToken: WRITE_TOKEN,
-      maskRequestBody: (body, span) => {
-        seen.push({ body, ended: span.ended, attributes: span.attributes });
-        return Buffer.from('{"a": 2, "password": "hunter2"}');
-      },
+      maskRequestBody: maskBody,
+      maskResponseBody: maskBody,
+      maskBodyFields: [/^nickname$/],
+      maskHeaders: [/^content-encoding$/],
     });
     const { pipeline, provider, tracer } = createExportPipeline();
     const { span, request } = startServerSpan(tracer);
     pipeline.updateStash(span.spanContext().spanId, {
       requestHeaders: {
         authorization: ["Bearer secret123"],
+        "content-encoding": "gzip",
       },
-      requestBody: Buffer.from('{"a": 1}'),
+      requestBody: gzipSync('{"a":1}'),
+      requestContentEncoding: " GZip ",
+      responseBody: deflateSync('{"b":1}'),
+      responseContentEncoding: "deflate",
     });
     span.end();
     pipeline.handleTransportCompletion(request.record);
 
     await provider.forceFlush();
     const spans = readSerializedSpans();
-    expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe(
-      '{"a":2,"password":"[REDACTED]"}',
-    );
-    expect(seen).toHaveLength(1);
-    expect(seen[0].body.toString()).toBe('{"a": 1}');
-    expect(seen[0].ended).toBe(true);
-    // The callback sees the exported span before body attributes are attached.
-    expect(seen[0].attributes).toEqual({
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes).toEqual({
       "http.request.header.authorization": ["[REDACTED]"],
+      "http.request.header.content-encoding": ["[REDACTED]"],
+      "apitally.request.body": '{"a":2,"password":"[REDACTED]","nested":{"nickname":"[REDACTED]"}}',
+      "apitally.response.body":
+        '{"a":2,"password":"[REDACTED]","nested":{"nickname":"[REDACTED]"}}',
     });
+    expect(seen).toEqual(
+      [Buffer.from('{"a":1}'), Buffer.from('{"b":1}')].map((body) => ({
+        body,
+        ended: true,
+        attributes: {
+          "http.request.header.authorization": ["[REDACTED]"],
+          "http.request.header.content-encoding": ["[REDACTED]"],
+        },
+      })),
+    );
   });
+
+  it.each([0, MAX_BODY_SIZE, MAX_BODY_SIZE + 1])(
+    "bounds decoded bodies of %i bytes before invoking callbacks",
+    async (size) => {
+      const maskRequestBody = vi.fn((body: Buffer) => body);
+      setConfig({ writeToken: WRITE_TOKEN, maskRequestBody });
+      const { pipeline, provider, tracer } = createExportPipeline();
+      const { span, request } = startServerSpan(tracer);
+      const decoded = Buffer.alloc(size, "a");
+      const compressed = gzipSync(decoded);
+      expect(compressed.length).toBeLessThan(MAX_BODY_SIZE);
+      pipeline.updateStash(span.spanContext().spanId, {
+        requestBody: compressed,
+        requestContentEncoding: "gzip",
+      });
+      span.end();
+      pipeline.handleTransportCompletion(request.record);
+      await provider.forceFlush();
+      const spans = readSerializedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].attributes).toEqual(
+        size === 0
+          ? {}
+          : {
+              "apitally.request.body":
+                size > MAX_BODY_SIZE ? "[BODY_TOO_LARGE]" : decoded.toString(),
+            },
+      );
+      expect(maskRequestBody.mock.calls).toEqual(
+        size === MAX_BODY_SIZE ? [[decoded, expect.anything()]] : [],
+      );
+    },
+  );
+
+  it.each([
+    ["malformed gzip", "gzip", Buffer.from("invalid")],
+    ["truncated gzip", "gzip", gzipSync("secret").subarray(0, -1)],
+    [
+      "deflate with trailing bytes",
+      "deflate",
+      Buffer.concat([deflateSync("secret"), Buffer.from("junk")]),
+    ],
+    ["unsupported encoding", "zstd", Buffer.from("secret")],
+  ])(
+    "redacts %s without invoking callbacks or dropping the span",
+    async (_name, encoding, body) => {
+      const maskRequestBody = vi.fn((body: Buffer) => body);
+      setConfig({ writeToken: WRITE_TOKEN, maskRequestBody });
+      const { pipeline, provider, tracer } = createExportPipeline();
+      const { span, request } = startServerSpan(tracer);
+      pipeline.updateStash(span.spanContext().spanId, {
+        requestBody: body,
+        requestContentEncoding: encoding,
+      });
+      span.end();
+      pipeline.handleTransportCompletion(request.record);
+      await provider.forceFlush();
+      const spans = readSerializedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].attributes).toEqual({ "apitally.request.body": "[REDACTED]" });
+      expect(maskRequestBody).not.toHaveBeenCalled();
+    },
+  );
 
   it("exports a stashed [BODY_TOO_LARGE] sentinel unchanged without invoking the mask callback", async () => {
     const maskCalls: Buffer[] = [];

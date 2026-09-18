@@ -49,6 +49,7 @@ export function startWebRequestObservation(
   const requestBodyCapture = new BodyCapture({
     captureBody: getConfig().captureRequestBody,
     contentType: request.headers.get("content-type"),
+    contentEncoding: request.headers.get("content-encoding"),
     contentLength: request.headers.get("content-length"),
     transferEncoding: request.headers.get("transfer-encoding"),
   });
@@ -99,7 +100,7 @@ export function captureWebRequestBody(
   bodyCapture: BodyCapture,
   readTimeoutMillis: number = READ_TIMEOUT_MILLIS,
 ): Promise<void> {
-  if (!request.body || !bodyCapture.isBuffering) {
+  if (!request.body || !bodyCapture.shouldReadBody) {
     return Promise.resolve();
   }
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
@@ -124,7 +125,7 @@ export function captureWebRequestBody(
           return;
         }
         bodyCapture.addChunk(value);
-        if (!bodyCapture.isBuffering) {
+        if (!bodyCapture.shouldReadBody) {
           cancelReader(reader);
           return;
         }
@@ -165,6 +166,7 @@ export function captureWebResponse(
   const bodyCapture = new BodyCapture({
     captureBody: shouldCaptureBody,
     contentType: response.headers.get("content-type"),
+    contentEncoding: response.headers.get("content-encoding"),
     contentLength: response.headers.get("content-length"),
     transferEncoding: response.headers.get("transfer-encoding"),
   });

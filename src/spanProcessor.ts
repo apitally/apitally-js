@@ -31,8 +31,10 @@ const EXCLUDE_USER_AGENT_PATTERNS = compilePatterns(EXCLUDE_USER_AGENTS);
 export interface RequestStash {
   requestHeaders?: Record<string, string | string[]>;
   requestBody?: Buffer;
+  requestContentEncoding?: string;
   responseHeaders?: Record<string, string | string[]>;
   responseBody?: Buffer;
+  responseContentEncoding?: string;
 }
 
 export interface ApitallySpanData {
@@ -165,7 +167,10 @@ export class SpanPipeline implements SpanProcessor {
   // oldest are evicted at the cap.
   private readonly keptSpanIds = new Map<string, KeptSpanEntry>();
 
-  constructor(downstream: SpanProcessor) {
+  constructor(
+    downstream: SpanProcessor,
+    private readonly flushExporter?: () => Promise<void>,
+  ) {
     this.downstream = downstream;
     this.config = getConfig();
     this.sampleRateBound = boundForSampleRate(this.config.sampleRate);
@@ -321,11 +326,17 @@ export class SpanPipeline implements SpanProcessor {
       if (update.requestBody !== undefined) {
         entry.requestBody = update.requestBody;
       }
+      if (update.requestContentEncoding !== undefined) {
+        entry.requestContentEncoding = update.requestContentEncoding;
+      }
       if (update.responseHeaders !== undefined) {
         entry.responseHeaders = update.responseHeaders;
       }
       if (update.responseBody !== undefined) {
         entry.responseBody = update.responseBody;
+      }
+      if (update.responseContentEncoding !== undefined) {
+        entry.responseContentEncoding = update.responseContentEncoding;
       }
     } catch (error) {
       logDebug(`Error updating the request stash: ${String(error)}`);
@@ -360,8 +371,10 @@ export class SpanPipeline implements SpanProcessor {
     return undefined;
   }
 
-  forceFlush(): Promise<void> {
-    return this.downstream.forceFlush();
+  async forceFlush(): Promise<void> {
+    await this.downstream.forceFlush();
+    // OTel flushes queued batches but does not await already-running exports.
+    await this.flushExporter?.();
   }
 
   // Shutdown releases requests with completed transport observation once and

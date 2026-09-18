@@ -2,15 +2,17 @@ import { once } from "node:events";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
 import { connect } from "node:net";
-import { PassThrough } from "node:stream";
-import { gunzipSync } from "node:zlib";
+import { PassThrough, Readable } from "node:stream";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import compression from "compression";
 import express, { type ErrorRequestHandler, type Express } from "express";
 import request from "supertest";
+import { request as undiciRequest } from "undici";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
+import type { ApitallyOptions } from "../../src/config.js";
 import { useApitally } from "../../src/express/index.js";
 import { setConsumer } from "../../src/index.js";
 import { drainServerErrors } from "../../src/serverErrors.js";
@@ -456,36 +458,6 @@ describe("express integration", () => {
     expect(attributes["http.request.body.size"]).toBe(17);
   });
 
-  it("captures, masks, and redacts request and response bodies per configuration and keeps captured payloads off the live span", async () => {
-    let sampledAttributes: Attributes | undefined;
-    prepareFirstRequestActivation({
-      captureRequestBody: true,
-      captureResponseBody: true,
-      maskRequestBody: (body) => Buffer.from(body.toString().replace("Widget", "Gadget")),
-      sampleOnResponse: (span) => {
-        sampledAttributes = { ...span.attributes };
-        return true;
-      },
-    });
-    await request(server).post("/items").send({ name: "Widget", password: "hunter2" }).expect(201);
-
-    const spans = await readActivationSpans();
-    expect(spans).toHaveLength(1);
-    const attributes = spans[0].attributes;
-    expect(attributes["apitally.request.body"]).toBe(
-      JSON.stringify({ name: "Gadget", password: "[REDACTED]" }),
-    );
-    expect(attributes["apitally.response.body"]).toBe(
-      JSON.stringify({
-        received: { name: "Widget", password: "[REDACTED]" },
-      }),
-    );
-    expect(sampledAttributes).toBeDefined();
-    expect(sampledAttributes?.["http.route"]).toBe("/items");
-    expect(sampledAttributes?.["apitally.request.body"]).toBeUndefined();
-    expect(sampledAttributes?.["apitally.response.body"]).toBeUndefined();
-  });
-
   it("reports correct sizes and complete body capture for streaming responses", async () => {
     prepareFirstRequestActivation({ captureResponseBody: true });
     const response = await request(server).get("/stream").expect(200);
@@ -518,37 +490,119 @@ describe("express integration", () => {
     expect(attributes["http.response.body.size"]).toBeUndefined();
   });
 
-  it("captures the compressed wire bytes of the response body with matching size attributes when compression middleware is active", async () => {
-    prepareFirstRequestActivation({ captureResponseBody: true });
-    const compressedApp = express();
-    useApitally(compressedApp, {
+  it("decodes, masks, and redacts compressed bodies with header capture disabled, preserves transport sizes, and keeps captured payloads off the live span", async () => {
+    let sampledAttributes: Attributes | undefined;
+    const options: ApitallyOptions = {
       writeToken: WRITE_TOKEN,
+      captureRequestHeaders: false,
+      captureResponseHeaders: false,
+      captureRequestBody: true,
       captureResponseBody: true,
-    });
+      maskRequestBody: (body) => Buffer.from(body.toString().replace("Widget", "Gadget")),
+      sampleOnResponse: (span) => {
+        sampledAttributes = { ...span.attributes };
+        return true;
+      },
+    };
+    prepareFirstRequestActivation(options);
+    const compressedApp = express();
+    useApitally(compressedApp, options);
     compressedApp.use(compression({ threshold: 0 }));
-    const payload = { data: "x".repeat(2048) };
-    compressedApp.get("/compressed", (_req, res) => {
-      res.json(payload);
+    compressedApp.use(express.json());
+    const requestPayload = { name: "Widget", password: "request-secret" };
+    const responsePayload = { data: "x".repeat(2048), password: "response-secret" };
+    const requestBytes = gzipSync(JSON.stringify(requestPayload));
+    let receivedPayload: unknown;
+    compressedApp.post("/compressed", (req, res) => {
+      receivedPayload = req.body;
+      res.json(responsePayload);
     });
+    let responseSize = 0;
     await withServer(compressedApp, async (_compressedServer, baseUrl) => {
-      const response = await fetch(`${baseUrl}/compressed`, {
-        headers: { "accept-encoding": "gzip" },
+      const response = await undiciRequest(`${baseUrl}/compressed`, {
+        method: "POST",
+        headers: {
+          "accept-encoding": "gzip",
+          "content-encoding": "gzip",
+          "content-type": "application/json",
+        },
+        body: requestBytes,
       });
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-encoding")).toBe("gzip");
-      expect(await response.json()).toEqual(payload);
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["content-encoding"]).toBe("gzip");
+      const responseBytes = Buffer.from(await response.body.arrayBuffer());
+      responseSize = responseBytes.length;
+      expect(gunzipSync(responseBytes).toString()).toBe(JSON.stringify(responsePayload));
     });
+    expect(receivedPayload).toEqual(requestPayload);
 
     const spans = await readActivationSpans();
     expect(spans).toHaveLength(1);
     const attributes = spans[0].attributes;
-    const capturedResponseBody = attributes["apitally.response.body"];
-    if (!(capturedResponseBody instanceof Uint8Array)) {
-      throw new Error("Expected a byte-valued response body");
-    }
-    const capturedBytes = Buffer.from(capturedResponseBody);
-    expect(gunzipSync(capturedBytes).toString()).toBe(JSON.stringify(payload));
-    expect(attributes["http.response.body.size"]).toBe(capturedBytes.length);
+    expect(attributes["apitally.request.body"]).toBe(
+      JSON.stringify({ name: "Gadget", password: "[REDACTED]" }),
+    );
+    expect(attributes["apitally.response.body"]).toBe(
+      JSON.stringify({ ...responsePayload, password: "[REDACTED]" }),
+    );
+    expect(attributes["http.request.body.size"]).toBe(requestBytes.length);
+    expect(attributes["http.response.body.size"]).toBe(responseSize);
+    expect(Object.keys(attributes).filter((key) => key.includes(".header."))).toEqual([]);
+    expect(sampledAttributes).toBeDefined();
+    expect(sampledAttributes?.["http.route"]).toBe("/compressed");
+    expect(sampledAttributes?.["apitally.request.body"]).toBeUndefined();
+    expect(sampledAttributes?.["apitally.response.body"]).toBeUndefined();
+  });
+
+  it("omits unsupported encoded bodies while preserving headers, transport sizes, and client bytes", async () => {
+    const options = {
+      writeToken: WRITE_TOKEN,
+      captureRequestHeaders: true,
+      captureResponseHeaders: true,
+      captureRequestBody: true,
+      captureResponseBody: true,
+    };
+    prepareFirstRequestActivation(options);
+    const encodedApp = express();
+    useApitally(encodedApp, options);
+    const requestBytes = Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x01]);
+    const responseBytes = Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x02, 0x03]);
+    let receivedBody: Buffer | undefined;
+    let requestContentLength: string | undefined;
+    encodedApp.post("/encoded", async (req, res) => {
+      requestContentLength = req.headers["content-length"];
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      receivedBody = Buffer.concat(chunks);
+      res.status(400).set({ "content-type": "application/json", "content-encoding": "zstd" });
+      res.write(responseBytes);
+      res.end();
+    });
+    await withServer(encodedApp, async (_encodedServer, baseUrl) => {
+      const response = await undiciRequest(`${baseUrl}/encoded`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-encoding": "zstd" },
+        body: Readable.from([requestBytes]),
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.headers["content-length"]).toBeUndefined();
+      expect(Buffer.from(await response.body.arrayBuffer())).toEqual(responseBytes);
+    });
+    expect(receivedBody).toEqual(requestBytes);
+    expect(requestContentLength).toBeUndefined();
+
+    const spans = await readActivationSpans();
+    expect(spans).toHaveLength(1);
+    const attributes = spans[0].attributes;
+    expect(attributes["apitally.request.body"]).toBeUndefined();
+    expect(attributes["apitally.response.body"]).toBeUndefined();
+    expect(attributes["http.request.body.size"]).toBe(requestBytes.length);
+    expect(attributes["http.response.body.size"]).toBe(responseBytes.length);
+    expect(attributes["http.request.header.content-encoding"]).toEqual(["zstd"]);
+    expect(attributes["http.response.header.content-encoding"]).toEqual(["zstd"]);
+    expect(drainValidationErrors()).toEqual([]);
   });
 
   it("activates on the first request and stays idempotent across repeated useApitally calls", async () => {

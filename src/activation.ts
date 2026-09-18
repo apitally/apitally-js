@@ -258,7 +258,7 @@ function startPipelines(startupEventInfo: StartupEventInfo | undefined): Activat
         ? BATCH_MAX_EXPORT_BATCH_SIZE_WITH_BODY_CAPTURE
         : BATCH_MAX_EXPORT_BATCH_SIZE,
   });
-  const spanPipeline = new SpanPipeline(batchSpanProcessor);
+  const spanPipeline = new SpanPipeline(batchSpanProcessor, () => spanExporter.forceFlush());
   let tracerProvider: NodeTracerProvider | undefined;
   if (!hasUserProvider) {
     tracerProvider = setupTracerProvider(resource, [spanPipeline]);
@@ -295,7 +295,7 @@ function startPipelines(startupEventInfo: StartupEventInfo | undefined): Activat
   });
   worker.flushCallbacks.push(
     () => metricsPipeline.collectAndExport(),
-    () => batchSpanProcessor.forceFlush(),
+    () => spanPipeline.forceFlush(),
     () => emitErrorEvents(loggerProvider),
     () => batchLogProcessor.forceFlush(),
   );

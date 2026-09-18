@@ -37,6 +37,7 @@ export function startNodeRequestObservation(
   const requestBodyCapture = new BodyCapture({
     captureBody: getConfig().captureRequestBody,
     contentType: request.headers["content-type"],
+    contentEncoding: request.headers["content-encoding"],
     contentLength: request.headers["content-length"],
     transferEncoding: request.headers["transfer-encoding"],
   });
@@ -113,6 +114,7 @@ export function captureNodeResponse(
           ? shouldCaptureBody(response.statusCode)
           : shouldCaptureBody,
       contentType: firstStringValue(resolveResponseHeader("content-type")),
+      contentEncoding: resolveResponseHeader("content-encoding")?.toString(),
       contentLength: resolveResponseHeader("content-length"),
       transferEncoding: resolveResponseHeader("transfer-encoding") as string | string[] | undefined,
     });
