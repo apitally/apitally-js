@@ -26,7 +26,7 @@ import {
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { DEFAULT_ENV, getConfig } from "./config.js";
+import { getConfig } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
 import { getDistroVersion } from "./packageVersion.js";
 
@@ -54,14 +54,10 @@ class RequestRootedSampler implements Sampler {
   }
 }
 
-// Apitally-Env and deployment.environment.name use the same detected resource
-// so they cannot disagree.
-export function resolveEnvAndCreateResource(
-  hasUserProvider: boolean,
-  triggeringResource?: Pick<Resource, "attributes">,
-): { env: string; resource: Resource } {
+// Apitally-Env and every signal's resource use the configured environment.
+export function resolveEnvAndCreateResource(): { env: string; resource: Resource } {
   const environmentResource = detectResources({ detectors: [envDetector] });
-  const env = resolveEnv(hasUserProvider, triggeringResource, environmentResource);
+  const env = getConfig().env;
   // defaultResource() ignores environment variables. Apitally attributes merge
   // last to keep the resource aligned with Apitally-Env.
   const resource = defaultResource()
@@ -75,38 +71,6 @@ export function resolveEnvAndCreateResource(
       }),
     );
   return { env, resource };
-}
-
-function resolveEnv(
-  hasUserProvider: boolean,
-  triggeringResource: Pick<Resource, "attributes"> | undefined,
-  environmentResource: Pick<Resource, "attributes">,
-): string {
-  // The env option and APITALLY_ENV are already resolved into config.env; its
-  // default also indicates that neither was configured.
-  const configuredEnv = getConfig().env;
-  const triggeringResourceEnv = readDeploymentEnvironmentNameFromResource(triggeringResource);
-  if (triggeringResourceEnv !== undefined) {
-    if (configuredEnv !== DEFAULT_ENV && configuredEnv !== triggeringResourceEnv) {
-      logWarning(
-        `The configured Apitally env "${configuredEnv}" conflicts with deployment.environment.name=${triggeringResourceEnv} on the OpenTelemetry SERVER span; using "${triggeringResourceEnv}". To resolve this, remove the env option from useApitally() or configure the provider resource with "${configuredEnv}".`,
-      );
-    }
-    return triggeringResourceEnv;
-  }
-  const resourceAttributesEnv = readDeploymentEnvironmentNameFromResource(environmentResource);
-  if (!hasUserProvider) {
-    return configuredEnv !== DEFAULT_ENV ? configuredEnv : (resourceAttributesEnv ?? DEFAULT_ENV);
-  }
-  if (resourceAttributesEnv === undefined) {
-    return configuredEnv;
-  }
-  if (configuredEnv !== DEFAULT_ENV && configuredEnv !== resourceAttributesEnv) {
-    logWarning(
-      `The configured Apitally env "${configuredEnv}" conflicts with the OTEL_RESOURCE_ATTRIBUTES entry deployment.environment.name=${resourceAttributesEnv} of the existing OpenTelemetry setup; using "${resourceAttributesEnv}". To resolve this, remove the env option from useApitally() or change the OTEL_RESOURCE_ATTRIBUTES entry to "${configuredEnv}".`,
-    );
-  }
-  return resourceAttributesEnv;
 }
 
 export function setupTracerProvider(
@@ -152,13 +116,6 @@ export function createLoggerProvider(
   processors: LogRecordProcessor[],
 ): LoggerProvider {
   return new LoggerProvider({ resource, processors });
-}
-
-function readDeploymentEnvironmentNameFromResource(
-  resource: Pick<Resource, "attributes"> | undefined,
-): string | undefined {
-  const value = resource?.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
-  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 // OTel exposes no context-manager getter, so a propagated probe verifies

@@ -157,4 +157,3 @@ sdk.start();
 Review these settings when upgrading:
 
 - **Sampling:** Previously, your provider's sampler affected traces but not Apitally's request logs. It now affects both, so review its sampling rate when upgrading. Metrics remain unsampled.
-- **Environment:** The provider's `deployment.environment.name`, when set, now overrides Apitally's `env` option. Align conflicting values or omit `env` to use the provider's value.

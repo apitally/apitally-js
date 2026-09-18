@@ -217,7 +217,7 @@ describe("spanExporter", () => {
     expect(userDuplicate?.kind).toBe(SpanKind.SERVER);
   });
 
-  it("rewrites a differing deployment environment resource attribute to the resolved env on Apitally's copies only, warning once", async () => {
+  it("rewrites a differing deployment environment resource attribute to the configured env on Apitally's copies only", async () => {
     const resource = resourceFromAttributes({
       "deployment.environment.name": "staging",
       "service.name": "user-service",
@@ -242,8 +242,7 @@ describe("spanExporter", () => {
     expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
     expect(spans[1].resource.attributes["deployment.environment.name"]).toBe("prod");
     expect(spans[1].resource.attributes["service.name"]).toBe("user-service");
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("staging");
+    expect(lines).toHaveLength(0);
     const [userSpan] = userExporter.getFinishedSpans();
     expect(userSpan.resource.attributes["deployment.environment.name"]).toBe("staging");
   });

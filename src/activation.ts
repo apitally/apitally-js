@@ -3,7 +3,7 @@ import { ROOT_CONTEXT } from "@opentelemetry/api";
 import type { AnyValueMap } from "@opentelemetry/api-logs";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { BatchLogRecordProcessor, type LoggerProvider } from "@opentelemetry/sdk-logs";
-import { BatchSpanProcessor, type Span } from "@opentelemetry/sdk-trace-base";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { type ApitallyConfig, type ApitallyOptions, getConfig, setConfig } from "./config.js";
 import { ExportWorker, type ExportWorkerOptions } from "./exportWorker.js";
@@ -99,7 +99,7 @@ export function registerStartupEventInfo(info: StartupEventInfo): void {
 
 // Activation is synchronous and attempted once, so concurrent first requests
 // observe either no activation or completed activation.
-export function activate(triggeringSpan?: Span): void {
+export function activate(): void {
   const activationState = getActivationState();
   if (activationState.activationAttempted) {
     return;
@@ -109,7 +109,7 @@ export function activate(triggeringSpan?: Span): void {
     return;
   }
   try {
-    const handles = startPipelines(activationState.startupEventInfo, triggeringSpan);
+    const handles = startPipelines(activationState.startupEventInfo);
     activationState.handles = handles;
     activationState.runShutdown = () => drainAndStop(handles);
     installBeforeExitHook(activationState);
@@ -233,13 +233,10 @@ function shouldSkipActivation(): boolean {
   );
 }
 
-function startPipelines(
-  startupEventInfo: StartupEventInfo | undefined,
-  triggeringSpan?: Span,
-): ActivationHandles {
+function startPipelines(startupEventInfo: StartupEventInfo | undefined): ActivationHandles {
   const config = getConfig();
   let hasUserProvider = isApitallySpanProcessorDeclared();
-  const { env, resource } = resolveEnvAndCreateResource(hasUserProvider, triggeringSpan?.resource);
+  const { env, resource } = resolveEnvAndCreateResource();
   const instanceId = resource.attributes["service.instance.id"] as string;
   const spool = activationFactories.createSpool();
   const spanExporter = new ApitallySpanExporter({

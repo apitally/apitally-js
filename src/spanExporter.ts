@@ -201,31 +201,21 @@ export class ApitallySpanExporter implements SpanExporter {
     resource: Resource,
     rewrittenResources: Map<Resource, Resource>,
   ): Resource {
-    const resourceEnv = resource.attributes[DEPLOYMENT_ENVIRONMENT_NAME];
-    const resourceInstanceId = resource.attributes[SERVICE_INSTANCE_ID];
-    const envDiffers = typeof resourceEnv === "string" && resourceEnv !== this.env;
-    const envMissing = resourceEnv === undefined;
-    const instanceIdDiffers = resourceInstanceId !== this.instanceId;
-    if (!envDiffers && !envMissing && !instanceIdDiffers) {
+    if (
+      resource.attributes[DEPLOYMENT_ENVIRONMENT_NAME] === this.env &&
+      resource.attributes[SERVICE_INSTANCE_ID] === this.instanceId
+    ) {
       return resource;
     }
     const existing = rewrittenResources.get(resource);
     if (existing) {
       return existing;
     }
-    if (envDiffers) {
-      logWarning(
-        `The tracer provider's resource sets deployment.environment.name to "${resourceEnv}", which differs from the Apitally env "${this.env}". Spans are exported to Apitally with the env "${this.env}".`,
-      );
-    }
-    const attributes: Attributes = {
+    const rewritten = resourceFromAttributes({
       ...resource.attributes,
       [SERVICE_INSTANCE_ID]: this.instanceId,
-    };
-    if (envDiffers || envMissing) {
-      attributes[DEPLOYMENT_ENVIRONMENT_NAME] = this.env;
-    }
-    const rewritten = resourceFromAttributes(attributes);
+      [DEPLOYMENT_ENVIRONMENT_NAME]: this.env,
+    });
     rewrittenResources.set(resource, rewritten);
     return rewritten;
   }

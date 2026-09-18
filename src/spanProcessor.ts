@@ -57,7 +57,7 @@ export class ApitallySpanProcessor implements SpanProcessor {
   onStart(span: Span, parentContext: Context): void {
     let pipeline = getActiveSpanPipeline();
     if (!pipeline && span.kind === SpanKind.SERVER) {
-      getServerSpanActivationCallback()?.(span);
+      getServerSpanActivationCallback()?.();
       pipeline = getActiveSpanPipeline();
     }
     pipeline?.onStart(span, parentContext);
@@ -85,7 +85,7 @@ export class ApitallySpanProcessor implements SpanProcessor {
   }
 }
 
-type ServerSpanActivationCallback = (span: Span) => void;
+type ServerSpanActivationCallback = () => void;
 
 // Symbol.for keys let ESM and CJS builds share processor coordination.
 const ACTIVE_SPAN_PIPELINE_KEY = Symbol.for("apitally.activeSpanPipeline");
