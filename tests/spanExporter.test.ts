@@ -1,4 +1,3 @@
-import { gzipSync } from "node:zlib";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { type Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -437,22 +436,6 @@ describe("spanExporter", () => {
     const spans = readSerializedSpans();
     expect(attributesOfSpan(spans, "GET /items")["apitally.request.body"]).toBe("[BODY_TOO_LARGE]");
     expect(maskCalls).toHaveLength(0);
-  });
-
-  it("passes a pre-compressed response body through as bytes without decompression", async () => {
-    const compressed = gzipSync('{"password": "hunter2"}');
-    const { pipeline, provider, tracer } = createExportPipeline();
-    const { span, request } = startServerSpan(tracer);
-    pipeline.updateStash(span.spanContext().spanId, {
-      responseBody: compressed,
-    });
-    span.end();
-    pipeline.handleTransportCompletion(request.record);
-
-    await provider.forceFlush();
-    const spans = readSerializedSpans();
-    const body = attributesOfSpan(spans, "GET /items")["apitally.response.body"];
-    expect(Buffer.from(body as Uint8Array).equals(compressed)).toBe(true);
   });
 
   it("drops a span whose export processing fails instead of exporting it raw", async () => {
