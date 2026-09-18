@@ -5,13 +5,7 @@ import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { BatchLogRecordProcessor, type LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor, type Span } from "@opentelemetry/sdk-trace-base";
 import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import {
-  type ApitallyConfig,
-  type ApitallyOptions,
-  getConfig,
-  isApitallyDisabledViaEnv,
-  setConfig,
-} from "./config.js";
+import { type ApitallyConfig, type ApitallyOptions, getConfig, setConfig } from "./config.js";
 import { ExportWorker, type ExportWorkerOptions } from "./exportWorker.js";
 import {
   installConsoleCapture,
@@ -235,8 +229,6 @@ function shouldSkipActivation(): boolean {
     Boolean(process.env.JEST_WORKER_ID) ||
     Boolean(process.env.VITEST) ||
     process.env.NODE_ENV === "test" ||
-    // The emergency kill switch overrides an explicit disabled: false option.
-    isApitallyDisabledViaEnv() ||
     getConfig().disabled
   );
 }

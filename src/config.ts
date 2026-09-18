@@ -122,12 +122,6 @@ export function isValidWriteToken(value: string): boolean {
   return WRITE_TOKEN_FORMAT.test(value);
 }
 
-// The emergency kill switch, re-checked at the activation boundary so it wins
-// even over an explicit disabled: false option.
-export function isApitallyDisabledViaEnv(): boolean {
-  return isTruthyEnvValue(process.env.APITALLY_DISABLED);
-}
-
 export function matchesAny(patterns: RegExp[], value: string): boolean {
   return patterns.some((pattern) => {
     pattern.lastIndex = 0;
