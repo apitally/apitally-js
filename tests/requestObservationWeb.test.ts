@@ -78,7 +78,7 @@ describe("requestObservationWeb", () => {
     await expect(request.text()).resolves.toBe("opaque encoded bytes");
   });
 
-  it("counts the full request size after the body exceeds the capture limit", async () => {
+  it("stops reading a cloned request after the body exceeds the capture limit", async () => {
     const wireBody = "x".repeat(MAX_BODY_SIZE + 1);
     const request = new Request("http://localhost/items", {
       method: "POST",
@@ -93,7 +93,6 @@ describe("requestObservationWeb", () => {
     await captureWebRequestBody(request, bodyCapture);
 
     expect(bodyCapture.body).toEqual(BODY_TOO_LARGE_BUFFER);
-    expect(bodyCapture.size).toBe(Buffer.byteLength(wireBody));
     await expect(request.text()).resolves.toBe(wireBody);
   });
 

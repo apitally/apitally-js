@@ -126,6 +126,8 @@ export function captureWebRequestBody(
         }
         bodyCapture.addChunk(value);
         if (!bodyCapture.shouldReadBody) {
+          // Draining the clone to measure the full size would queue unread bytes in the
+          // original request, allowing unbounded buffering despite the capture limit.
           cancelReader(reader);
           return;
         }
