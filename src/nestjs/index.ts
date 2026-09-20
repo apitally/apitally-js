@@ -8,6 +8,7 @@ import type {
 import type { Express } from "express";
 import type { FastifyInstance } from "fastify";
 import type * as rxjs from "rxjs";
+import { shutdown } from "../activation.js";
 import type { ApitallyOptions } from "../config.js";
 import { getRequestRecord } from "../context.js";
 import { captureException } from "../exceptions.js";
@@ -41,6 +42,12 @@ export function useApitally(app: INestApplication, options?: ApitallyOptions): v
   const markedInstance = adapterInstance as Record<symbol, boolean | undefined>;
   if (markedInstance[INTERCEPTOR_MARKER] !== true) {
     app.useGlobalInterceptors(createExceptionInterceptor());
+    // Nest awaits adapter.close() before terminating the process on a shutdown signal.
+    const close = httpAdapter.close.bind(httpAdapter);
+    httpAdapter.close = async () => {
+      await close();
+      await shutdown();
+    };
     markedInstance[INTERCEPTOR_MARKER] = true;
   }
 }

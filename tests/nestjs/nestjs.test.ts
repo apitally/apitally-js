@@ -12,9 +12,11 @@ import {
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
   readActivationSpans,
+  readFetchPaths,
   readResponseAndSettleTransport,
   readSerializedLogRecords,
   requireActivationHandles,
+  spyOnSuccessfulFetch,
   WRITE_TOKEN,
 } from "../utils.js";
 import { AppModule } from "./app.js";
@@ -78,7 +80,11 @@ describe("NestJS integration", () => {
           { method: "GET", path: "/validate" },
         ]);
       } finally {
+        const fetchSpy = spyOnSuccessfulFetch();
         await app.close();
+        expect(new Set(readFetchPaths(fetchSpy))).toEqual(
+          new Set(["/v1/traces", "/v1/logs", "/v1/metrics"]),
+        );
       }
     },
   );
