@@ -38,17 +38,18 @@ export function setConsumer(consumer: ApitallyConsumer | string | null | undefin
     current.group = normalized.group ?? current.group;
     if (typeof consumer === "object" && consumer?.attributes) {
       for (const [rawKey, rawValue] of Object.entries(consumer.attributes)) {
-        const key = rawKey.trim();
-        const value =
-          typeof rawValue === "number" || typeof rawValue === "boolean"
-            ? String(rawValue)
-            : rawValue;
-        if (value !== null && typeof value !== "string") {
+        if (
+          rawValue !== null &&
+          typeof rawValue !== "string" &&
+          typeof rawValue !== "number" &&
+          typeof rawValue !== "boolean"
+        ) {
           continue;
         }
-        const trimmedValue = value?.trim() || null;
-        if (key.length > 0 && key.length <= 64 && (trimmedValue?.length ?? 0) <= 1_024) {
-          current.attributes.set(key, trimmedValue);
+        const key = rawKey.trim();
+        const value = rawValue === null ? null : String(rawValue).trim() || null;
+        if (key.length > 0 && key.length <= 64 && (value?.length ?? 0) <= 1_024) {
+          current.attributes.set(key, value);
         }
       }
     }
@@ -62,15 +63,15 @@ export function setConsumer(consumer: ApitallyConsumer | string | null | undefin
 // trace sampling and exclusion; an update identical to the last one sent is skipped.
 export function emitConsumerUpdateIfChanged(record: RequestRecord): void {
   try {
-    const handles = getActivationHandles();
     const consumer = record.consumer;
-    if (!handles || !consumer) {
+    if (!consumer || (!consumer.name && !consumer.group && consumer.attributes.size === 0)) {
+      return;
+    }
+    const handles = getActivationHandles();
+    if (!handles) {
       return;
     }
     const attributes = [...consumer.attributes].slice(0, MAX_ATTRIBUTES_PER_UPDATE);
-    if (!consumer.name && !consumer.group && attributes.length === 0) {
-      return;
-    }
     const sortedAttributes = [...attributes].sort(([a], [b]) => (a < b ? -1 : 1));
     const hash = createHash("sha256")
       .update(JSON.stringify([consumer.name ?? null, consumer.group ?? null, sortedAttributes]))
