@@ -324,19 +324,6 @@ describe("spanProcessor", () => {
     ]);
   });
 
-  it("writes a consumer set in the holder before span start onto the server span", () => {
-    const { pipeline, tracer, exporter } = createTracePipeline();
-    const { span, request } = startServerSpan(tracer, {
-      consumerHolder: { identifier: "tenant-1", name: "Tenant One" },
-    });
-    span.end();
-    pipeline.handleTransportCompletion(request.record);
-    const [exported] = exporter.getFinishedSpans();
-    expect(exported.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
-    expect(exported.attributes["apitally.consumer.name"]).toBe("Tenant One");
-    expect(request.record.attributes["apitally.consumer.identifier"]).toBe("tenant-1");
-  });
-
   it("invokes the metrics recorder at transport completion with the reason a request was not exported", () => {
     setConfig({
       writeToken: WRITE_TOKEN,

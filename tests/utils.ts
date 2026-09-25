@@ -55,12 +55,7 @@ import {
   getActivationHandles,
 } from "../src/activation.js";
 import type { ApitallyOptions } from "../src/config.js";
-import {
-  type ConsumerHolder,
-  type RequestRecord,
-  type SpanHandle,
-  withRequestHolders,
-} from "../src/context.js";
+import { type RequestRecord, type SpanHandle, withRequestHolders } from "../src/context.js";
 import { ExportWorker } from "../src/exportWorker.js";
 import { ApitallyLogRecordProcessor } from "../src/logRecordProcessor.js";
 import { SpanPipeline } from "../src/spanProcessor.js";
@@ -291,19 +286,12 @@ export interface RequestContext {
   context: Context;
   record: RequestRecord;
   spanHandle: SpanHandle;
-  consumerHolder: ConsumerHolder;
 }
 
 function createRequestContext(base: Context = ROOT_CONTEXT): RequestContext {
   const record: RequestRecord = { attributes: {} };
   const spanHandle: SpanHandle = {};
-  const consumerHolder: ConsumerHolder = {};
-  return {
-    context: withRequestHolders(base, spanHandle, record, consumerHolder),
-    record,
-    spanHandle,
-    consumerHolder,
-  };
+  return { context: withRequestHolders(base, spanHandle, record), record, spanHandle };
 }
 
 export async function runInsideRequest(
@@ -323,7 +311,6 @@ export function startServerSpan(
     name?: string;
     attributes?: Attributes;
     traceId?: string;
-    consumerHolder?: ConsumerHolder;
   } = {},
 ): { span: Span; request: RequestContext } {
   const base = options.traceId
@@ -335,9 +322,6 @@ export function startServerSpan(
       })
     : ROOT_CONTEXT;
   const request = createRequestContext(base);
-  if (options.consumerHolder) {
-    Object.assign(request.consumerHolder, options.consumerHolder);
-  }
   const span = tracer.startSpan(
     options.name ?? "GET /items",
     { kind: SpanKind.SERVER, attributes: options.attributes },
