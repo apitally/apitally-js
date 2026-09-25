@@ -15,8 +15,8 @@ export type {
   LogRecordMaskingCallback,
   SamplingCallback,
 } from "./config.js";
-export type { ApitallyConsumer } from "./consumer.js";
-export { setConsumer } from "./consumer.js";
+export type { ApitallyConsumer } from "./consumers.js";
+export { setConsumer } from "./consumers.js";
 export { captureException } from "./exceptions.js";
 export { setRequestAttribute } from "./requestAttributes.js";
 export { ApitallySpanProcessor } from "./spanProcessor.js";

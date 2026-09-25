@@ -73,6 +73,8 @@ interface ActivationHandles {
   spanPipeline: SpanPipeline;
   tracerProvider?: NodeTracerProvider;
   loggerProvider: LoggerProvider;
+  // Consumer identifier to the hash of its last emitted consumer update, in LRU order.
+  consumerUpdateHashes: Map<string, string>;
   metricsPipeline: MetricsPipeline;
   spool: Spool;
   worker: ExportWorker;
@@ -318,6 +320,7 @@ function startPipelines(startupEventInfo: StartupEventInfo | undefined): Activat
     spanPipeline,
     tracerProvider,
     loggerProvider,
+    consumerUpdateHashes: new Map(),
     metricsPipeline,
     spool,
     worker,

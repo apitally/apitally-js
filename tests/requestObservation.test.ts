@@ -12,7 +12,9 @@ import { type SpanCopy, setActiveSpanPipeline } from "../src/spanProcessor.js";
 import { drainValidationErrors } from "../src/validationErrors.js";
 import {
   CollectingSpanProcessor,
+  configureAndActivate,
   createTracePipeline,
+  readSerializedLogRecords,
   startServerSpan,
   WRITE_TOKEN,
 } from "./utils.js";
@@ -141,6 +143,42 @@ describe("requestObservation", () => {
     ]);
     expect(drainValidationErrors()).toEqual([
       { consumer: "acme", method: "POST", path: "/items", ...detail, count: 2 },
+    ]);
+  });
+
+  it("emits consumer updates for sampled-out requests and requests finalized with an error", async () => {
+    const handles = configureAndActivate();
+    finalizeRequestObservation({
+      observation: {
+        requestRecord: {
+          attributes: {},
+          dropReason: "sampled-out",
+          consumer: { identifier: "acme", name: "Acme", attributes: new Map() },
+        },
+        spanHandle: {},
+        method: "GET",
+        startTimeMillis: 0,
+      },
+      completedAtMillis: 1,
+      statusCode: 200,
+      route: "/items",
+      requestHeaders: {},
+      responseHeaders: {},
+    });
+    finalizeRequestObservationWithError({
+      requestRecord: {
+        attributes: {},
+        consumer: { identifier: "globex", name: "Globex", attributes: new Map() },
+      },
+      spanHandle: {},
+      error: new Error("failed"),
+      durationSeconds: 0,
+    });
+    await handles.loggerProvider.forceFlush();
+
+    expect(readSerializedLogRecords().map((record) => record.body)).toEqual([
+      { identifier: "acme", name: "Acme" },
+      { identifier: "globex", name: "Globex" },
     ]);
   });
 

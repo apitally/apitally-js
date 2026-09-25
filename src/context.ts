@@ -16,10 +16,11 @@ export interface SpanHandle {
   ownSpan?: Span;
 }
 
-export interface ConsumerHolder {
-  identifier?: string;
+export interface RequestConsumer {
+  identifier: string;
   name?: string;
   group?: string;
+  attributes: Map<string, string | null>;
 }
 
 // Requests dropped for these reasons are still counted in request metrics,
@@ -39,11 +40,12 @@ export interface RequestRecord {
   // independently of the SERVER span and of the drop decision.
   exception?: unknown;
   validationErrors?: ValidationErrorDetail[];
+  // Consumer metadata for the consumer update event emitted at completion.
+  consumer?: RequestConsumer;
 }
 
 export const SPAN_HANDLE_KEY = createContextKey("apitally-span-handle");
 export const REQUEST_RECORD_KEY = createContextKey("apitally-request-record");
-export const CONSUMER_HOLDER_KEY = createContextKey("apitally-consumer-holder");
 
 const RPC_REQUEST_RECORD_KEY = Symbol.for("apitally.rpcRequestRecord");
 
@@ -56,12 +58,8 @@ export function withRequestHolders(
   baseContext: Context,
   spanHandle: SpanHandle,
   record: RequestRecord,
-  consumerHolder: ConsumerHolder,
 ): Context {
-  return baseContext
-    .setValue(SPAN_HANDLE_KEY, spanHandle)
-    .setValue(REQUEST_RECORD_KEY, record)
-    .setValue(CONSUMER_HOLDER_KEY, consumerHolder);
+  return baseContext.setValue(SPAN_HANDLE_KEY, spanHandle).setValue(REQUEST_RECORD_KEY, record);
 }
 
 export function attachRequestRecordToRpcMetadata(
@@ -92,10 +90,4 @@ export function getRequestRecord(
     (activeContext.getValue(REQUEST_RECORD_KEY) as RequestRecord | undefined) ??
     rpcMetadata?.[RPC_REQUEST_RECORD_KEY]
   );
-}
-
-export function getConsumerHolder(
-  activeContext: Context = context.active(),
-): ConsumerHolder | undefined {
-  return activeContext.getValue(CONSUMER_HOLDER_KEY) as ConsumerHolder | undefined;
 }

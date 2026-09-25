@@ -286,8 +286,13 @@ The top-level `apitally` package provides functions you can call from anywhere i
 ```javascript
 import { setConsumer, setRequestAttribute, captureException } from "apitally";
 
-// Associate the current request with an API consumer
-setConsumer({ identifier: user.identifier, name: user.name, group: user.group });
+// Associate the current request with an API consumer, with custom attributes
+setConsumer({
+  identifier: user.identifier,
+  name: user.name,
+  group: user.group,
+  attributes: { plan: user.plan },
+});
 
 // Attach a custom attribute to the current request
 setRequestAttribute("tenant", tenantId);

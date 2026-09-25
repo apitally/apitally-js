@@ -10,7 +10,6 @@ import {
   matchesAny,
   type SamplingCallback,
 } from "./config.js";
-import { writeConsumerAttributesFromContext } from "./consumer.js";
 import {
   REQUEST_RECORD_KEY,
   type RequestDropReason,
@@ -408,7 +407,6 @@ export class SpanPipeline implements SpanProcessor {
     if (record) {
       record.serverSpanId = spanId;
     }
-    writeConsumerAttributesFromContext(parentContext, span, record);
     writeUrlAttributesFromFullUrl(span);
     const dropReason =
       this.resolveRequestDropReasonBeforeSampling(span.attributes) ??

@@ -2,9 +2,9 @@ import { type Attributes, type Context, SpanKind, SpanStatusCode, trace } from "
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
 import type { BodyCapture, CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
+import { emitConsumerUpdateIfChanged } from "./consumers.js";
 import {
   attachRequestRecordToRpcMetadata,
-  getConsumerHolder,
   type RequestRecord,
   type SpanHandle,
   withRequestHolders,
@@ -83,7 +83,6 @@ export function startRequestObservation(
   } = options;
   const requestRecord: RequestRecord = { attributes: {} };
   const spanHandle: SpanHandle = {};
-  const consumerHolder = getConsumerHolder(activeContext) ?? {};
   // Metrics and the exported span copy read from the request record, so the
   // start attributes are mirrored into it on every path, span or no span.
   Object.assign(requestRecord.attributes, startAttributes);
@@ -103,20 +102,15 @@ export function startRequestObservation(
     if (getActiveSpanPipeline()?.isRequestInFlight(requestRecord.serverSpanId) !== true) {
       requestRecord.dropReason = resolveUnavailableSpanDropReason();
     }
-    requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
+    requestContext = withRequestHolders(activeContext, spanHandle, requestRecord);
   } else if (activeSpan && !activeSpan.isRecording() && !activeSpan.spanContext().isRemote) {
     requestRecord.dropReason = resolveUnavailableSpanDropReason();
     if (requestRecord.dropReason === "sampled-out") {
       warnAboutNonRecordingServerSpan();
     }
-    requestContext = withRequestHolders(activeContext, spanHandle, requestRecord, consumerHolder);
+    requestContext = withRequestHolders(activeContext, spanHandle, requestRecord);
   } else {
-    requestContext = withRequestHolders(
-      extractedContext,
-      spanHandle,
-      requestRecord,
-      consumerHolder,
-    );
+    requestContext = withRequestHolders(extractedContext, spanHandle, requestRecord);
     const ownSpan = trace
       .getTracer(tracerName)
       .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
@@ -250,6 +244,7 @@ export function finalizeRequestObservation(options: FinalizeRequestObservationOp
     }
   }
   ownSpan?.end(options.completedAtMillis);
+  emitConsumerUpdateIfChanged(requestRecord);
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
 }
 
@@ -272,6 +267,7 @@ export function finalizeRequestObservationWithError(
     spanHandle.ownSpan.setStatus({ code: SpanStatusCode.ERROR });
     spanHandle.ownSpan.end();
   }
+  emitConsumerUpdateIfChanged(requestRecord);
   getActiveSpanPipeline()?.handleTransportCompletion(requestRecord);
 }
 
