@@ -323,29 +323,6 @@ const sdk = new NodeSDK({
 
 Your tracer provider's sampling settings also affect Apitally. Requests excluded by the sampler will not have request logs or traces in Apitally. Metrics still include all requests, regardless of sampling.
 
-### Sentry
-
-Sentry's Node.js SDK configures OpenTelemetry automatically. To use Apitally alongside Sentry, add `ApitallySpanProcessor` to Sentry's configuration and call `Sentry.init()` before `useApitally()`:
-
-```javascript
-import * as Sentry from "@sentry/node";
-import { ApitallySpanProcessor } from "apitally";
-
-Sentry.init({
-  dsn: "your-sentry-dsn",
-  // Enable tracing
-  tracesSampleRate: 1.0,
-  // Add Apitally's span processor
-  openTelemetrySpanProcessors: [new ApitallySpanProcessor()],
-  // Optional: send only errors to Sentry
-  beforeSendTransaction: () => null,
-});
-```
-
-Apitally uses the spans recorded by Sentry, so tracing must be enabled in Sentry. Requests excluded by Sentry's sampler will also be missing from Apitally's request logs and traces.
-
-Returning `null` from `beforeSendTransaction` prevents traces from being sent to Sentry without affecting Apitally's request logs and traces.
-
 ### Elysia's OpenTelemetry plugin
 
 When using Elysia's `@elysia/opentelemetry` plugin, register Apitally first so it adopts the OpenTelemetry SERVER span:
