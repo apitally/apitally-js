@@ -121,6 +121,9 @@ class OnDemandMetricReader extends MetricReader {
         instrumentType === InstrumentType.HISTOGRAM
           ? AggregationTemporality.DELTA
           : AggregationTemporality.CUMULATIVE,
+      // Route, method, status, and consumer combinations can exceed the OTel default
+      // of 2,000 per interval; beyond the limit, measurements lose their attributes.
+      cardinalitySelector: () => 10_000,
     });
   }
 
