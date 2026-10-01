@@ -191,12 +191,27 @@ describe("exportWorker", () => {
     );
   });
 
-  it("sends at most ten files per regular cycle", async () => {
+  it("sends every file closed since the previous cycle", async () => {
     const fetchSpy = spyOnSuccessfulFetch();
     const worker = createWorker();
     await appendClosedTraceFiles(12);
     await worker.runCycle();
-    expect(fetchSpy).toHaveBeenCalledTimes(10);
+    expect(fetchSpy).toHaveBeenCalledTimes(12);
+    expect(spool.pendingFiles()).toEqual([]);
+  });
+
+  it("sends new files plus at most ten files from earlier cycles", async () => {
+    let isFailing = true;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(null, { status: isFailing ? 503 : 200 }));
+    const worker = createWorker();
+    await appendClosedTraceFiles(12);
+    await worker.runCycle();
+    isFailing = false;
+    await spool.append("logs", LOGS_PAYLOAD_FRESH);
+    await worker.runCycle();
+    expect(fetchSpy).toHaveBeenCalledTimes(1 + 10 + 1);
     expect(spool.pendingFiles()).toHaveLength(2);
   });
 

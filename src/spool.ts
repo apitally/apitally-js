@@ -34,6 +34,7 @@ export class Spool {
   maxSize: number;
   readonly current = new Map<Signal, SpoolFile>();
   private readonly closed: SpoolFile[] = [];
+  private filesClosedSinceExportRotation = 0;
   private readonly tempDir: string;
   private readonly queues: Record<Signal, Promise<void>> = {
     traces: Promise.resolve(),
@@ -78,8 +79,9 @@ export class Spool {
   }
 
   // Current files close only when no backlog exists, avoiding one file per cycle.
-  // Sequential rotation preserves send order.
-  async rotateForExport(): Promise<void> {
+  // Sequential rotation preserves send order. Returns the number of files closed
+  // since the previous call, including files closed at the size limit.
+  async rotateForExport(): Promise<number> {
     for (const signal of SIGNALS) {
       await this.enqueue(signal, async () => {
         if (this.current.has(signal) && !this.closed.some((file) => file.signal === signal)) {
@@ -88,6 +90,9 @@ export class Spool {
       });
     }
     await this.evict();
+    const closedFileCount = this.filesClosedSinceExportRotation;
+    this.filesClosedSinceExportRotation = 0;
+    return closedFileCount;
   }
 
   async closeCurrentFiles(): Promise<void> {
@@ -147,6 +152,7 @@ export class Spool {
     try {
       await file.close();
       this.closed.push(file);
+      this.filesClosedSinceExportRotation += 1;
     } catch {
       logWarning(WRITE_FAILURE_WARNING);
       await file.delete();
