@@ -5,7 +5,7 @@ import { logDebug, logWarning } from "./logger.js";
 import { getDistroVersion } from "./packageVersion.js";
 import type { Spool, SpoolFile } from "./spool.js";
 
-const MAX_SENDS_PER_CYCLE = 10;
+const MAX_BACKLOG_SENDS_PER_CYCLE = 10;
 const DEFAULT_EXPORT_INTERVAL_MILLIS = 15_000;
 const EXPORT_INTERVAL_HEADER = "Apitally-Export-Interval";
 const INITIAL_EXPORT_DELAY_MILLIS = 2_000;
@@ -156,16 +156,17 @@ export class ExportWorker {
         if (signal.aborted) {
           return;
         }
+        let maxSends = Number.POSITIVE_INFINITY;
         if (final) {
           await this.spool.closeCurrentFiles();
         } else {
-          await this.spool.rotateForExport();
+          maxSends = MAX_BACKLOG_SENDS_PER_CYCLE + (await this.spool.rotateForExport());
           this.spool.touchFiles();
         }
         if (signal.aborted) {
           return;
         }
-        await this.sendPendingFiles(final, signal);
+        await this.sendPendingFiles(final, maxSends, signal);
       });
     } catch (error) {
       logDebug(`Error in Apitally export cycle: ${String(error)}`);
@@ -173,10 +174,14 @@ export class ExportWorker {
   }
 
   // During an outage, stopping on failure limits each cycle to one probe POST.
-  private async sendPendingFiles(final: boolean, signal: AbortSignal): Promise<void> {
+  private async sendPendingFiles(
+    final: boolean,
+    maxSends: number,
+    signal: AbortSignal,
+  ): Promise<void> {
     let sent = 0;
     for (const file of this.spool.pendingFiles()) {
-      if (signal.aborted || (!final && sent >= MAX_SENDS_PER_CYCLE)) {
+      if (signal.aborted || sent >= maxSends) {
         return;
       }
       if (!final && sent > 0) {
