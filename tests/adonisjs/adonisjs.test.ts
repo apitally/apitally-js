@@ -218,7 +218,7 @@ describe("adonisjs integration", () => {
           field: "name",
           message: "The name field must be defined",
           type: "required",
-          count: 1,
+          counts: [{ count: 1 }],
         },
       ]);
       expect(drainServerErrors()).toEqual([
@@ -228,7 +228,7 @@ describe("adonisjs integration", () => {
           type: "Error",
           message: "boom",
           stacktrace: expect.stringContaining("Error: boom"),
-          count: 1,
+          counts: [{ count: 1 }],
         },
       ]);
     });

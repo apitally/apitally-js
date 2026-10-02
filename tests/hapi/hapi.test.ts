@@ -179,7 +179,7 @@ describe("hapi integration", () => {
         type: "Error",
         message: "boom",
         stacktrace: expect.stringContaining("Error: boom"),
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
   });

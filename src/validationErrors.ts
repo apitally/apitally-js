@@ -4,14 +4,13 @@ import { MAX_BODY_SIZE } from "./bodyCapture.js";
 
 export const VALIDATION_ERROR_EVENT_NAME = "apitally.request.validation_error";
 
-const MAX_GROUPS = 100;
+const MAX_ERRORS = 100;
 const MAX_CONSUMER_LENGTH = 128;
 const MAX_PATH_LENGTH = 2_000;
 const MAX_SOURCE_LENGTH = 32;
 const MAX_FIELD_LENGTH = 2_048;
 const MAX_MESSAGE_LENGTH = 2_048;
 const MAX_TYPE_LENGTH = 128;
-const MAX_COUNT = 2 ** 32 - 1;
 
 const SOURCE_ALIASES: Record<string, string> = {
   body: "body",
@@ -33,22 +32,21 @@ export type ValidationErrorDetail = {
   type: string;
 };
 
-type ValidationErrorGroup = ValidationErrorDetail & {
-  consumer?: string;
+type ValidationErrorAggregate = ValidationErrorDetail & {
   method: string;
   path: string;
-  count: number;
+  counts: Map<string | undefined, number>;
 };
 
-const VALIDATION_ERROR_GROUPS_KEY = Symbol.for("apitally.validationErrorGroups");
-const validationErrorGroupsHolder = globalThis as Record<
+const VALIDATION_ERROR_AGGREGATES_KEY = Symbol.for("apitally.validationErrorAggregates");
+const validationErrorAggregatesHolder = globalThis as Record<
   symbol,
-  Map<string, ValidationErrorGroup> | undefined
+  Map<string, ValidationErrorAggregate> | undefined
 >;
-const validationErrorGroups =
-  validationErrorGroupsHolder[VALIDATION_ERROR_GROUPS_KEY] ??
-  new Map<string, ValidationErrorGroup>();
-validationErrorGroupsHolder[VALIDATION_ERROR_GROUPS_KEY] = validationErrorGroups;
+const validationErrorAggregates =
+  validationErrorAggregatesHolder[VALIDATION_ERROR_AGGREGATES_KEY] ??
+  new Map<string, ValidationErrorAggregate>();
+validationErrorAggregatesHolder[VALIDATION_ERROR_AGGREGATES_KEY] = validationErrorAggregates;
 
 export function isValidationResponseStatus(statusCode: number): boolean {
   return statusCode === 400 || statusCode === 422;
@@ -64,45 +62,42 @@ export function addValidationErrors(
   if (method === "OPTIONS" || !path) {
     return;
   }
+  consumer = consumer?.slice(0, MAX_CONSUMER_LENGTH);
   for (const detail of details) {
-    const group: ValidationErrorGroup = {
+    const fields = {
       method,
       path: path.slice(0, MAX_PATH_LENGTH),
       source: detail.source.slice(0, MAX_SOURCE_LENGTH),
       field: detail.field.slice(0, MAX_FIELD_LENGTH),
       message: detail.message.slice(0, MAX_MESSAGE_LENGTH),
       type: detail.type.slice(0, MAX_TYPE_LENGTH),
-      count: 1,
     };
-    if (consumer !== undefined) {
-      group.consumer = consumer.slice(0, MAX_CONSUMER_LENGTH);
+    const key = Object.values(fields).join("\0");
+    let aggregate = validationErrorAggregates.get(key);
+    if (!aggregate) {
+      if (validationErrorAggregates.size >= MAX_ERRORS) {
+        continue;
+      }
+      aggregate = { ...fields, counts: new Map() };
+      validationErrorAggregates.set(key, aggregate);
     }
-    const key = [
-      group.consumer ?? "",
-      group.method,
-      group.path,
-      group.source,
-      group.field,
-      group.message,
-      group.type,
-    ].join("\0");
-    const existing = validationErrorGroups.get(key);
-    if (existing) {
-      existing.count = Math.min(existing.count + 1, MAX_COUNT);
-    } else if (validationErrorGroups.size < MAX_GROUPS) {
-      validationErrorGroups.set(key, group);
-    }
+    aggregate.counts.set(consumer, (aggregate.counts.get(consumer) ?? 0) + 1);
   }
 }
 
 export function drainValidationErrors(): AnyValueMap[] {
-  const groups = [...validationErrorGroups.values()];
-  validationErrorGroups.clear();
-  return groups;
+  const aggregates = [...validationErrorAggregates.values()];
+  validationErrorAggregates.clear();
+  return aggregates.map(({ counts, ...fields }) => ({
+    ...fields,
+    counts: [...counts].map(([consumer, count]) =>
+      consumer === undefined ? { count } : { consumer, count },
+    ),
+  }));
 }
 
 export function resetValidationErrors(): void {
-  validationErrorGroups.clear();
+  validationErrorAggregates.clear();
 }
 
 export function normalizeSource(source: unknown): string {

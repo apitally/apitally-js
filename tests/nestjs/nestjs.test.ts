@@ -110,7 +110,7 @@ describe("NestJS integration", () => {
             field: "",
             message: "name must be a string",
             type: "",
-            count: 1,
+            counts: [{ count: 1 }],
           },
         ]);
         expect(drainServerErrors()).toEqual([
@@ -120,7 +120,7 @@ describe("NestJS integration", () => {
             type: "Error",
             message: "boom",
             stacktrace: expect.stringContaining("Error: boom"),
-            count: 1,
+            counts: [{ count: 1 }],
           },
         ]);
       } finally {
