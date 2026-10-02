@@ -1,5 +1,4 @@
 import { type Attributes, type Context, SpanKind } from "@opentelemetry/api";
-import { hrTime, hrTimeDuration } from "@opentelemetry/core";
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import {
   type ApitallyConfig,
@@ -376,22 +375,12 @@ export class SpanPipeline implements SpanProcessor {
     await this.flushExporter?.();
   }
 
-  // Shutdown releases requests with completed transport observation once and
-  // discards incomplete requests, which cannot complete afterward.
+  // Requests not yet released are discarded, since they cannot complete afterward.
   async shutdown(): Promise<void> {
-    try {
-      for (const entry of new Set(this.requests.values())) {
-        if (!entry.released && entry.transportCompleted) {
-          this.releaseRequest(entry, entry.endedServerSpan ?? entry.serverSpan);
-        }
-      }
-      this.requests.clear();
-      this.stash.clear();
-      this.demotedSpanIds.clear();
-      this.keptSpanIds.clear();
-    } catch (error) {
-      logWarning(`Error in the Apitally span processor: ${String(error)}`);
-    }
+    this.requests.clear();
+    this.stash.clear();
+    this.demotedSpanIds.clear();
+    this.keptSpanIds.clear();
     await this.downstream.shutdown();
   }
 
@@ -502,14 +491,8 @@ export class SpanPipeline implements SpanProcessor {
     const stash = this.stash.get(entry.serverSpanId);
     this.stash.delete(entry.serverSpanId);
     let exportSpan = serverSpan;
-    if (entry.record || stash || !serverSpan.ended) {
+    if (entry.record || stash) {
       const copy = copySpan(serverSpan);
-      if (!serverSpan.ended) {
-        // A SERVER span released during shutdown uses shutdown as its end time.
-        copy.endTime = hrTime();
-        copy.duration = hrTimeDuration(copy.startTime, copy.endTime);
-        copy.ended = true;
-      }
       copy.apitallyData = { record: entry.record, stash };
       exportSpan = copy;
     }
