@@ -30,14 +30,7 @@ import {
   type ReadableLogRecord,
   SimpleLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
-import {
-  type DataPoint,
-  DataPointType,
-  type ExponentialHistogram,
-  type ExponentialHistogramMetricData,
-  MetricReader,
-  type ResourceMetrics,
-} from "@opentelemetry/sdk-metrics";
+import type { DataPoint, ExponentialHistogram, ResourceMetrics } from "@opentelemetry/sdk-metrics";
 import {
   AlwaysOnSampler,
   InMemorySpanExporter,
@@ -382,20 +375,19 @@ export async function readActivationDurationDataPoints(): Promise<
 > {
   const handles = requireActivationHandles();
   await handles.metricsPipeline.collectAndExport();
-  return readSerializedResourceMetrics()
-    .flatMap((resourceMetrics) => resourceMetrics.scopeMetrics)
-    .flatMap((scopeMetrics) => scopeMetrics.metrics)
-    .filter(
-      (metric): metric is ExponentialHistogramMetricData =>
-        metric.dataPointType === DataPointType.EXPONENTIAL_HISTOGRAM &&
-        metric.descriptor.name === "http.server.request.duration",
-    )
-    .flatMap((metric) => metric.dataPoints);
+  return readMetricDataPoints(readSerializedResourceMetrics(), "http.server.request.duration");
 }
 
-export class CollectOnlyMetricReader extends MetricReader {
-  protected async onForceFlush(): Promise<void> {}
-  protected async onShutdown(): Promise<void> {}
+// Request histograms are split across several requests, so data points are read from all of them.
+export function readMetricDataPoints<T = ExponentialHistogram>(
+  resourceMetrics: ResourceMetrics[],
+  name: string,
+): DataPoint<T>[] {
+  return resourceMetrics
+    .flatMap((entry) => entry.scopeMetrics)
+    .flatMap((scopeMetrics) => scopeMetrics.metrics)
+    .filter((metric) => metric.descriptor.name === name)
+    .flatMap((metric) => metric.dataPoints as DataPoint<T>[]);
 }
 
 // Global teardown restores the stderr spy.

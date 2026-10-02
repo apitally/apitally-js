@@ -3,7 +3,6 @@ import {
   type ContextManager,
   context,
   createContextKey,
-  metrics,
   propagation,
   ROOT_CONTEXT,
   SpanKind,
@@ -19,16 +18,10 @@ import { describe, expect, it } from "vitest";
 import { setConfig } from "../src/config.js";
 import {
   createLoggerProvider,
-  createMeterProvider,
   resolveEnvAndCreateResource,
   setupTracerProvider,
 } from "../src/providers.js";
-import {
-  CollectOnlyMetricReader,
-  captureStderr,
-  readPackageVersion,
-  WRITE_TOKEN,
-} from "./utils.js";
+import { captureStderr, readPackageVersion, WRITE_TOKEN } from "./utils.js";
 
 const UUID_V4_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -110,26 +103,19 @@ describe("providers", () => {
     expect(resource.attributes["telemetry.distro.version"]).toBe(version);
   });
 
-  it("keeps the meter and logger providers out of the OTel API globals", async () => {
+  it("keeps the logger provider out of the OTel API globals", () => {
     const resource = resolveEnvAndCreateResource().resource;
-    const metricReader = new CollectOnlyMetricReader();
-    const meterProvider = createMeterProvider(resource, [metricReader]);
-    meterProvider.getMeter("apitally").createCounter("test.counter").add(1);
     const logExporter = new InMemoryLogRecordExporter();
     const loggerProvider = createLoggerProvider(resource, [
       new SimpleLogRecordProcessor({ exporter: logExporter }),
     ]);
     loggerProvider.getLogger("apitally").emit({ body: "hello" });
 
-    const { resourceMetrics } = await metricReader.collect();
-    expect(resourceMetrics.scopeMetrics).toHaveLength(1);
-    expect(resourceMetrics.resource.attributes["service.instance.id"]).toMatch(UUID_V4_FORMAT);
     const logRecords = logExporter.getFinishedLogRecords();
     expect(logRecords).toHaveLength(1);
     expect(logRecords[0].body).toBe("hello");
     expect(logRecords[0].resource.attributes["service.instance.id"]).toMatch(UUID_V4_FORMAT);
 
-    expect(metrics.getMeterProvider()).not.toBe(meterProvider);
     expect(logs.getLoggerProvider()).not.toBe(loggerProvider);
   });
 

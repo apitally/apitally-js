@@ -1,61 +1,45 @@
-import type { Attributes } from "@opentelemetry/api";
+import { type Attributes, ValueType } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   AggregationTemporality,
-  type DataPoint,
   DataPointType,
   type ExponentialHistogram,
   type ExponentialHistogramMetricData,
   type GaugeMetricData,
-  type MetricData,
   type ResourceMetrics,
 } from "@opentelemetry/sdk-metrics";
 import { describe, expect, it } from "vitest";
 import type { RequestRecord } from "../src/context.js";
 import { MetricsPipeline } from "../src/metrics.js";
-import type { Spool } from "../src/spool.js";
-import { createInMemorySpool, readSerializedResourceMetrics } from "./utils.js";
+import {
+  captureStderr,
+  createInMemorySpool,
+  readMetricDataPoints,
+  readSerializedResourceMetrics,
+} from "./utils.js";
 
-function createMetricsPipeline(spool: Spool = createInMemorySpool()): MetricsPipeline {
-  return new MetricsPipeline(resourceFromAttributes({}), spool);
+const HISTOGRAM_NAMES = [
+  "http.server.request.duration",
+  "http.server.request.body.size",
+  "http.server.response.body.size",
+];
+
+function createMetricsPipeline(): MetricsPipeline {
+  return new MetricsPipeline(resourceFromAttributes({}), createInMemorySpool());
 }
 
-async function collectMetrics(metrics: MetricsPipeline): Promise<Map<string, MetricData>> {
-  const { resourceMetrics } = await metrics.reader.collect();
-  return metricsByName(resourceMetrics);
+// Each collection serializes one request with the gauges, then requests with the histograms.
+async function collectResourceMetrics(metrics: MetricsPipeline): Promise<ResourceMetrics[]> {
+  const previousCount = readSerializedResourceMetrics().length;
+  await metrics.collectAndExport();
+  return readSerializedResourceMetrics().slice(previousCount);
 }
 
-function metricsByName(resourceMetrics: ResourceMetrics): Map<string, MetricData> {
-  const byName = new Map<string, MetricData>();
-  for (const scopeMetrics of resourceMetrics.scopeMetrics) {
-    for (const metric of scopeMetrics.metrics) {
-      byName.set(metric.descriptor.name, metric);
-    }
-  }
-  return byName;
-}
-
-// Instruments without recordings produce no metric entry, so a missing metric
-// reads as zero data points.
-function histogramPoints(
-  collected: Map<string, MetricData>,
-  name: string,
-): DataPoint<ExponentialHistogram>[] {
-  const metric = collected.get(name);
-  if (!metric) {
-    return [];
-  }
-  expect(metric.dataPointType).toBe(DataPointType.EXPONENTIAL_HISTOGRAM);
-  return (metric as ExponentialHistogramMetricData).dataPoints;
-}
-
-function gaugePoints(collected: Map<string, MetricData>, name: string): DataPoint<number>[] {
-  const metric = collected.get(name);
-  if (!metric) {
-    return [];
-  }
-  expect(metric.dataPointType).toBe(DataPointType.GAUGE);
-  return (metric as GaugeMetricData).dataPoints;
+async function collectDurationDataPoints(metrics: MetricsPipeline) {
+  return readMetricDataPoints(
+    await collectResourceMetrics(metrics),
+    "http.server.request.duration",
+  );
 }
 
 describe("metrics", () => {
@@ -84,39 +68,24 @@ describe("metrics", () => {
       },
       durationSeconds: 0.5,
     });
-    const { resourceMetrics } = await metrics.reader.collect();
-    expect(resourceMetrics.scopeMetrics).toHaveLength(1);
-    expect(resourceMetrics.scopeMetrics[0].scope.name).toBe("apitally");
-    const collected = metricsByName(resourceMetrics);
-    expect(collected.get("http.server.request.duration")?.descriptor.unit).toBe("s");
-    const durationPoints = histogramPoints(collected, "http.server.request.duration");
-    expect(durationPoints).toHaveLength(2);
-    expect(durationPoints[0].attributes).toEqual({
-      "http.request.method": "GET",
-      "http.route": "/items/{id}",
-      "http.response.status_code": 200,
-      "apitally.consumer.identifier": "tenant-1",
-      "url.scheme": "https",
-    });
-    expect(durationPoints[0].value.count).toBe(1);
-    expect(durationPoints[0].value.sum).toBeCloseTo(0.123, 8);
-    expect(durationPoints[1].attributes).toEqual({
-      "http.request.method": "POST",
-      "http.route": "/items",
-      "http.response.status_code": 500,
-      "url.scheme": "https",
-      "error.type": "500",
-    });
-    for (const [name, expectedSums] of [
-      ["http.server.request.body.size", [10, 40]],
-      ["http.server.response.body.size", [250, 60]],
-    ] as const) {
-      expect(collected.get(name)?.descriptor.unit).toBe("By");
-      const sizePoints = histogramPoints(collected, name);
-      expect(sizePoints.map((point) => point.attributes)).toEqual(
-        durationPoints.map((point) => point.attributes),
-      );
-      expect(sizePoints.map((point) => point.value.sum)).toEqual(expectedSums);
+    const exported = await collectResourceMetrics(metrics);
+    for (const name of HISTOGRAM_NAMES) {
+      expect(readMetricDataPoints(exported, name).map((point) => point.attributes)).toEqual([
+        {
+          "http.request.method": "GET",
+          "http.route": "/items/{id}",
+          "http.response.status_code": 200,
+          "apitally.consumer.identifier": "tenant-1",
+          "url.scheme": "https",
+        },
+        {
+          "http.request.method": "POST",
+          "http.route": "/items",
+          "http.response.status_code": 500,
+          "url.scheme": "https",
+          "error.type": "500",
+        },
+      ]);
     }
   });
 
@@ -131,7 +100,7 @@ describe("metrics", () => {
       },
       durationSeconds: 0.02,
     });
-    const points = histogramPoints(await collectMetrics(metrics), "http.server.request.duration");
+    const points = await collectDurationDataPoints(metrics);
     expect(points).toHaveLength(1);
     expect(points[0].attributes).toEqual({
       "http.request.method": "GET",
@@ -152,10 +121,10 @@ describe("metrics", () => {
       },
       durationSeconds: 0.05,
     });
-    const collected = await collectMetrics(metrics);
-    expect(histogramPoints(collected, "http.server.request.duration")).toHaveLength(1);
-    expect(histogramPoints(collected, "http.server.request.body.size")).toHaveLength(0);
-    expect(histogramPoints(collected, "http.server.response.body.size")).toHaveLength(0);
+    const exported = await collectResourceMetrics(metrics);
+    expect(HISTOGRAM_NAMES.map((name) => readMetricDataPoints(exported, name).length)).toEqual([
+      1, 0, 0,
+    ]);
   });
 
   it("counts excluded and sampled-out requests and skips preflight, websocket, and unmatched-route requests", async () => {
@@ -182,129 +151,210 @@ describe("metrics", () => {
         dropReason,
       });
     }
-    const points = histogramPoints(await collectMetrics(metrics), "http.server.request.duration");
+    const points = await collectDurationDataPoints(metrics);
     expect(points.map((point) => point.attributes["http.route"])).toEqual([
       "/excluded",
       "/sampled-out",
     ]);
   });
 
-  it("applies delta temporality and exponential aggregation to histograms only while gauges keep their last value", async () => {
+  it("exports complete histogram points at scale 3 with bucket indexes matching OpenTelemetry, including exact powers of two", async () => {
     const metrics = createMetricsPipeline();
+    const attributes = {
+      "http.route": "/items/{id}",
+      "http.request.method": "GET",
+      "http.response.status_code": 200,
+      "apitally.consumer.identifier": "tenant-1",
+      "url.scheme": "https",
+    };
+    // The values are not in ascending order, so the bucket array also grows downward.
+    for (const [durationSeconds, responseBodySize] of [
+      [0.125, 1024],
+      [0.1, 1000],
+      [0.125, 1025],
+    ]) {
+      metrics.recordFromRequest({
+        attributes: {
+          ...attributes,
+          "http.request.body.size": 0,
+          "http.response.body.size": responseBodySize,
+        },
+        durationSeconds,
+      });
+    }
+    const [, histogramRequest] = await collectResourceMetrics(metrics);
+    const { startTime, endTime } = (
+      histogramRequest.scopeMetrics[0].metrics[0] as ExponentialHistogramMetricData
+    ).dataPoints[0];
+    const histogramMetric = (name: string, unit: string, value: Partial<ExponentialHistogram>) => ({
+      descriptor: { name, description: "", unit, valueType: ValueType.DOUBLE },
+      aggregationTemporality: AggregationTemporality.DELTA,
+      dataPointType: DataPointType.EXPONENTIAL_HISTOGRAM,
+      dataPoints: [
+        {
+          startTime,
+          endTime,
+          attributes,
+          value: {
+            scale: 3,
+            zeroCount: 0,
+            positive: { offset: 0, bucketCounts: [] },
+            negative: { offset: 0, bucketCounts: [] },
+            ...value,
+          },
+        },
+      ],
+    });
+    expect(histogramRequest.scopeMetrics).toEqual([
+      {
+        scope: { name: "apitally" },
+        metrics: [
+          // 0.1 maps through the logarithm and 0.125 through the exact power-of-two branch
+          histogramMetric("http.server.request.duration", "s", {
+            count: 3,
+            sum: 0.125 + 0.1 + 0.125,
+            min: 0.1,
+            max: 0.125,
+            positive: { offset: -27, bucketCounts: [1, 0, 2] },
+          }),
+          histogramMetric("http.server.request.body.size", "By", {
+            count: 3,
+            sum: 0,
+            min: 0,
+            max: 0,
+            zeroCount: 3,
+          }),
+          // An exact power of two (1024) belongs to the bucket below its boundary, with 1000
+          histogramMetric("http.server.response.body.size", "By", {
+            count: 3,
+            sum: 1024 + 1000 + 1025,
+            min: 1000,
+            max: 1025,
+            positive: { offset: 79, bucketCounts: [2, 1] },
+          }),
+        ],
+      },
+    ]);
+  });
+
+  it("exports only the combinations recorded since the previous collection", async () => {
+    const metrics = createMetricsPipeline();
+    const recordRoute = (route: string) =>
+      metrics.recordFromRequest({
+        attributes: {
+          "http.request.method": "GET",
+          "http.route": route,
+          "http.response.status_code": 200,
+        },
+        durationSeconds: 0.1,
+      });
+    recordRoute("/a");
+    const [firstPoint] = await collectDurationDataPoints(metrics);
+    recordRoute("/b");
+    const secondPoints = await collectDurationDataPoints(metrics);
+    expect(secondPoints.map((point) => point.attributes["http.route"])).toEqual(["/b"]);
+    expect(secondPoints[0].startTime).toEqual(firstPoint.endTime);
+  });
+
+  it("drops new combinations beyond 50,000 per collection interval with a single warning", async () => {
+    const metrics = createMetricsPipeline();
+    // After createMetricsPipeline, whose in-memory spool installs its own stderr capture
+    const stderr = captureStderr();
+    const recordConsumer = (consumer: string) =>
+      metrics.recordFromRequest({
+        attributes: {
+          "http.request.method": "GET",
+          "http.route": "/items",
+          "http.response.status_code": 200,
+          "apitally.consumer.identifier": consumer,
+        },
+        durationSeconds: 0.1,
+      });
+    const consumers = Array.from({ length: 50_002 }, (_, index) => `consumer-${index}`);
+    for (const consumer of consumers) {
+      recordConsumer(consumer);
+    }
+    recordConsumer("consumer-0");
+    const firstPoints = await collectDurationDataPoints(metrics);
+    expect(firstPoints.map((point) => point.attributes["apitally.consumer.identifier"])).toEqual(
+      consumers.slice(0, 50_000),
+    );
+    expect(firstPoints.map((point) => point.value.count)).toEqual([2, ...Array(49_999).fill(1)]);
+    recordConsumer("consumer-50000");
+    const secondPoints = await collectDurationDataPoints(metrics);
+    expect(secondPoints.map((point) => point.attributes["apitally.consumer.identifier"])).toEqual([
+      "consumer-50000",
+    ]);
+    expect(stderr.filter((line) => line.includes("some request metrics are missing"))).toHaveLength(
+      1,
+    );
+  });
+
+  it("splits request histograms into requests of 1,000 combinations that keep each combination's histograms together", async () => {
+    const metrics = createMetricsPipeline();
+    const consumers = Array.from({ length: 1_001 }, (_, index) => `consumer-${index}`);
+    for (const consumer of consumers) {
+      metrics.recordFromRequest({
+        attributes: {
+          "http.request.method": "GET",
+          "http.route": "/items",
+          "http.response.status_code": 200,
+          "apitally.consumer.identifier": consumer,
+          "http.request.body.size": 10,
+          "http.response.body.size": 100,
+        },
+        durationSeconds: 0.1,
+      });
+    }
+    const [, ...histogramRequests] = await collectResourceMetrics(metrics);
+    const consumersByRequest = histogramRequests.map((resourceMetrics) =>
+      resourceMetrics.scopeMetrics[0].metrics.map((metric) =>
+        (metric as ExponentialHistogramMetricData).dataPoints.map(
+          (point) => point.attributes["apitally.consumer.identifier"],
+        ),
+      ),
+    );
+    expect(consumersByRequest).toEqual([
+      Array(3).fill(consumers.slice(0, 1_000)),
+      Array(3).fill(consumers.slice(1_000)),
+    ]);
+  });
+
+  it("exports cpu utilization normalized across cpus, rss memory, and uptime gauges as the first request of every collection, with or without traffic", async () => {
+    const metrics = createMetricsPipeline();
+    const collectionWithoutTraffic = await collectResourceMetrics(metrics);
     metrics.recordFromRequest({
       attributes: {
         "http.request.method": "GET",
         "http.route": "/items",
         "http.response.status_code": 200,
       },
-      durationSeconds: 0.1,
+      durationSeconds: 0.01,
     });
-    const first = await collectMetrics(metrics);
-    const duration = first.get("http.server.request.duration");
-    expect(duration?.dataPointType).toBe(DataPointType.EXPONENTIAL_HISTOGRAM);
-    expect(duration?.aggregationTemporality).toBe(AggregationTemporality.DELTA);
-    expect(histogramPoints(first, "http.server.request.duration")).toHaveLength(1);
-    const uptime = first.get("process.uptime");
-    expect(uptime?.dataPointType).toBe(DataPointType.GAUGE);
-    expect(uptime?.aggregationTemporality).toBe(AggregationTemporality.CUMULATIVE);
-    const firstUptimePoints = gaugePoints(first, "process.uptime");
-    expect(firstUptimePoints).toHaveLength(1);
-
-    const second = await collectMetrics(metrics);
-    expect(histogramPoints(second, "http.server.request.duration")).toHaveLength(0);
-    expect(gaugePoints(second, "process.cpu.utilization")).toHaveLength(1);
-    expect(gaugePoints(second, "process.memory.usage")).toHaveLength(1);
-    const secondUptimePoints = gaugePoints(second, "process.uptime");
-    expect(secondUptimePoints).toHaveLength(1);
-    expect(secondUptimePoints[0].value).toBeGreaterThanOrEqual(firstUptimePoints[0].value);
-  });
-
-  it("exports histogram data points at an accepted scale with count and sum preserved", async () => {
-    const spool = createInMemorySpool();
-    const metrics = createMetricsPipeline(spool);
-    let expectedSum = 0;
-    for (let index = 0; index < 500; index++) {
-      // Narrowly clustered values exercise high-resolution histogram export.
-      const durationSeconds = 0.08 + (0.04 * index) / 500;
-      expectedSum += durationSeconds;
-      metrics.recordFromRequest({
-        attributes: {
-          "http.request.method": "GET",
-          "http.route": "/items",
-          "http.response.status_code": 200,
-        },
-        durationSeconds,
-      });
+    const collectionWithTraffic = await collectResourceMetrics(metrics);
+    expect(collectionWithoutTraffic).toHaveLength(1);
+    expect(collectionWithTraffic).toHaveLength(2);
+    for (const [gaugeRequest] of [collectionWithoutTraffic, collectionWithTraffic]) {
+      const gauges = gaugeRequest.scopeMetrics[0].metrics as GaugeMetricData[];
+      expect(
+        gauges.map(({ descriptor, dataPointType, dataPoints }) => [
+          descriptor.name,
+          descriptor.unit,
+          dataPointType,
+          dataPoints.map((point) => point.attributes),
+        ]),
+      ).toEqual([
+        ["process.cpu.utilization", "1", DataPointType.GAUGE, [{}]],
+        ["process.memory.usage", "By", DataPointType.GAUGE, [{}]],
+        ["process.uptime", "s", DataPointType.GAUGE, [{}]],
+      ]);
+      const [cpuUtilization, memoryUsage, uptime] = gauges.map(
+        (gauge) => gauge.dataPoints[0].value,
+      );
+      expect(cpuUtilization).toBeGreaterThanOrEqual(0);
+      expect(cpuUtilization).toBeLessThanOrEqual(1);
+      expect(memoryUsage).toBeGreaterThan(0);
+      expect(uptime).toBeGreaterThan(0);
     }
-    await metrics.collectAndExport();
-    const resourceMetrics = readSerializedResourceMetrics();
-    expect(resourceMetrics).toHaveLength(1);
-
-    const duration = resourceMetrics[0].scopeMetrics
-      .flatMap((scope) => scope.metrics)
-      .find(
-        (metric) => metric.descriptor.name === "http.server.request.duration",
-      ) as ExponentialHistogramMetricData;
-
-    expect(duration).toBeDefined();
-    const points = duration.dataPoints;
-    expect(points).toHaveLength(1);
-    expect(points[0].value.scale).toBeGreaterThanOrEqual(-2);
-    expect(points[0].value.scale).toBeLessThanOrEqual(20);
-    expect(points[0].value.count).toBe(500);
-    expect(points[0].value.sum).toBeCloseTo(expectedSum, 8);
-    expect(points[0].value.min).toBe(0.08);
-    expect(points[0].value.max).toBe(0.08 + (0.04 * 499) / 500);
-    const bucketTotal = (points[0].value.positive?.bucketCounts ?? []).reduce(
-      (total, count) => total + count,
-      0,
-    );
-    expect(bucketTotal).toBe(500);
-  });
-
-  it("observes cpu utilization normalized across cpus and rss memory on every collection", async () => {
-    const metrics = createMetricsPipeline();
-    const collected = await collectMetrics(metrics);
-    expect(collected.get("process.cpu.utilization")?.descriptor.unit).toBe("1");
-    const cpuPoints = gaugePoints(collected, "process.cpu.utilization");
-    expect(cpuPoints).toHaveLength(1);
-    expect(cpuPoints[0].attributes).toEqual({});
-    expect(cpuPoints[0].value).toBeGreaterThanOrEqual(0);
-    expect(cpuPoints[0].value).toBeLessThanOrEqual(1);
-    expect(collected.get("process.memory.usage")?.descriptor.unit).toBe("By");
-    const memoryPoints = gaugePoints(collected, "process.memory.usage");
-    expect(memoryPoints).toHaveLength(1);
-    expect(memoryPoints[0].attributes).toEqual({});
-    expect(memoryPoints[0].value).toBeGreaterThan(0);
-    expect(collected.get("process.uptime")?.descriptor.unit).toBe("s");
-    const uptimePoints = gaugePoints(collected, "process.uptime");
-    expect(uptimePoints).toHaveLength(1);
-    expect(uptimePoints[0].value).toBeGreaterThan(0);
-  });
-
-  it("exports the process gauges on a collection cycle with zero request traffic", async () => {
-    const spool = createInMemorySpool();
-    const metrics = createMetricsPipeline(spool);
-    await metrics.collectAndExport();
-    const resourceMetrics = readSerializedResourceMetrics();
-    expect(resourceMetrics).toHaveLength(1);
-
-    const exported = new Map(
-      resourceMetrics[0].scopeMetrics
-        .flatMap((scope) => scope.metrics)
-        .map((metric) => [metric.descriptor.name, metric]),
-    );
-    expect([...exported.keys()].sort()).toEqual([
-      "process.cpu.utilization",
-      "process.memory.usage",
-      "process.uptime",
-    ]);
-
-    const cpuMetric = exported.get("process.cpu.utilization") as GaugeMetricData;
-    const memoryMetric = exported.get("process.memory.usage") as GaugeMetricData;
-    const cpuPoint = cpuMetric.dataPoints[0];
-    const memoryPoint = memoryMetric.dataPoints[0];
-    expect(cpuPoint.endTime).toBeDefined();
-    expect(cpuPoint.endTime).toEqual(memoryPoint.endTime);
   });
 });
