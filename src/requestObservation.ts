@@ -1,5 +1,6 @@
 import { type Attributes, type Context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
+import { getActivationHandles } from "./activation.js";
 import type { BodyCapture, CapturedBody } from "./bodyCapture.js";
 import { getConfig } from "./config.js";
 import { emitConsumerUpdateIfChanged } from "./consumers.js";
@@ -106,7 +107,7 @@ export function startRequestObservation(
   } else if (activeSpan && !activeSpan.isRecording() && !activeSpan.spanContext().isRemote) {
     requestRecord.dropReason = resolveUnavailableSpanDropReason();
     if (requestRecord.dropReason === "sampled-out") {
-      warnAboutNonRecordingServerSpan();
+      warnIfUserSamplerDroppedServerSpan();
     }
     requestContext = withRequestHolders(activeContext, spanHandle, requestRecord);
   } else {
@@ -117,7 +118,7 @@ export function startRequestObservation(
     if (!ownSpan.isRecording()) {
       requestRecord.dropReason = resolveUnavailableSpanDropReason();
       if (requestRecord.dropReason === "sampled-out") {
-        warnAboutNonRecordingServerSpan();
+        warnIfUserSamplerDroppedServerSpan();
       }
     } else {
       spanHandle.span = ownSpan;
@@ -319,7 +320,12 @@ function isWebHeaders(headers: object): headers is Headers {
   return typeof (headers as Headers)[Symbol.iterator] === "function";
 }
 
-function warnAboutNonRecordingServerSpan(): void {
+// The SDK-owned tracer provider's sampler drops only SERVER spans that sampleRate
+// samples out, so there is no coverage loss to warn about.
+function warnIfUserSamplerDroppedServerSpan(): void {
+  if (getActivationHandles()?.tracerProvider) {
+    return;
+  }
   logWarning(
     "The OpenTelemetry sampler did not sample the SERVER span of a request. Only sampled requests are exported to Apitally as traces and request logs. Request metrics include all requests.",
   );

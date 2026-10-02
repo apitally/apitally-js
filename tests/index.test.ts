@@ -205,6 +205,17 @@ describe("root entry", () => {
     await expect(shutdown()).resolves.toBeUndefined();
   });
 
+  it("does not warn when sampleRate samples out a request", async () => {
+    const lines = captureStderr();
+    prepareFirstRequestActivation({ sampleRate: 0 });
+    const app = new Hono();
+    useApitally(app, { writeToken: WRITE_TOKEN, sampleRate: 0 });
+    app.get("/items", (c) => c.json({ ok: true }));
+    await readResponseAndSettleTransport(await app.request("/items"));
+
+    expect(lines).toEqual([]);
+  });
+
   it("exports the first SERVER span from a user provider through ApitallySpanProcessor", async () => {
     prepareFirstRequestActivation();
     const userExporter = new InMemorySpanExporter();

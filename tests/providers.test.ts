@@ -87,6 +87,36 @@ describe("providers", () => {
     expect(spans[1].parentSpanContext?.spanId).toBe("b7ad6b7169203331");
   });
 
+  it("does not record SERVER spans that sampleRate samples out", () => {
+    setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0 });
+    const exporter = setupTracerProviderWithInMemoryExporter();
+
+    trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER }).end();
+
+    expect(exporter.getFinishedSpans()).toEqual([]);
+  });
+
+  it("records SERVER spans under sampled remote parents regardless of sampleRate", () => {
+    setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0 });
+    const exporter = setupTracerProviderWithInMemoryExporter();
+    const remoteParent = propagation.extract(context.active(), {
+      traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+    });
+
+    trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER }, remoteParent).end();
+
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
+  });
+
+  it("records every SERVER span when sampleOnRequest is set", () => {
+    setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0, sampleOnRequest: () => 0 });
+    const exporter = setupTracerProviderWithInMemoryExporter();
+
+    trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER }).end();
+
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
+  });
+
   it("builds the resource from the OTel environment with the Apitally attributes winning", () => {
     process.env.OTEL_SERVICE_NAME = "test-service";
     process.env.OTEL_RESOURCE_ATTRIBUTES =

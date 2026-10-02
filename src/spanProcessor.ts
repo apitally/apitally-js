@@ -594,13 +594,13 @@ function writeUrlAttributesFromFullUrl(span: Span): void {
 
 const TRACE_ID_LOW_64_BITS_MASK = (1n << 64n) - 1n;
 
-function boundForSampleRate(rate: number): bigint {
+export function boundForSampleRate(rate: number): bigint {
   return BigInt(Math.round(rate * 2 ** 64));
 }
 
 // Low 64-bit ratio sampling is deterministic per trace. Comparing the same
 // value at both stages makes the lower rate decisive.
-function isTraceSampledIn(traceId: string, bound: bigint): boolean {
+export function isTraceSampledIn(traceId: string, bound: bigint): boolean {
   return (BigInt(`0x${traceId}`) & TRACE_ID_LOW_64_BITS_MASK) < bound;
 }
 
