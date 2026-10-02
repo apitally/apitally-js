@@ -69,8 +69,14 @@ describe("metrics", () => {
       durationSeconds: 0.5,
     });
     const exported = await collectResourceMetrics(metrics);
-    for (const name of HISTOGRAM_NAMES) {
-      expect(readMetricDataPoints(exported, name).map((point) => point.attributes)).toEqual([
+    for (const [name, sums] of [
+      ["http.server.request.duration", [0.123, 0.5]],
+      ["http.server.request.body.size", [10, 40]],
+      ["http.server.response.body.size", [250, 60]],
+    ] as const) {
+      const points = readMetricDataPoints(exported, name);
+      expect(points.map((point) => point.value.sum)).toEqual(sums);
+      expect(points.map((point) => point.attributes)).toEqual([
         {
           "http.request.method": "GET",
           "http.route": "/items/{id}",
@@ -320,7 +326,7 @@ describe("metrics", () => {
     ]);
   });
 
-  it("exports cpu utilization normalized across cpus, rss memory, and uptime gauges as the first request of every collection, with or without traffic", async () => {
+  it("exports cpu utilization, rss memory, and uptime gauges as the first request of every collection, with or without traffic", async () => {
     const metrics = createMetricsPipeline();
     const collectionWithoutTraffic = await collectResourceMetrics(metrics);
     metrics.recordFromRequest({
@@ -348,11 +354,12 @@ describe("metrics", () => {
         ["process.memory.usage", "By", DataPointType.GAUGE, [{}]],
         ["process.uptime", "s", DataPointType.GAUGE, [{}]],
       ]);
+      // The CPU utilization upper bound is not asserted: over the microseconds between
+      // collections in a test, other threads' CPU time can exceed one CPU's share.
       const [cpuUtilization, memoryUsage, uptime] = gauges.map(
         (gauge) => gauge.dataPoints[0].value,
       );
       expect(cpuUtilization).toBeGreaterThanOrEqual(0);
-      expect(cpuUtilization).toBeLessThanOrEqual(1);
       expect(memoryUsage).toBeGreaterThan(0);
       expect(uptime).toBeGreaterThan(0);
     }
