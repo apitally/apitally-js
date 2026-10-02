@@ -3,35 +3,34 @@ import { coerceToException } from "./exceptions.js";
 
 export const SERVER_ERROR_EVENT_NAME = "apitally.request.server_error";
 
-const MAX_GROUPS = 100;
+const MAX_ERRORS = 100;
 const MAX_CONSUMER_LENGTH = 128;
 const MAX_PATH_LENGTH = 2_000;
 const MAX_TYPE_LENGTH = 256;
 const MAX_MESSAGE_LENGTH = 2_048;
 const MAX_STACKTRACE_LENGTH = 65_536;
-const MAX_COUNT = 2 ** 32 - 1;
 const MESSAGE_TRUNCATION_SUFFIX = "... (truncated)";
 const STACKTRACE_TRUNCATION_SUFFIX = "\n... (truncated) ...";
 
-type ServerErrorGroup = {
-  consumer?: string;
+type ServerErrorAggregate = {
   method: string;
   path: string;
   type: string;
   message: string;
   stacktrace: string;
-  count: number;
   sentry_event_id?: string;
+  counts: Map<string | undefined, number>;
 };
 
-const SERVER_ERROR_GROUPS_KEY = Symbol.for("apitally.serverErrorGroups");
-const serverErrorGroupsHolder = globalThis as Record<
+const SERVER_ERROR_AGGREGATES_KEY = Symbol.for("apitally.serverErrorAggregates");
+const serverErrorAggregatesHolder = globalThis as Record<
   symbol,
-  Map<string, ServerErrorGroup> | undefined
+  Map<string, ServerErrorAggregate> | undefined
 >;
-const serverErrorGroups =
-  serverErrorGroupsHolder[SERVER_ERROR_GROUPS_KEY] ?? new Map<string, ServerErrorGroup>();
-serverErrorGroupsHolder[SERVER_ERROR_GROUPS_KEY] = serverErrorGroups;
+const serverErrorAggregates =
+  serverErrorAggregatesHolder[SERVER_ERROR_AGGREGATES_KEY] ??
+  new Map<string, ServerErrorAggregate>();
+serverErrorAggregatesHolder[SERVER_ERROR_AGGREGATES_KEY] = serverErrorAggregates;
 
 export function addServerError(
   consumer: string | undefined,
@@ -49,45 +48,42 @@ export function addServerError(
     typeof exception === "string"
       ? { name: "", message: exception, stack: "" }
       : (exception as { name?: unknown; message?: unknown; stack?: unknown });
-  const group: ServerErrorGroup = {
+  const fields = {
     method,
     path: path.slice(0, MAX_PATH_LENGTH),
     type: String(name ?? "").slice(0, MAX_TYPE_LENGTH),
     message: formatMessage(message),
     stacktrace: formatStacktrace(stack),
-    count: 1,
   };
-  if (consumer !== undefined) {
-    group.consumer = consumer.slice(0, MAX_CONSUMER_LENGTH);
+  const key = Object.values(fields).join("\0");
+  let aggregate = serverErrorAggregates.get(key);
+  if (!aggregate) {
+    if (serverErrorAggregates.size >= MAX_ERRORS) {
+      return;
+    }
+    aggregate = { ...fields, counts: new Map() };
+    serverErrorAggregates.set(key, aggregate);
   }
+  consumer = consumer?.slice(0, MAX_CONSUMER_LENGTH);
+  aggregate.counts.set(consumer, (aggregate.counts.get(consumer) ?? 0) + 1);
   if (sentryEventId !== undefined) {
-    group.sentry_event_id = sentryEventId;
-  }
-  const key = [
-    group.consumer ?? "",
-    group.method,
-    group.path,
-    group.type,
-    group.message,
-    group.stacktrace,
-  ].join("\0");
-  const existing = serverErrorGroups.get(key);
-  if (existing) {
-    existing.count = Math.min(existing.count + 1, MAX_COUNT);
-    existing.sentry_event_id = group.sentry_event_id ?? existing.sentry_event_id;
-  } else if (serverErrorGroups.size < MAX_GROUPS) {
-    serverErrorGroups.set(key, group);
+    aggregate.sentry_event_id = sentryEventId;
   }
 }
 
 export function drainServerErrors(): AnyValueMap[] {
-  const groups = [...serverErrorGroups.values()];
-  serverErrorGroups.clear();
-  return groups;
+  const aggregates = [...serverErrorAggregates.values()];
+  serverErrorAggregates.clear();
+  return aggregates.map(({ counts, ...fields }) => ({
+    ...fields,
+    counts: [...counts].map(([consumer, count]) =>
+      consumer === undefined ? { count } : { consumer, count },
+    ),
+  }));
 }
 
 export function resetServerErrors(): void {
-  serverErrorGroups.clear();
+  serverErrorAggregates.clear();
 }
 
 function formatMessage(message: unknown): string {

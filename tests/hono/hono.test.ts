@@ -213,7 +213,7 @@ describe("hono integration", () => {
         field: "name",
         message: "Required",
         type: "invalid_type",
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
     expect(drainServerErrors()).toEqual([
@@ -223,7 +223,7 @@ describe("hono integration", () => {
         type: "Error",
         message: "boom",
         stacktrace: expect.stringContaining("Error: boom"),
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
   });

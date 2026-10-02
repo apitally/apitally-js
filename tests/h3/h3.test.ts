@@ -188,7 +188,7 @@ describe("h3 integration", () => {
         field: "name",
         message: "Required",
         type: "",
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
     expect(drainServerErrors()).toEqual([
@@ -198,7 +198,7 @@ describe("h3 integration", () => {
         type: "Error",
         message: "boom",
         stacktrace: expect.stringContaining("Error: boom"),
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
   });

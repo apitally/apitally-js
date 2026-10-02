@@ -11,26 +11,40 @@ import {
 const DETAIL = { source: "body", field: "name", message: "Required", type: "invalid_type" };
 
 describe("validationErrors", () => {
-  it("aggregates identical details per consumer, method, and route, keeps at most 100 groups, and drains them once", () => {
+  it("aggregates identical details per method and route with per-consumer counts, keeps at most 100 distinct errors, and drains them once", () => {
     addValidationErrors(undefined, "post", "/items", [DETAIL, DETAIL]);
-    addValidationErrors("acme", "POST", "/items", [{ ...DETAIL, message: "x".repeat(3_000) }]);
+    addValidationErrors("acme", "POST", "/items", [
+      DETAIL,
+      { ...DETAIL, message: "x".repeat(3_000) },
+    ]);
     addValidationErrors(undefined, "OPTIONS", "/items", [DETAIL]);
     addValidationErrors(undefined, "POST", "", [DETAIL]);
     for (let index = 0; index < 100; index++) {
       addValidationErrors(undefined, "POST", `/route-${index}`, [DETAIL]);
     }
-    addValidationErrors(undefined, "POST", "/items", [DETAIL]);
+    const consumers = Array.from({ length: 101 }, (_, index) => `consumer-${index}`);
+    for (const consumer of consumers) {
+      addValidationErrors(consumer, "POST", "/items", [DETAIL]);
+    }
 
-    const groups = drainValidationErrors();
-    expect(groups).toHaveLength(100);
-    expect(groups[0]).toEqual({ method: "POST", path: "/items", ...DETAIL, count: 3 });
-    expect(groups[1]).toEqual({
-      consumer: "acme",
+    const errors = drainValidationErrors();
+    expect(errors).toHaveLength(100);
+    expect(errors[0]).toEqual({
+      method: "POST",
+      path: "/items",
+      ...DETAIL,
+      counts: [
+        { count: 2 },
+        { consumer: "acme", count: 1 },
+        ...consumers.map((consumer) => ({ consumer, count: 1 })),
+      ],
+    });
+    expect(errors[1]).toEqual({
       method: "POST",
       path: "/items",
       ...DETAIL,
       message: "x".repeat(2_048),
-      count: 1,
+      counts: [{ consumer: "acme", count: 1 }],
     });
     expect(drainValidationErrors()).toEqual([]);
   });

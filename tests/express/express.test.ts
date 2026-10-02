@@ -242,7 +242,7 @@ describe("express integration", () => {
           type: "Error",
           message: "original error",
           stacktrace: expect.stringContaining("Error: original error"),
-          count: 1,
+          counts: [{ count: 1 }],
         },
       ]);
     });
@@ -262,7 +262,7 @@ describe("express integration", () => {
         field: "name",
         message: "Invalid value",
         type: "",
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
     expect(drainServerErrors()).toEqual([
@@ -272,7 +272,7 @@ describe("express integration", () => {
         type: "Error",
         message: "boom",
         stacktrace: expect.stringContaining("Error: boom"),
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
   });

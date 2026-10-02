@@ -195,7 +195,7 @@ describe("fastify integration", () => {
         field: "name",
         message: "must have required property 'name'",
         type: "required",
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
     expect(drainServerErrors()).toEqual([
@@ -205,7 +205,7 @@ describe("fastify integration", () => {
         type: "Error",
         message: "boom",
         stacktrace: expect.stringContaining("Error: boom"),
-        count: 1,
+        counts: [{ count: 1 }],
       },
     ]);
   });

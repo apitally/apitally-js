@@ -131,18 +131,17 @@ describe("requestObservation", () => {
 
     expect(drainServerErrors()).toEqual([
       {
-        consumer: "acme",
         method: "POST",
         path: "/items",
         type: "Error",
         message: "boom",
         stacktrace: error.stack,
-        count: 1,
         sentry_event_id: "b".repeat(32),
+        counts: [{ consumer: "acme", count: 1 }],
       },
     ]);
     expect(drainValidationErrors()).toEqual([
-      { consumer: "acme", method: "POST", path: "/items", ...detail, count: 2 },
+      { method: "POST", path: "/items", ...detail, counts: [{ consumer: "acme", count: 2 }] },
     ]);
   });
 

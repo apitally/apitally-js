@@ -191,7 +191,7 @@ export async function resetActivation(): Promise<void> {
 
 let hasWarnedAboutVersionSkew = false;
 
-// One root-context record per aggregate group, drained right before the log
+// One root-context record per aggregated error, drained right before the log
 // processor flush so the records leave with the same export cycle.
 function emitErrorEvents(loggerProvider: LoggerProvider): void {
   const logger = loggerProvider.getLogger("apitally");

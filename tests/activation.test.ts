@@ -88,15 +88,19 @@ describe("activation", () => {
       ["apitally.request.validation_error", "apitally", undefined],
       ["apitally.request.server_error", "apitally", undefined],
     ]);
-    expect(records[0].body).toEqual({ method: "POST", path: "/items", ...detail, count: 1 });
+    expect(records[0].body).toEqual({
+      method: "POST",
+      path: "/items",
+      ...detail,
+      counts: [{ count: 1 }],
+    });
     expect(records[1].body).toEqual({
-      consumer: "acme",
       method: "GET",
       path: "/items",
       type: "Error",
       message: "boom",
       stacktrace: expect.stringContaining("Error: boom"),
-      count: 1,
+      counts: [{ consumer: "acme", count: 1 }],
     });
   });
 
