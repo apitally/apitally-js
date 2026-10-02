@@ -62,6 +62,8 @@ export const DEFAULT_MASK_BODY_FIELDS = [
   "auth",
   "card[-_ ]?number",
   "ccv",
+  "cvv",
+  "cvc",
   "ssn",
 ];
 export const DEFAULT_EXCLUDE_PATHS = [
