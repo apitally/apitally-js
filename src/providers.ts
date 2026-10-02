@@ -18,7 +18,6 @@ import {
   resourceFromAttributes,
 } from "@opentelemetry/resources";
 import { LoggerProvider, type LogRecordProcessor } from "@opentelemetry/sdk-logs";
-import { type IMetricReader, MeterProvider } from "@opentelemetry/sdk-metrics";
 import {
   type Sampler,
   SamplingDecision,
@@ -105,12 +104,8 @@ export function setupTracerProvider(
   return provider;
 }
 
-// Meter and logger providers remain private because global registration could
-// replace or race a user's metrics or logs pipeline.
-export function createMeterProvider(resource: Resource, readers: IMetricReader[]): MeterProvider {
-  return new MeterProvider({ resource, readers });
-}
-
+// The logger provider remains private because global registration could replace
+// or race a user's logs pipeline.
 export function createLoggerProvider(
   resource: Resource,
   processors: LogRecordProcessor[],
