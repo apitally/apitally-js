@@ -19,7 +19,7 @@ function initSentryClient(): Sentry.NodeClient {
         flush: () => Promise.resolve(true),
       }),
       defaultIntegrations: false,
-      skipOpenTelemetrySetup: true,
+      enableOpenTelemetrySetup: false,
     }) ?? getClientFromHub();
   if (!client) {
     throw new Error("Sentry did not initialize a client");
