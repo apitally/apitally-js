@@ -11,7 +11,6 @@ import { drainServerErrors } from "../src/serverErrors.js";
 import { type SpanCopy, setActiveSpanPipeline } from "../src/spanProcessor.js";
 import { drainValidationErrors } from "../src/validationErrors.js";
 import {
-  CollectingSpanProcessor,
   configureAndActivate,
   createTracePipeline,
   readSerializedLogRecords,
@@ -52,8 +51,7 @@ describe("requestObservation", () => {
       captureRequestHeaders: true,
       captureResponseHeaders: true,
     });
-    const downstream = new CollectingSpanProcessor();
-    const { pipeline, tracer } = createTracePipeline({ downstream });
+    const { pipeline, tracer, exporter } = createTracePipeline();
     setActiveSpanPipeline(pipeline);
     const { span, request } = startServerSpan(tracer);
     const requestHeaders = new Headers({ "Content-Type": "application/json" });
@@ -79,8 +77,9 @@ describe("requestObservation", () => {
     });
     span.end();
 
-    expect(downstream.spans).toHaveLength(1);
-    expect((downstream.spans[0] as SpanCopy).apitallyData?.stash).toEqual({
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect((spans[0] as SpanCopy).apitallyData?.stash).toEqual({
       requestHeaders: {
         "content-type": "application/json",
         "set-cookie": ["a=1", "b=2"],

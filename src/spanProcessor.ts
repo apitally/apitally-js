@@ -466,16 +466,13 @@ export class SpanPipeline implements SpanProcessor {
     this.onRequestFinished?.(entry.serverSpanId, false);
   }
 
-  private releaseIfComplete(entry: RequestEntry): void {
-    if (entry.released || !entry.transportCompleted || !entry.endedServerSpan) {
-      return;
-    }
-    this.releaseRequest(entry, entry.endedServerSpan);
-  }
-
   // Descendants, the SERVER span, and logs enter downstream processing once, in
   // that order. The exporter applies the request record and stash later.
-  private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
+  private releaseIfComplete(entry: RequestEntry): void {
+    const serverSpan = entry.endedServerSpan;
+    if (entry.released || !entry.transportCompleted || !serverSpan) {
+      return;
+    }
     entry.released = true;
     for (const spanId of entry.spanIds) {
       this.requests.delete(spanId);

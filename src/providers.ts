@@ -34,7 +34,7 @@ const MAX_ATTRIBUTE_VALUE_LENGTH = 65_536;
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
 
 // Applies sampleRate to SERVER spans when they start, so sampled-out requests
-// record no spans. A sampled parent is always followed so upstream traces continue downstream.
+// record no spans. A sampled remote parent is followed for SERVER spans so upstream traces continue downstream.
 class RequestRootedSampler implements Sampler {
   constructor(private readonly sampleRateBound: bigint) {}
 

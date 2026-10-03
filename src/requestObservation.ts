@@ -320,8 +320,8 @@ function isWebHeaders(headers: object): headers is Headers {
   return typeof (headers as Headers)[Symbol.iterator] === "function";
 }
 
-// The SDK-owned tracer provider's sampler drops only SERVER spans that sampleRate
-// samples out, so there is no coverage loss to warn about.
+// The SDK-owned tracer provider's sampler leaves a SERVER span unrecorded only
+// when sampleRate samples it out, so there is no coverage loss to warn about.
 function warnIfUserSamplerDroppedServerSpan(): void {
   if (getActivationHandles()?.tracerProvider) {
     return;
