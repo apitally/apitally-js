@@ -1,15 +1,18 @@
 import { brotliCompressSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Hono } from "hono";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import type { ApitallyOptions } from "../../src/config.js";
 import { useApitally } from "../../src/hono/index.js";
 import { drainServerErrors } from "../../src/serverErrors.js";
+import { ApitallySpanProcessor } from "../../src/spanProcessor.js";
 import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   configureAndActivate,
+  enableAsyncContextManager,
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
   readActivationSpans,
@@ -331,6 +334,10 @@ describe("hono integration", () => {
   });
 
   it("warns once about partial trace coverage when a request arrives under an unsampled span context while metrics keep recording", async () => {
+    enableAsyncContextManager();
+    trace.setGlobalTracerProvider(
+      new NodeTracerProvider({ spanProcessors: [new ApitallySpanProcessor()] }),
+    );
     configureAndActivate();
     const lines = captureStderr();
     const unsampledApp = new Hono();

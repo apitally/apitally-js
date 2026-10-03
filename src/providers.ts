@@ -28,21 +28,27 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { getConfig } from "./config.js";
 import { logDebug, logWarning } from "./logger.js";
 import { getDistroVersion } from "./packageVersion.js";
+import { boundForSampleRate, isTraceSampledIn } from "./spanProcessor.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 65_536;
 const DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
 
+// Applies sampleRate to SERVER spans when they start, so sampled-out requests
+// record no spans. A sampled remote parent is followed for SERVER spans so upstream traces continue downstream.
 class RequestRootedSampler implements Sampler {
+  constructor(private readonly sampleRateBound: bigint) {}
+
   shouldSample(
     parentContext: Context,
-    _traceId: string,
+    traceId: string,
     _spanName: string,
     spanKind: SpanKind,
   ): SamplingResult {
     const parent = trace.getSpanContext(parentContext);
-    const shouldRecord =
-      spanKind === SpanKind.SERVER ||
-      (parent !== undefined && !parent.isRemote && (parent.traceFlags & TraceFlags.SAMPLED) !== 0);
+    const isParentSampled = parent !== undefined && (parent.traceFlags & TraceFlags.SAMPLED) !== 0;
+    const shouldRecord = isParentSampled
+      ? spanKind === SpanKind.SERVER || !parent.isRemote
+      : spanKind === SpanKind.SERVER && isTraceSampledIn(traceId, this.sampleRateBound);
     return {
       decision: shouldRecord ? SamplingDecision.RECORD_AND_SAMPLED : SamplingDecision.NOT_RECORD,
     };
@@ -76,10 +82,13 @@ export function setupTracerProvider(
   resource: Resource,
   spanProcessors: SpanProcessor[],
 ): NodeTracerProvider | undefined {
+  const config = getConfig();
+  // A sampleOnRequest callback can raise the rate, so it needs every request recorded.
+  const sampleRate = config.sampleOnRequest ? 1 : config.sampleRate;
   // Explicit sampler and length limits prevent OTel environment variables from
-  // dropping upstream-unsampled SERVER spans or truncating long attributes.
+  // changing which SERVER spans are recorded or truncating long attributes.
   const provider = new NodeTracerProvider({
-    sampler: new RequestRootedSampler(),
+    sampler: new RequestRootedSampler(boundForSampleRate(sampleRate)),
     resource,
     spanProcessors,
     generalLimits: { attributeValueLengthLimit: MAX_ATTRIBUTE_VALUE_LENGTH },

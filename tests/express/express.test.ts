@@ -6,6 +6,7 @@ import { PassThrough, Readable } from "node:stream";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { type Attributes, context, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
 import { getRPCMetadata, type RPCMetadata, RPCType, setRPCMetadata } from "@opentelemetry/core";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import compression from "compression";
 import express, { type ErrorRequestHandler, type Express } from "express";
 import request from "supertest";
@@ -14,12 +15,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isActivated } from "../../src/activation.js";
 import type { ApitallyOptions } from "../../src/config.js";
 import { useApitally } from "../../src/express/index.js";
-import { setConsumer } from "../../src/index.js";
+import { ApitallySpanProcessor, setConsumer } from "../../src/index.js";
 import { drainServerErrors } from "../../src/serverErrors.js";
 import { drainValidationErrors } from "../../src/validationErrors.js";
 import {
   captureStderr,
   configureAndActivate,
+  enableAsyncContextManager,
   prepareFirstRequestActivation,
   readActivationDurationDataPoints,
   readActivationSpans,
@@ -368,6 +370,10 @@ describe("express integration", () => {
   });
 
   it("warns once about partial trace coverage when a request arrives under an unsampled span context while metrics keep recording", async () => {
+    enableAsyncContextManager();
+    trace.setGlobalTracerProvider(
+      new NodeTracerProvider({ spanProcessors: [new ApitallySpanProcessor()] }),
+    );
     configureAndActivate();
     const lines = captureStderr();
     const unsampledApp = express();

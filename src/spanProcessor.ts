@@ -1,5 +1,4 @@
 import { type Attributes, type Context, SpanKind } from "@opentelemetry/api";
-import { hrTime, hrTimeDuration } from "@opentelemetry/core";
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import {
   type ApitallyConfig,
@@ -376,22 +375,12 @@ export class SpanPipeline implements SpanProcessor {
     await this.flushExporter?.();
   }
 
-  // Shutdown releases requests with completed transport observation once and
-  // discards incomplete requests, which cannot complete afterward.
+  // Requests not yet released are discarded, since they cannot complete afterward.
   async shutdown(): Promise<void> {
-    try {
-      for (const entry of new Set(this.requests.values())) {
-        if (!entry.released && entry.transportCompleted) {
-          this.releaseRequest(entry, entry.endedServerSpan ?? entry.serverSpan);
-        }
-      }
-      this.requests.clear();
-      this.stash.clear();
-      this.demotedSpanIds.clear();
-      this.keptSpanIds.clear();
-    } catch (error) {
-      logWarning(`Error in the Apitally span processor: ${String(error)}`);
-    }
+    this.requests.clear();
+    this.stash.clear();
+    this.demotedSpanIds.clear();
+    this.keptSpanIds.clear();
     await this.downstream.shutdown();
   }
 
@@ -477,16 +466,13 @@ export class SpanPipeline implements SpanProcessor {
     this.onRequestFinished?.(entry.serverSpanId, false);
   }
 
-  private releaseIfComplete(entry: RequestEntry): void {
-    if (entry.released || !entry.transportCompleted || !entry.endedServerSpan) {
-      return;
-    }
-    this.releaseRequest(entry, entry.endedServerSpan);
-  }
-
   // Descendants, the SERVER span, and logs enter downstream processing once, in
   // that order. The exporter applies the request record and stash later.
-  private releaseRequest(entry: RequestEntry, serverSpan: ReadableSpan): void {
+  private releaseIfComplete(entry: RequestEntry): void {
+    const serverSpan = entry.endedServerSpan;
+    if (entry.released || !entry.transportCompleted || !serverSpan) {
+      return;
+    }
     entry.released = true;
     for (const spanId of entry.spanIds) {
       this.requests.delete(spanId);
@@ -502,14 +488,8 @@ export class SpanPipeline implements SpanProcessor {
     const stash = this.stash.get(entry.serverSpanId);
     this.stash.delete(entry.serverSpanId);
     let exportSpan = serverSpan;
-    if (entry.record || stash || !serverSpan.ended) {
+    if (entry.record || stash) {
       const copy = copySpan(serverSpan);
-      if (!serverSpan.ended) {
-        // A SERVER span released during shutdown uses shutdown as its end time.
-        copy.endTime = hrTime();
-        copy.duration = hrTimeDuration(copy.startTime, copy.endTime);
-        copy.ended = true;
-      }
       copy.apitallyData = { record: entry.record, stash };
       exportSpan = copy;
     }
@@ -594,13 +574,13 @@ function writeUrlAttributesFromFullUrl(span: Span): void {
 
 const TRACE_ID_LOW_64_BITS_MASK = (1n << 64n) - 1n;
 
-function boundForSampleRate(rate: number): bigint {
+export function boundForSampleRate(rate: number): bigint {
   return BigInt(Math.round(rate * 2 ** 64));
 }
 
 // Low 64-bit ratio sampling is deterministic per trace. Comparing the same
 // value at both stages makes the lower rate decisive.
-function isTraceSampledIn(traceId: string, bound: bigint): boolean {
+export function isTraceSampledIn(traceId: string, bound: bigint): boolean {
   return (BigInt(`0x${traceId}`) & TRACE_ID_LOW_64_BITS_MASK) < bound;
 }
 

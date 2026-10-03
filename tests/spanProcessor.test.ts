@@ -17,7 +17,6 @@ import {
   setActiveSpanPipeline,
 } from "../src/spanProcessor.js";
 import {
-  CollectingSpanProcessor,
   captureStderr,
   createBatchProcessorOptions,
   createTracePipeline,
@@ -474,31 +473,5 @@ describe("spanProcessor", () => {
       "GET /third",
     ]);
     await pipeline.shutdown();
-  });
-
-  it("releases transport-complete requests at shutdown and discards buffers of requests still in flight", async () => {
-    const downstream = new CollectingSpanProcessor();
-    const { pipeline, tracer } = createTracePipeline({ downstream });
-    const completed = startServerSpan(tracer, { name: "GET /completed" });
-    tracer
-      .startSpan("completed-child", {}, trace.setSpan(completed.request.context, completed.span))
-      .end();
-    pipeline.handleTransportCompletion(completed.request.record);
-    const inFlight = startServerSpan(tracer, { name: "GET /in-flight" });
-    tracer
-      .startSpan("in-flight-child", {}, trace.setSpan(inFlight.request.context, inFlight.span))
-      .end();
-    inFlight.span.end();
-    expect(downstream.spans).toHaveLength(0);
-
-    await pipeline.shutdown();
-    expect(downstream.spans.map((span) => span.name)).toEqual([
-      "completed-child",
-      "GET /completed",
-    ]);
-    expect(downstream.spans[1].endTime[0]).toBeGreaterThan(0);
-
-    completed.span.end();
-    expect(downstream.spans).toHaveLength(2);
   });
 });

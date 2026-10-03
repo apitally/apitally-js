@@ -210,22 +210,6 @@ export interface TracePipeline {
   exporter: InMemorySpanExporter;
 }
 
-// Downstream processor whose shutdown keeps the collected spans readable, unlike
-// InMemorySpanExporter, which clears them.
-export class CollectingSpanProcessor implements SpanProcessor {
-  readonly spans: ReadableSpan[] = [];
-  onStart(): void {}
-  onEnd(span: ReadableSpan): void {
-    this.spans.push(span);
-  }
-  forceFlush(): Promise<void> {
-    return Promise.resolve();
-  }
-  shutdown(): Promise<void> {
-    return Promise.resolve();
-  }
-}
-
 // A real tracer provider includes the pipeline; extra processors model user
 // processors on the same provider.
 export function createTracePipeline(
