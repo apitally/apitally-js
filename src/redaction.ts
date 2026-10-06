@@ -89,7 +89,7 @@ export class Redaction {
     // OpenTelemetry HTTP header attributes normalize hyphens to underscores.
     return (
       matchesAny(this.headerPatterns, name) ||
-      matchesAny(this.headerPatterns, name.replaceAll("_", "-"))
+      (name.includes("_") && matchesAny(this.headerPatterns, name.replaceAll("_", "-")))
     );
   }
 

@@ -53,20 +53,29 @@ export function resolveHttpRequestStartAttributes(
   input: HttpRequestStartAttributeInput,
 ): Attributes {
   const attributes: Attributes = { "http.request.method": input.method };
-  const optionalAttributes: [string, string | number | undefined][] = [
-    ["url.path", input.path],
-    ["url.query", input.query],
-    ["url.scheme", input.scheme],
-    ["url.full", input.fullUrl],
-    ["server.address", input.serverAddress],
-    ["client.address", input.clientAddress],
-    ["user_agent.original", input.userAgent],
-    ["http.request.body.size", input.requestBodySize],
-  ];
-  for (const [name, value] of optionalAttributes) {
-    if (value !== undefined) {
-      attributes[name] = value;
-    }
+  if (input.path !== undefined) {
+    attributes["url.path"] = input.path;
+  }
+  if (input.query !== undefined) {
+    attributes["url.query"] = input.query;
+  }
+  if (input.scheme !== undefined) {
+    attributes["url.scheme"] = input.scheme;
+  }
+  if (input.fullUrl !== undefined) {
+    attributes["url.full"] = input.fullUrl;
+  }
+  if (input.serverAddress !== undefined) {
+    attributes["server.address"] = input.serverAddress;
+  }
+  if (input.clientAddress !== undefined) {
+    attributes["client.address"] = input.clientAddress;
+  }
+  if (input.userAgent !== undefined) {
+    attributes["user_agent.original"] = input.userAgent;
+  }
+  if (input.requestBodySize !== undefined) {
+    attributes["http.request.body.size"] = input.requestBodySize;
   }
   return attributes;
 }
@@ -279,8 +288,9 @@ function getHeaderValue(
   if (isWebHeaders(headers)) {
     return headers.get(name) ?? undefined;
   }
-  for (const [headerName, value] of Object.entries(headers)) {
+  for (const headerName of Object.keys(headers)) {
     if (headerName.toLowerCase() === name) {
+      const value = headers[headerName];
       return Array.isArray(value) ? value.join(",") : value?.toString();
     }
   }
@@ -306,7 +316,8 @@ function normalizeHeaders(
     }
     return normalized;
   }
-  for (const [name, value] of Object.entries(headers)) {
+  for (const name of Object.keys(headers)) {
+    const value = headers[name];
     if (value !== undefined) {
       normalized[name.toLowerCase()] = Array.isArray(value) ? value : String(value);
     }

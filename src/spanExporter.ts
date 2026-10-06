@@ -173,7 +173,8 @@ export class ApitallySpanExporter implements SpanExporter {
   // OpenTelemetry HTTP instrumentations leave query and header attributes raw.
   // Both legacy and stable HTTP attribute names are redacted before export.
   private redactQueryAndHeaderAttributes(attributes: Record<string, unknown>): void {
-    for (const [key, value] of Object.entries(attributes)) {
+    for (const key of Object.keys(attributes)) {
+      const value = attributes[key];
       if (QUERY_ATTRIBUTES.has(key) && typeof value === "string") {
         attributes[key] = this.redaction.redactQueryParams(value, key === "url.query");
       } else if (
@@ -295,8 +296,8 @@ function writeCapturedHeaderAttributes(
   headers: Record<string, string | string[]>,
   redaction: Redaction,
 ): void {
-  for (const [name, values] of Object.entries(headers)) {
-    const redactedValues = redaction.redactHeaderValue(name, values);
+  for (const name of Object.keys(headers)) {
+    const redactedValues = redaction.redactHeaderValue(name, headers[name]);
     attributes[prefix + name] = Array.isArray(redactedValues) ? redactedValues : [redactedValues];
   }
 }

@@ -125,10 +125,13 @@ export function isValidWriteToken(value: string): boolean {
 }
 
 export function matchesAny(patterns: RegExp[], value: string): boolean {
-  return patterns.some((pattern) => {
+  for (const pattern of patterns) {
     pattern.lastIndex = 0;
-    return pattern.test(value);
-  });
+    if (pattern.test(value)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function compilePatterns(defaults: string[], userPatterns: RegExp[] = []): RegExp[] {
