@@ -81,7 +81,8 @@ export class Redaction {
     } catch {
       return text;
     }
-    return JSON.stringify(this.redactBodyFields(data));
+    this.redactBodyFields(data);
+    return JSON.stringify(data);
   }
 
   private shouldRedactHeader(name: string): boolean {
@@ -100,20 +101,21 @@ export class Redaction {
     return matchesAny(this.bodyFieldPatterns, name);
   }
 
-  private redactBodyFields(data: JsonValue): JsonValue {
+  // Mutates in place, so callers pass only values they parsed themselves.
+  private redactBodyFields(data: JsonValue): void {
     if (Array.isArray(data)) {
-      return data.map((item) => this.redactBodyFields(item));
+      for (const item of data) {
+        this.redactBodyFields(item);
+      }
+    } else if (typeof data === "object" && data !== null) {
+      for (const key of Object.keys(data)) {
+        const value = data[key];
+        if (typeof value === "string" && this.shouldRedactBodyField(key)) {
+          data[key] = REDACTED;
+        } else {
+          this.redactBodyFields(value);
+        }
+      }
     }
-    if (typeof data === "object" && data !== null) {
-      return Object.fromEntries(
-        Object.entries(data).map(([key, value]) => [
-          key,
-          typeof value === "string" && this.shouldRedactBodyField(key)
-            ? REDACTED
-            : this.redactBodyFields(value),
-        ]),
-      );
-    }
-    return data;
   }
 }
