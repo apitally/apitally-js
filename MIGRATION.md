@@ -157,3 +157,7 @@ sdk.start();
 Review these settings when upgrading:
 
 - **Sampling:** Previously, your provider's sampler affected traces but not Apitally's request logs. It now affects both, so review its sampling rate when upgrading. Metrics remain unsampled.
+
+## Other changes
+
+- **Network access:** The SDK now sends data to `otlp.apitally.io` instead of `hub.apitally.io`. Update firewall allowlists if necessary.
