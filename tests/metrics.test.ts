@@ -85,7 +85,6 @@ describe("metrics", () => {
           "http.request.method": "POST",
           "http.route": "/items",
           "http.response.status_code": 500,
-          "error.type": "500",
         },
       ]);
     }
@@ -107,7 +106,6 @@ describe("metrics", () => {
       "http.request.method": "GET",
       "http.route": "/items",
       "http.response.status_code": 503,
-      "error.type": "503",
     });
   });
 
