@@ -365,7 +365,6 @@ describe("express integration", () => {
       "http.route": "/async-consumer",
       "http.response.status_code": 200,
       "apitally.consumer.identifier": "acme",
-      "url.scheme": "http",
     });
   });
 

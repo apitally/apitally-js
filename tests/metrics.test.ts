@@ -43,7 +43,7 @@ async function collectDurationDataPoints(metrics: MetricsPipeline) {
 }
 
 describe("metrics", () => {
-  it("records duration and body size histograms with method, route, status code, consumer, scheme, and 5xx-only error type attributes", async () => {
+  it("records duration and body size histograms with method, route, status code, consumer, and 5xx-only error type attributes", async () => {
     const metrics = createMetricsPipeline();
     metrics.recordFromRequest({
       attributes: {
@@ -51,7 +51,6 @@ describe("metrics", () => {
         "http.route": "/items/{id}",
         "http.response.status_code": 200,
         "apitally.consumer.identifier": "tenant-1",
-        "url.scheme": "https",
         "http.request.body.size": 10,
         "http.response.body.size": 250,
       },
@@ -62,7 +61,6 @@ describe("metrics", () => {
         "http.request.method": "POST",
         "http.route": "/items",
         "http.response.status_code": 500,
-        "url.scheme": "https",
         "http.request.body.size": 40,
         "http.response.body.size": 60,
       },
@@ -82,13 +80,11 @@ describe("metrics", () => {
           "http.route": "/items/{id}",
           "http.response.status_code": 200,
           "apitally.consumer.identifier": "tenant-1",
-          "url.scheme": "https",
         },
         {
           "http.request.method": "POST",
           "http.route": "/items",
           "http.response.status_code": 500,
-          "url.scheme": "https",
           "error.type": "500",
         },
       ]);
@@ -102,7 +98,6 @@ describe("metrics", () => {
         "http.method": "GET",
         "http.route": "/items",
         "http.status_code": 503,
-        "http.scheme": "http",
       },
       durationSeconds: 0.02,
     });
@@ -112,7 +107,6 @@ describe("metrics", () => {
       "http.request.method": "GET",
       "http.route": "/items",
       "http.response.status_code": 503,
-      "url.scheme": "http",
       "error.type": "503",
     });
   });
@@ -171,7 +165,6 @@ describe("metrics", () => {
       "http.request.method": "GET",
       "http.response.status_code": 200,
       "apitally.consumer.identifier": "tenant-1",
-      "url.scheme": "https",
     };
     // The values are not in ascending order, so the bucket array also grows downward.
     for (const [durationSeconds, responseBodySize] of [
