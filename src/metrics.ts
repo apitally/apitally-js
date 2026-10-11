@@ -54,7 +54,6 @@ export class MetricsPipeline {
     }
     const source = record.attributes;
     const method = source["http.request.method"] ?? source["http.method"];
-    const scheme = source["url.scheme"] ?? source["http.scheme"];
     const route = source["http.route"];
     if (typeof route !== "string" || route === "") {
       return;
@@ -70,9 +69,6 @@ export class MetricsPipeline {
     const consumer = source["apitally.consumer.identifier"];
     if (consumer !== undefined) {
       attributes["apitally.consumer.identifier"] = consumer;
-    }
-    if (scheme !== undefined) {
-      attributes["url.scheme"] = scheme;
     }
     if (typeof statusCode === "number" && statusCode >= 500) {
       attributes["error.type"] = String(statusCode);

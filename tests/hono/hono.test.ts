@@ -502,7 +502,6 @@ describe("hono integration", () => {
       "http.route": "/consumer",
       "http.response.status_code": 200,
       "apitally.consumer.identifier": "acme",
-      "url.scheme": "http",
     });
   });
 
