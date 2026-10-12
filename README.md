@@ -74,8 +74,6 @@ Install the SDK in your project:
 npm install apitally
 ```
 
-See the [SDK reference](https://docs.apitally.io/sdk-reference/javascript/v1/configuration) for all available configuration options, including how to mask sensitive data, capture request and response payloads, and more.
-
 ### AdonisJS
 
 Run the Ace `add` command from your application directory:
