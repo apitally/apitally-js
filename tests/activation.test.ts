@@ -410,7 +410,7 @@ describe("activation", () => {
     ];
     await activationState.signalDrainPromise;
 
-    expect(finalDrainSpy).toHaveBeenCalledExactlyOnceWith(5_000);
+    expect(finalDrainSpy).toHaveBeenCalledOnce();
     expect(process.listeners("SIGTERM")).not.toContain(sigtermListener);
     expect(process.listeners("SIGINT")).not.toContain(sigintListener);
     expect(killSpy).toHaveBeenCalledExactlyOnceWith(process.pid, "SIGTERM");

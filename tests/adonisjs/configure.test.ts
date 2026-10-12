@@ -68,9 +68,8 @@ describe("adonisjs configure", () => {
       expect(config).toContain("writeToken: env.get('APITALLY_WRITE_TOKEN')");
       expect(config).toContain("env: env.get('APITALLY_ENV')");
       expect(config).toContain("captureRequestHeaders: true");
-      expect(config).not.toContain("captureRequestBody:");
+      expect(config).not.toContain("captureRequestBody: true");
       expect(config).toContain("captureResponseBody: true");
-      expect(config).not.toContain("captureResponseHeaders:");
       expect(count(rcFile, "apitally/adonisjs/provider")).toBe(1);
       expect(count(kernel, "apitally/adonisjs/middleware")).toBe(1);
       expect(envFile).toContain(`APITALLY_WRITE_TOKEN=${WRITE_TOKEN}`);

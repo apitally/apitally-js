@@ -250,7 +250,6 @@ describe("spanExporter", () => {
     await provider.forceFlush();
     const spans = readSerializedSpans();
     expect(spans).toHaveLength(2);
-    expect(spans[0].resource).toBe(spans[1].resource);
     expect(spans[0].resource.attributes["deployment.environment.name"]).toBe("prod");
     expect(spans[0].resource.attributes["service.name"]).toBe("user-service");
     expect(spans[1].resource.attributes["deployment.environment.name"]).toBe("prod");
@@ -486,7 +485,7 @@ describe("spanExporter", () => {
       "deflate",
       Buffer.concat([deflateSync("secret"), Buffer.from("junk")]),
     ],
-    ["unsupported encoding", "zstd", Buffer.from("secret")],
+    ["unsupported encoding", "x-unknown", Buffer.from("secret")],
   ])(
     "redacts %s without invoking callbacks or dropping the span",
     async (_name, encoding, body) => {

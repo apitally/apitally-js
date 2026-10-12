@@ -125,14 +125,12 @@ describe("sentry", () => {
 
   it("does not throw or warn when Sentry is absent or the carrier is malformed", () => {
     const lines = captureStderr();
-    process.env.APITALLY_DEBUG = "true";
     mockPackageResolutionFailure("@sentry/node");
     expect(() => installSentryEventIdRecording()).not.toThrow();
     setGlobalCarrier({});
     expect(() => installSentryEventIdRecording()).not.toThrow();
     setGlobalCarrier({ version: "10.0.0" });
     expect(() => installSentryEventIdRecording()).not.toThrow();
-    expect(lines).toHaveLength(3);
-    expect(lines.every((line) => line.includes("No Sentry client was detected"))).toBe(true);
+    expect(lines).toEqual([]);
   });
 });

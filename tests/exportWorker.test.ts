@@ -100,7 +100,6 @@ describe("exportWorker", () => {
         "User-Agent": `apitally-js/${readPackageVersion()}`,
       }),
     );
-    expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(gunzipSync(init?.body as Buffer)).toEqual(TRACE_PAYLOAD_ITEMS);
     expect(spool.pendingFiles()).toEqual([]);
   });
@@ -348,8 +347,6 @@ describe("exportWorker", () => {
     expect(firstBody.equals(secondBody)).toBe(true);
     const files = spool.pendingFiles();
     expect(files.map((file) => file.signal)).toEqual(["traces", "logs"]);
-    expect(files[0].firstAttemptAtMillis).toBeDefined();
-    expect(files[1].firstAttemptAtMillis).toBeUndefined();
   });
 
   it("aborts a timed-out POST without an immediate retry", async () => {

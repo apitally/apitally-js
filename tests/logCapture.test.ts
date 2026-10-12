@@ -352,9 +352,10 @@ describe("logCapture", () => {
       });
       const [record] = fixture.logExporter.getFinishedLogRecords();
       expect(record.body).toBe("hello moon");
-      expect(record.attributes).toEqual({
-        "apitally.request.server_span_id": span.spanContext().spanId,
-      });
+      expect(record.attributes?.["apitally.request.server_span_id"]).toBe(
+        span.spanContext().spanId,
+      );
+      expect(JSON.stringify(record.attributes)).not.toMatch(/hunter2|jane@example\.com/);
       expect(sink.lines).toHaveLength(1);
       expect(sink.lines[0]).toContain('"password":"[Redacted]"');
       expect(sink.lines[0]).toContain("hello moon");

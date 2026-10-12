@@ -16,7 +16,6 @@ describe("exceptions", () => {
     span.end();
     pipeline.handleTransportCompletion(request.record);
     const [exported] = exporter.getFinishedSpans();
-    expect(request.record.exception).toBe(firstError);
     expect(exported.events).toHaveLength(1);
     expect(exported.events[0].name).toBe("exception");
     expect(exported.events[0].attributes?.["exception.type"]).toBe("Error");

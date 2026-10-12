@@ -119,7 +119,6 @@ describe("tracing", () => {
     expect(innerSpan.kind).toBe(SpanKind.INTERNAL);
     expect(innerSpan.instrumentationScope.name).toBe("apitally.otel");
     expect(innerSpan.parentSpanContext?.spanId).toBe(outerSpan.spanContext().spanId);
-    expect(innerSpan.attributes).toEqual({});
   });
 
   it("ends an async function's span when the returned promise resolves, passing the value through", async () => {

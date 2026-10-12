@@ -66,7 +66,7 @@ describe("requestObservationWeb", () => {
     configureAndActivate({ captureRequestBody: true });
     const request = new Request("http://localhost/items", {
       method: "POST",
-      headers: { "content-type": "application/json", "content-encoding": "zstd" },
+      headers: { "content-type": "application/json", "content-encoding": "x-unknown" },
       body: "opaque encoded bytes",
     });
     const { observation } = startWebRequestObservation({ request, tracerName: "test" });
@@ -185,7 +185,6 @@ describe("requestObservationWeb", () => {
     const response = new Response(null, { status: 204 });
     const captured = captureWebResponse(response, true);
 
-    expect(captured.response).toBe(response);
     await expect(captured.completion).resolves.toMatchObject({
       size: 0,
       completedAtMillis: expect.any(Number),

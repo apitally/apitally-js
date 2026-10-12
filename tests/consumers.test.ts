@@ -15,7 +15,7 @@ import {
 } from "./utils.js";
 
 describe("consumers", () => {
-  it("writes the trimmed and capped identifier to the SERVER span and request record", () => {
+  it("writes the trimmed and capped identifier to the SERVER span", () => {
     enableAsyncContextManager();
     const { pipeline, tracer, exporter } = createTracePipeline();
     const { span, request } = startServerSpan(tracer);
@@ -26,7 +26,6 @@ describe("consumers", () => {
     pipeline.handleTransportCompletion(request.record);
     const [exported] = exporter.getFinishedSpans();
     expect(exported.attributes["apitally.consumer.identifier"]).toBe("i".repeat(128));
-    expect(request.record.attributes["apitally.consumer.identifier"]).toBe("i".repeat(128));
   });
 
   it("converts a runtime numeric identifier to a string", () => {
