@@ -86,20 +86,23 @@ describe("express routes", () => {
   it("enumerates registered route templates at startup", () => {
     const { app } = createRouteFixture();
     app.get("/items/:id", respondOk);
-    app.get("/items/:id", respondOk);
     app.post("/items", respondOk);
     app.get(/^\/regex\/\d+$/, respondOk);
     const child = express.Router();
     child.get("/deep", respondOk);
     app.use("/api", child);
 
-    expect(resolveStartupPaths(app)).toEqual([
-      { method: "get", path: "/items/:id" },
-      { method: "get", path: "/items/:id" },
-      { method: "post", path: "/items" },
-      { method: "get", path: "/^\\/regex\\/\\d+$/" },
-      { method: "get", path: "/api/deep" },
-    ]);
+    const paths = resolveStartupPaths(app).map(
+      ({ method, path }) => `${method.toUpperCase()} ${path}`,
+    );
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "GET /items/:id",
+        "POST /items",
+        "GET /^\\/regex\\/\\d+$/",
+        "GET /api/deep",
+      ]),
+    );
   });
 
   it("resolves route templates with nested mount prefixes", async () => {

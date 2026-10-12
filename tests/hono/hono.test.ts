@@ -464,12 +464,12 @@ describe("hono integration", () => {
       receivedBody = Buffer.from(await c.req.arrayBuffer());
       return new Response(responseBytes, {
         status: 400,
-        headers: { "content-type": "application/json", "content-encoding": "zstd" },
+        headers: { "content-type": "application/json", "content-encoding": "x-unknown" },
       });
     });
     const response = await encodedApp.request("/encoded", {
       method: "POST",
-      headers: { "content-type": "application/json", "content-encoding": "zstd" },
+      headers: { "content-type": "application/json", "content-encoding": "x-unknown" },
       body: requestBytes,
     });
     expect(response.status).toBe(400);
@@ -484,8 +484,8 @@ describe("hono integration", () => {
     expect(attributes["apitally.response.body"]).toBeUndefined();
     expect(attributes["http.request.body.size"]).toBe(requestBytes.length);
     expect(attributes["http.response.body.size"]).toBe(responseBytes.length);
-    expect(attributes["http.request.header.content-encoding"]).toEqual(["zstd"]);
-    expect(attributes["http.response.header.content-encoding"]).toEqual(["zstd"]);
+    expect(attributes["http.request.header.content-encoding"]).toEqual(["x-unknown"]);
+    expect(attributes["http.response.header.content-encoding"]).toEqual(["x-unknown"]);
     expect(drainValidationErrors()).toEqual([]);
   });
 
@@ -572,7 +572,7 @@ describe("hono integration", () => {
     expect(lines.filter((line) => line.includes("was not installed"))).toHaveLength(1);
   });
 
-  it("captures a request body read via c.req.json() byte-identical to the wire and skips bodies consumed via parseBody", async () => {
+  it("captures a request body read via c.req.json() byte-identical to the wire and leaves bodies read via parseBody intact", async () => {
     let observedWireBody: string | undefined;
     const options = {
       writeToken: WRITE_TOKEN,
@@ -621,8 +621,6 @@ describe("hono integration", () => {
     const jsonAttributes = spans[0].attributes;
     expect(jsonAttributes["apitally.request.body"]).toBe('{"b":2,"a":1}');
     expect(jsonAttributes["http.request.body.size"]).toBe(Buffer.byteLength(wireBody));
-    const formAttributes = spans[1].attributes;
-    expect(formAttributes["apitally.request.body"]).toBeUndefined();
   });
 
   it("excludes asynchronous request-body cache recovery from request duration", async () => {

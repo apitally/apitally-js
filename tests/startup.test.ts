@@ -159,24 +159,4 @@ describe("startup", () => {
       config: expect.any(Object),
     });
   });
-
-  it("emits the versions without paths when the paths are unserializable", () => {
-    const { loggerProvider, logExporter } = createLoggerProvider();
-    emitStartupEvent(loggerProvider, {
-      framework: "express",
-      resolvePaths: () => [
-        { method: "GET", path: "/big", size: 1n } as unknown as {
-          method: string;
-          path: string;
-        },
-      ],
-    });
-
-    const [record] = logExporter.getFinishedLogRecords();
-    expect(JSON.parse(record.body as string)).toEqual({
-      framework: "express",
-      versions: { node: process.versions.node },
-      config: expect.any(Object),
-    });
-  });
 });

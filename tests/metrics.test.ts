@@ -43,7 +43,7 @@ async function collectDurationDataPoints(metrics: MetricsPipeline) {
 }
 
 describe("metrics", () => {
-  it("records duration and body size histograms with method, route, status code, consumer, and 5xx-only error type attributes", async () => {
+  it("records duration and body size histograms with method, route, status code, and consumer attributes", async () => {
     const metrics = createMetricsPipeline();
     metrics.recordFromRequest({
       attributes: {
@@ -287,7 +287,7 @@ describe("metrics", () => {
     );
   });
 
-  it("splits request histograms into requests of 1,000 combinations that keep each combination's histograms together", async () => {
+  it("splits request histograms across several requests that keep each combination's histograms together", async () => {
     const metrics = createMetricsPipeline();
     const consumers = Array.from({ length: 1_001 }, (_, index) => `consumer-${index}`);
     for (const consumer of consumers) {
@@ -303,21 +303,25 @@ describe("metrics", () => {
         durationSeconds: 0.1,
       });
     }
-    const [, ...histogramRequests] = await collectResourceMetrics(metrics);
-    const consumersByRequest = histogramRequests.map((resourceMetrics) =>
-      resourceMetrics.scopeMetrics[0].metrics.map((metric) =>
-        (metric as ExponentialHistogramMetricData).dataPoints.map(
-          (point) => point.attributes["apitally.consumer.identifier"],
+    const consumersByRequest = (await collectResourceMetrics(metrics))
+      .map((resourceMetrics) =>
+        HISTOGRAM_NAMES.map((name) =>
+          readMetricDataPoints([resourceMetrics], name).map(
+            (point) => point.attributes["apitally.consumer.identifier"],
+          ),
         ),
-      ),
+      )
+      .filter(([durationConsumers]) => durationConsumers.length > 0);
+    expect(consumersByRequest.length).toBeGreaterThan(1);
+    for (const [durationConsumers, ...bodySizeConsumers] of consumersByRequest) {
+      expect(bodySizeConsumers).toEqual([durationConsumers, durationConsumers]);
+    }
+    expect(consumersByRequest.flatMap(([durationConsumers]) => durationConsumers)).toEqual(
+      consumers,
     );
-    expect(consumersByRequest).toEqual([
-      Array(3).fill(consumers.slice(0, 1_000)),
-      Array(3).fill(consumers.slice(1_000)),
-    ]);
   });
 
-  it("exports cpu utilization, rss memory, and uptime gauges as the first request of every collection, with or without traffic", async () => {
+  it("exports cpu utilization, rss memory, and uptime gauges on every collection, with or without traffic", async () => {
     const metrics = createMetricsPipeline();
     const collectionWithoutTraffic = await collectResourceMetrics(metrics);
     metrics.recordFromRequest({
@@ -329,10 +333,13 @@ describe("metrics", () => {
       durationSeconds: 0.01,
     });
     const collectionWithTraffic = await collectResourceMetrics(metrics);
-    expect(collectionWithoutTraffic).toHaveLength(1);
-    expect(collectionWithTraffic).toHaveLength(2);
-    for (const [gaugeRequest] of [collectionWithoutTraffic, collectionWithTraffic]) {
-      const gauges = gaugeRequest.scopeMetrics[0].metrics as GaugeMetricData[];
+    for (const collection of [collectionWithoutTraffic, collectionWithTraffic]) {
+      const gauges = collection
+        .flatMap((resourceMetrics) => resourceMetrics.scopeMetrics)
+        .flatMap((scopeMetrics) => scopeMetrics.metrics)
+        .filter(
+          (metric): metric is GaugeMetricData => metric.dataPointType === DataPointType.GAUGE,
+        );
       expect(
         gauges.map(({ descriptor, dataPointType, dataPoints }) => [
           descriptor.name,

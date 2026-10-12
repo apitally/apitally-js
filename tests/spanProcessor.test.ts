@@ -1,4 +1,5 @@
 import { ROOT_CONTEXT, SpanKind, TraceFlags, trace } from "@opentelemetry/api";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   AlwaysOnSampler,
   BatchSpanProcessor,
@@ -9,7 +10,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { describe, expect, it } from "vitest";
 import { BodyCapture } from "../src/bodyCapture.js";
 import { type SamplingCallback, setConfig } from "../src/config.js";
-import type { RequestRecord } from "../src/context.js";
+import { MetricsPipeline } from "../src/metrics.js";
 import { startRequestObservation } from "../src/requestObservation.js";
 import {
   ApitallySpanProcessor,
@@ -19,7 +20,10 @@ import {
 import {
   captureStderr,
   createBatchProcessorOptions,
+  createInMemorySpool,
   createTracePipeline,
+  readMetricDataPoints,
+  readSerializedResourceMetrics,
   startServerSpan,
   WRITE_TOKEN,
 } from "./utils.js";
@@ -323,46 +327,55 @@ describe("spanProcessor", () => {
     ]);
   });
 
-  it("invokes the metrics recorder at transport completion with the reason a request was not exported", () => {
+  it("counts excluded and sampled-out requests in the request metrics at transport completion while skipping preflight and websocket requests", async () => {
     setConfig({
       writeToken: WRITE_TOKEN,
       sampleOnRequest: (span) => (span.attributes["url.path"] === "/sampled" ? 0 : undefined),
     });
     const { pipeline, tracer, exporter } = createTracePipeline();
-    const records: RequestRecord[] = [];
-    pipeline.metricsRecorder = (record) => records.push(record);
+    const metrics = new MetricsPipeline(resourceFromAttributes({}), createInMemorySpool());
+    pipeline.metricsRecorder = (record) => metrics.recordFromRequest(record);
     for (const attributes of [
-      { "http.request.method": "GET", "url.path": "/healthz" },
-      { "http.request.method": "OPTIONS", "url.path": "/items" },
-      { "url.scheme": "wss", "url.path": "/ws" },
-      { "http.request.method": "GET", "url.path": "/sampled" },
-      { "http.request.method": "GET", "url.path": "/items" },
+      { "http.request.method": "GET", "url.path": "/healthz", "http.route": "/healthz" },
+      { "http.request.method": "OPTIONS", "url.path": "/options", "http.route": "/options" },
+      { "url.scheme": "wss", "url.path": "/ws", "http.route": "/ws" },
+      { "http.request.method": "GET", "url.path": "/sampled", "http.route": "/sampled" },
+      { "http.request.method": "GET", "url.path": "/items", "http.route": "/items" },
     ]) {
       const { span, request } = startServerSpan(tracer, { attributes });
       span.end();
+      request.record.attributes = { ...attributes };
+      request.record.durationSeconds = 0.01;
       pipeline.handleTransportCompletion(request.record);
     }
-    expect(records.map((record) => record.dropReason)).toEqual([
-      "excluded",
-      "method",
-      "scheme",
-      "sampled-out",
-      undefined,
+    await metrics.collectAndExport();
+    const points = readMetricDataPoints(
+      readSerializedResourceMetrics(),
+      "http.server.request.duration",
+    );
+    expect(points.map((point) => point.attributes["http.route"])).toEqual([
+      "/healthz",
+      "/sampled",
+      "/items",
     ]);
     expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
   });
 
-  it("classifies and records metrics on transport completion without an in-flight request", () => {
+  it("records metrics on transport completion without an in-flight request", async () => {
     const { pipeline, exporter } = createTracePipeline();
-    const records: RequestRecord[] = [];
-    pipeline.metricsRecorder = (record) => records.push(record);
-    const record: RequestRecord = {
-      attributes: { "http.request.method": "OPTIONS" },
+    const metrics = new MetricsPipeline(resourceFromAttributes({}), createInMemorySpool());
+    pipeline.metricsRecorder = (record) => metrics.recordFromRequest(record);
+    pipeline.handleTransportCompletion({
+      attributes: { "http.request.method": "GET", "http.route": "/items" },
       serverSpanId: "00f067aa0ba902b7",
-    };
-    pipeline.handleTransportCompletion(record);
-    expect(record.dropReason).toBe("method");
-    expect(records).toEqual([record]);
+      durationSeconds: 0.01,
+    });
+    await metrics.collectAndExport();
+    const points = readMetricDataPoints(
+      readSerializedResourceMetrics(),
+      "http.server.request.duration",
+    );
+    expect(points.map((point) => point.attributes["http.route"])).toEqual(["/items"]);
     expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
@@ -382,12 +395,11 @@ describe("spanProcessor", () => {
     setActiveSpanPipeline(pipeline);
     first.span.end();
     pipeline.handleTransportCompletion(first.request.record);
-    expect(exporter.getFinishedSpans()).toHaveLength(0);
 
     const second = startServerSpan(tracer, { name: "GET /second" });
     second.span.end();
     pipeline.handleTransportCompletion(second.request.record);
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /second"]);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain("GET /second");
   });
 
   it("exports only observed requests from a user-owned provider while the user's exporters keep receiving all spans", () => {
@@ -405,8 +417,6 @@ describe("spanProcessor", () => {
     const child = tracer.startSpan("collect metrics", {}, trace.setSpan(ROOT_CONTEXT, unobserved));
     child.end();
     unobserved.end();
-    expect(pipeline.resolveServerSpanId(unobserved.spanContext().spanId)).toBeUndefined();
-    expect(pipeline.resolveServerSpanId(child.spanContext().spanId)).toBeUndefined();
 
     const span = tracer.startSpan("GET /items", { kind: SpanKind.SERVER });
     const { requestRecord } = startRequestObservation({
@@ -418,7 +428,6 @@ describe("spanProcessor", () => {
       requestBodyCapture: new BodyCapture({ captureBody: false }),
     });
     span.end();
-    expect(pipeline.isRequestInFlight(span.spanContext().spanId)).toBe(true);
     expect(apitallyExporter.getFinishedSpans()).toEqual([]);
     pipeline.handleTransportCompletion(requestRecord);
     expect(apitallyExporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);

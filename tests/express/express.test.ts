@@ -581,14 +581,14 @@ describe("express integration", () => {
         chunks.push(chunk);
       }
       receivedBody = Buffer.concat(chunks);
-      res.status(400).set({ "content-type": "application/json", "content-encoding": "zstd" });
+      res.status(400).set({ "content-type": "application/json", "content-encoding": "x-unknown" });
       res.write(responseBytes);
       res.end();
     });
     await withServer(encodedApp, async (_encodedServer, baseUrl) => {
       const response = await undiciRequest(`${baseUrl}/encoded`, {
         method: "POST",
-        headers: { "content-type": "application/json", "content-encoding": "zstd" },
+        headers: { "content-type": "application/json", "content-encoding": "x-unknown" },
         body: Readable.from([requestBytes]),
       });
       expect(response.statusCode).toBe(400);
@@ -605,8 +605,8 @@ describe("express integration", () => {
     expect(attributes["apitally.response.body"]).toBeUndefined();
     expect(attributes["http.request.body.size"]).toBe(requestBytes.length);
     expect(attributes["http.response.body.size"]).toBe(responseBytes.length);
-    expect(attributes["http.request.header.content-encoding"]).toEqual(["zstd"]);
-    expect(attributes["http.response.header.content-encoding"]).toEqual(["zstd"]);
+    expect(attributes["http.request.header.content-encoding"]).toEqual(["x-unknown"]);
+    expect(attributes["http.response.header.content-encoding"]).toEqual(["x-unknown"]);
     expect(drainValidationErrors()).toEqual([]);
   });
 

@@ -108,8 +108,8 @@ describe("providers", () => {
     expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET /items"]);
   });
 
-  it("records every SERVER span when sampleOnRequest is set", () => {
-    setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0, sampleOnRequest: () => 0 });
+  it("records SERVER spans despite a zero sampleRate when sampleOnRequest is set", () => {
+    setConfig({ writeToken: WRITE_TOKEN, sampleRate: 0, sampleOnRequest: () => true });
     const exporter = setupTracerProviderWithInMemoryExporter();
 
     trace.getTracer("test").startSpan("GET /items", { kind: SpanKind.SERVER }).end();

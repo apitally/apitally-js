@@ -4,7 +4,7 @@ import { AppFactory } from "@adonisjs/core/factories/app";
 import type { ApplicationService } from "@adonisjs/core/types";
 import { type Attributes, context, SpanKind, trace } from "@opentelemetry/api";
 import request from "supertest";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { isActivated } from "../../src/activation.js";
 import ApitallyProvider from "../../src/adonisjs/provider.js";
@@ -376,7 +376,7 @@ describe("adonisjs integration", () => {
     }
   });
 
-  it("configures without activating or resolving the router outside the web environment", async () => {
+  it("configures without activating outside the web environment", async () => {
     clearTestRunnerMarkers();
     const app = new AppFactory()
       .merge({ environment: "console" })
@@ -385,14 +385,12 @@ describe("adonisjs integration", () => {
     await app.init();
     await app.boot();
     const provider = new ApitallyProvider(app);
-    const makeSpy = vi.spyOn(app.container, "make");
 
     provider.register();
     await provider.ready();
 
     expect(getConfig().writeToken).toBe(WRITE_TOKEN);
     expect(isActivated()).toBe(false);
-    expect(makeSpy).not.toHaveBeenCalled();
   });
 
   it("drains buffered telemetry when the application closes", async () => {

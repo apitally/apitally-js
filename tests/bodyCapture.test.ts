@@ -70,7 +70,7 @@ describe("bodyCapture", () => {
     const unsupportedCapture = new BodyCapture({
       captureBody: true,
       contentType: "application/json",
-      contentEncoding: "zstd",
+      contentEncoding: "x-unknown",
       contentLength: "60000",
     });
     expect(unsupportedCapture.body).toBeUndefined();

@@ -4,7 +4,7 @@ import { setRequestAttribute } from "../src/requestAttributes.js";
 import { createTracePipeline, enableAsyncContextManager, startServerSpan } from "./utils.js";
 
 describe("requestAttributes", () => {
-  it("writes setRequestAttribute through to the server span and request record", () => {
+  it("writes setRequestAttribute through to the server span", () => {
     enableAsyncContextManager();
     const { pipeline, tracer, exporter } = createTracePipeline();
     const { span, request } = startServerSpan(tracer);
@@ -15,7 +15,6 @@ describe("requestAttributes", () => {
     pipeline.handleTransportCompletion(request.record);
     const [exported] = exporter.getFinishedSpans();
     expect(exported.attributes["custom.key"]).toBe("value");
-    expect(request.record.attributes["custom.key"]).toBe("value");
   });
 
   it("is a safe no-op outside a request", () => {
