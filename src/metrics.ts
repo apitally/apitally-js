@@ -70,9 +70,6 @@ export class MetricsPipeline {
     if (consumer !== undefined) {
       attributes["apitally.consumer.identifier"] = consumer;
     }
-    if (typeof statusCode === "number" && statusCode >= 500) {
-      attributes["error.type"] = String(statusCode);
-    }
     // Attributes are always set in the same order, so equal combinations give equal keys.
     const key = JSON.stringify(attributes);
     let histograms = this.combinations.get(key);
