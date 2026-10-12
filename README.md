@@ -321,7 +321,7 @@ setConsumer({
 
 ### Custom attributes
 
-To attach custom data to the request's trace, call `setRequestAttribute`. Sampling and masking callbacks can also read these attributes.
+To attach custom data to the request's trace, call `setRequestAttribute`. The `sampleOnResponse`, `maskRequestBody`, and `maskResponseBody` callbacks can also read these attributes.
 
 ```javascript
 import { setRequestAttribute } from "apitally";
