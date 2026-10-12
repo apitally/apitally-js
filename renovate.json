@@ -3,10 +3,14 @@
   "extends": ["github>apitally/renovate-config"],
   "packageRules": [
     {
-      "description": "undici 7+ raises the required Node version above the engines floor",
-      "matchPackageNames": ["undici"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
+      "description": "Skip runtime dependency releases that drop Node.js versions we support",
+      "matchDepTypes": ["dependencies"],
+      "constraintsFiltering": "strict"
+    },
+    {
+      "matchDepTypes": ["dependencies"],
+      "matchPackageNames": ["@opentelemetry/**"],
+      "groupName": "OpenTelemetry"
     }
   ]
 }
