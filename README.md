@@ -304,6 +304,8 @@ See our [documentation on masking](https://docs.apitally.io/sdk-reference/javasc
 
 The following functions add context to the current request. Call them while handling a request, for example in a route handler, middleware, or authentication code.
 
+### Consumers
+
 To associate the request with the API consumer making it, call `setConsumer`. Only `identifier` is required. You can also pass it as a string, for example `setConsumer(user.identifier)`.
 
 ```javascript
@@ -317,6 +319,8 @@ setConsumer({
 });
 ```
 
+### Custom attributes
+
 To attach custom data to the request's trace, call `setRequestAttribute`. Sampling and masking callbacks can also read these attributes.
 
 ```javascript
@@ -324,6 +328,10 @@ import { setRequestAttribute } from "apitally";
 
 setRequestAttribute("tenant.id", tenantId);
 ```
+
+See our [documentation on attributes](https://docs.apitally.io/sdk-reference/javascript/v1/attributes#set-custom-attributes) for details.
+
+### Handled exceptions
 
 To capture an exception that your code handles itself, call `captureException`. Unhandled exceptions are captured automatically.
 
@@ -336,8 +344,6 @@ try {
   captureException(error);
 }
 ```
-
-See our documentation on [custom attributes](https://docs.apitally.io/sdk-reference/javascript/v1/attributes#set-custom-attributes) and [handled exceptions](https://docs.apitally.io/sdk-reference/javascript/v1/tracing#capture-handled-exceptions) for details.
 
 ## Existing OpenTelemetry setup
 
