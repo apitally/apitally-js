@@ -19,7 +19,7 @@ import {
 import { formatIssues } from "../validationErrors.js";
 import { resolveMatchedRoute } from "./routes.js";
 
-const TRACER_NAME = "apitally.h3";
+const TRACER_NAME = "apitally/h3";
 
 type H3RequestFunction = H3["~request"];
 type H3Request = Parameters<H3RequestFunction>[0];

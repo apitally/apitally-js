@@ -28,7 +28,7 @@ import { resolveStartupPaths } from "./routes.js";
 
 const INSTALL_MARKER = Symbol.for("apitally.elysiaInstall");
 const PLUGIN_NAME = "apitally";
-const TRACER_NAME = "apitally.elysia";
+const TRACER_NAME = "apitally/elysia";
 
 interface ElysiaConstructor {
   new (config?: { name?: string }): AnyElysia;

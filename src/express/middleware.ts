@@ -21,7 +21,7 @@ import {
 import { beginRouteTracking, finishRouteTracking } from "./routes.js";
 
 const HANDLE_WRAP_MARKER = Symbol.for("apitally.expressHandleWrap");
-const TRACER_NAME = "apitally.express";
+const TRACER_NAME = "apitally/express";
 
 type HandleFunction = (
   req: IncomingMessage,

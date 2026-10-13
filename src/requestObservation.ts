@@ -12,6 +12,7 @@ import {
 } from "./context.js";
 import { coerceToException } from "./exceptions.js";
 import { logWarning } from "./logger.js";
+import { getDistroVersion } from "./packageVersion.js";
 import { writeRequestAttribute } from "./requestAttributes.js";
 import { addServerError } from "./serverErrors.js";
 import {
@@ -122,7 +123,7 @@ export function startRequestObservation(
   } else {
     requestContext = withRequestHolders(extractedContext, spanHandle, requestRecord);
     const ownSpan = trace
-      .getTracer(tracerName)
+      .getTracer(tracerName, getDistroVersion())
       .startSpan(method, { kind: SpanKind.SERVER, attributes: startAttributes }, requestContext);
     if (!ownSpan.isRecording()) {
       requestRecord.dropReason = resolveUnavailableSpanDropReason();
