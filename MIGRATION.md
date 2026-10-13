@@ -104,7 +104,7 @@ function maskRequestBody(body: Buffer, span: ReadableSpan): Buffer | null {
 
 Use sampling callbacks to exclude requests: `sampleOnRequest(span)` for early decisions based on the request, or `sampleOnResponse(span)` for decisions based on the response status or consumer.
 
-The callbacks should return `true` to capture the request, and `false` to exclude it. Callbacks can also return a probability as a `number` between 0 and 1. Returning `undefined` preserves a previously made sampling decision.
+The callbacks should return `true` to capture the request, and `false` to exclude it. Callbacks can also return a probability as a `number` between 0 and 1. Returning `undefined` from `sampleOnRequest` applies `sampleRate`, and returning `undefined` from `sampleOnResponse` preserves the earlier sampling decision.
 
 For example, to capture only error responses:
 
