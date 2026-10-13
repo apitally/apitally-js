@@ -25,7 +25,7 @@ import { resolveMatchedRoute } from "./routes.js";
 
 const FETCH_WRAP_MARKER = Symbol.for("apitally.honoFetchWrap");
 const ERROR_HANDLER_WRAP_MARKER = Symbol.for("apitally.honoErrorHandlerWrap");
-const TRACER_NAME = "apitally.hono";
+const TRACER_NAME = "apitally/hono";
 
 type FetchFunction = (request: Request, ...rest: unknown[]) => Response | Promise<Response>;
 

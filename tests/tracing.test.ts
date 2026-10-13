@@ -82,7 +82,7 @@ describe("tracing", () => {
     expect(fixture.exporter.getFinishedSpans()).toHaveLength(2);
     const childSpan = getExportedSpan(fixture, "fetchItems");
     expect(childSpan.kind).toBe(SpanKind.INTERNAL);
-    expect(childSpan.instrumentationScope.name).toBe("apitally.otel");
+    expect(childSpan.instrumentationScope.name).toBe("apitally");
     expect(childSpan.parentSpanContext?.spanId).toBe(serverSpan.spanContext().spanId);
     expect(childSpan.attributes).toEqual({
       "code.function.name": "fetchItems",
@@ -117,7 +117,7 @@ describe("tracing", () => {
     const outerSpan = getExportedSpan(fixture, "handleJob");
     const innerSpan = getExportedSpan(fixture, "process step");
     expect(innerSpan.kind).toBe(SpanKind.INTERNAL);
-    expect(innerSpan.instrumentationScope.name).toBe("apitally.otel");
+    expect(innerSpan.instrumentationScope.name).toBe("apitally");
     expect(innerSpan.parentSpanContext?.spanId).toBe(outerSpan.spanContext().spanId);
   });
 

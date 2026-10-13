@@ -15,7 +15,7 @@ import { formatIssues, normalizeSource } from "../validationErrors.js";
 import { addStartupPaths, resolveRequestRoute } from "./routes.js";
 
 const HOOKS_MARKER = Symbol.for("apitally.fastifyHooks");
-const TRACER_NAME = "apitally.fastify";
+const TRACER_NAME = "apitally/fastify";
 
 export function installFastifyHooks(app: FastifyInstance, startupPaths: RoutePath[]): void {
   const markedApp = app as unknown as Record<symbol, boolean | undefined>;

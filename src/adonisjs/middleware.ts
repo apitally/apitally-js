@@ -8,7 +8,7 @@ import { logWarning } from "../logger.js";
 import { finalizeRequestObservation } from "../requestObservation.js";
 import { captureNodeResponse, startNodeRequestObservation } from "../requestObservationNode.js";
 
-const TRACER_NAME = "apitally.adonisjs";
+const TRACER_NAME = "apitally/adonisjs";
 
 export default class ApitallyMiddleware {
   async handle(ctx: HttpContext, next: NextFn): Promise<unknown> {

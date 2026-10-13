@@ -16,7 +16,7 @@ import {
 import { resolveMatchedRoute } from "./routes.js";
 
 const MIDDLEWARE_MARKER = Symbol.for("apitally.koaMiddleware");
-const TRACER_NAME = "apitally.koa";
+const TRACER_NAME = "apitally/koa";
 
 interface KoaRequestObservation extends NodeRequestObservation {
   route?: string;

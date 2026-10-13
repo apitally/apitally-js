@@ -9,6 +9,7 @@ import {
 } from "@opentelemetry/api";
 import { coerceToException } from "./exceptions.js";
 import { logDebug } from "./logger.js";
+import { getDistroVersion } from "./packageVersion.js";
 
 const STACK_FRAME_PATTERN = /at (?:.*\()?(.*?):(\d+):\d+\)?$/;
 
@@ -49,7 +50,7 @@ function runInsideSpan<Result>(
   let internalSpan: Span;
   try {
     internalSpan = trace
-      .getTracer("apitally.otel")
+      .getTracer("apitally", getDistroVersion())
       .startSpan(name, { kind: SpanKind.INTERNAL, attributes });
   } catch (error) {
     logDebug(`Error starting a manual span: ${String(error)}`);

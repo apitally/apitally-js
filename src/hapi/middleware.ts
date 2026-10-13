@@ -15,7 +15,7 @@ import {
 } from "../requestObservationNode.js";
 import { resolveRequestRoute } from "./routes.js";
 
-const TRACER_NAME = "apitally.hapi";
+const TRACER_NAME = "apitally/hapi";
 
 const LOG_LEVEL_SEVERITIES: Record<string, SeverityNumber> = {
   trace: SeverityNumber.TRACE,
