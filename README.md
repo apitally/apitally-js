@@ -359,7 +359,7 @@ const sdk = new NodeSDK({
 });
 ```
 
-If you use versions 8 to 10 of the Sentry SDK, which register their own tracer provider, add `ApitallySpanProcessor` to the `openTelemetrySpanProcessors` option in `Sentry.init()` and enable Sentry tracing.
+If you use version 10.x of the Sentry SDK, which registers its own tracer provider, add `ApitallySpanProcessor` to the `openTelemetrySpanProcessors` option in `Sentry.init()` and enable Sentry tracing.
 
 Your tracer provider's sampler also applies to Apitally. Requests it drops have no request logs or traces in Apitally, but still count in metrics.
 
