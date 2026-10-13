@@ -66,6 +66,7 @@ setConsumer({
   identifier: user.identifier,
   name: user.name, // optional
   group: user.group, // optional
+  attributes: { plan: user.plan }, // optional
 });
 ```
 
@@ -156,7 +157,7 @@ sdk.start();
 
 Review these settings when upgrading:
 
-- **Sampling:** Previously, your provider's sampler affected traces but not Apitally's request logs. It now affects both, so review its sampling rate when upgrading. Metrics remain unsampled.
+- **Sampling:** Previously, your provider's sampler affected traces but not Apitally's request logs. It now affects both. Check that its sampling rate provides the request log coverage you want. Metrics remain unsampled.
 
 ## Other changes
 
