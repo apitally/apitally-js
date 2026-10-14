@@ -64,7 +64,6 @@ export function createElysiaPlugin(
 
 export function installElysiaIntegration(app: AnyElysia, options?: ApitallyOptions): void {
   configure(options);
-  activateWhenHttpServerListens();
   const markedApp = app as unknown as Record<symbol, boolean | undefined>;
   if (markedApp[INSTALL_MARKER] === true) {
     return;
@@ -76,6 +75,7 @@ export function installElysiaIntegration(app: AnyElysia, options?: ApitallyOptio
     return;
   }
   markedApp[INSTALL_MARKER] = true;
+  activateWhenHttpServerListens();
   registerStartupEventInfo({
     framework: "elysia",
     frameworkVersion: resolvePackageVersion("elysia"),

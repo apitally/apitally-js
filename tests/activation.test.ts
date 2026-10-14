@@ -95,6 +95,17 @@ describe("activation", () => {
     expect(isActivated()).toBe(false);
   });
 
+  it("activates without a request once Bun.serve starts a server", () => {
+    const server = {};
+    const bun = { serve: (_options: unknown) => server };
+    vi.stubGlobal("Bun", bun);
+    prepareFirstRequestActivation();
+    activateWhenHttpServerListens();
+
+    expect(bun.serve({})).toBe(server);
+    expect(isActivated()).toBe(true);
+  });
+
   it("emits one root-context log record per validation and server error group in each export cycle", async () => {
     spyOnSuccessfulFetch();
     configureAndActivate();

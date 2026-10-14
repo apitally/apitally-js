@@ -1,9 +1,5 @@
 import type { Hono } from "hono";
-import {
-  activateWhenHttpServerListens,
-  configure,
-  registerStartupEventInfo,
-} from "../activation.js";
+import { configure, registerStartupEventInfo } from "../activation.js";
 import type { ApitallyOptions } from "../config.js";
 import { resolvePackageVersion } from "../packageVersion.js";
 import { wrapAppFetch } from "./middleware.js";
@@ -15,7 +11,6 @@ export type { ApitallyOptions };
 // listening, or on the first request.
 export function useApitally(app: Hono, options?: ApitallyOptions): void {
   configure(options);
-  activateWhenHttpServerListens();
   registerStartupEventInfo({
     framework: "hono",
     frameworkVersion: resolvePackageVersion("hono"),

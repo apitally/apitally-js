@@ -1,6 +1,6 @@
 import { type Context, context } from "@opentelemetry/api";
 import type { Hono, Context as HonoContext, MiddlewareHandler } from "hono";
-import { activate, isActivated } from "../activation.js";
+import { activate, activateWhenHttpServerListens, isActivated } from "../activation.js";
 import { getConfig } from "../config.js";
 import { getRequestRecord, type RequestRecord } from "../context.js";
 import { captureException } from "../exceptions.js";
@@ -52,6 +52,7 @@ export function wrapAppFetch(app: Hono): void {
     return;
   }
   markedApp[FETCH_WRAP_MARKER] = true;
+  activateWhenHttpServerListens();
   app.use(recordMatchedRouteAfterNext);
   const originalFetch = app.fetch as FetchFunction;
   let errorHandlerWrapPending = true;
