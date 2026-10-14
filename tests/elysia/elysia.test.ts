@@ -330,6 +330,26 @@ describe("elysia integration", () => {
     expect(startup.paths).toContainEqual({ method: "GET", path: "/direct/:id" });
   });
 
+  it("enumerates registered route templates at startup", async () => {
+    prepareFirstRequestActivation();
+    const pluginApp = new Elysia()
+      .use(apitallyPlugin({ writeToken: WRITE_TOKEN }))
+      .get("/items/:id", ({ params }) => ({ id: params.id }));
+    const response = await request(pluginApp, "/items/1");
+    await readResponseAndSettleTransport(response);
+
+    const handles = requireActivationHandles();
+    await handles.loggerProvider.forceFlush();
+    const startupRecords = readSerializedLogRecords().filter(
+      (record) => record.eventName === "apitally.app.startup",
+    );
+    expect(startupRecords).toHaveLength(1);
+    const startup = JSON.parse(String(startupRecords[0].body)) as {
+      paths: { method: string; path: string }[];
+    };
+    expect(startup.paths).toEqual([{ method: "GET", path: "/items/:id" }]);
+  });
+
   it("drops spans while retaining metrics with sampleRate zero", async () => {
     prepareFirstRequestActivation({ sampleRate: 0 });
     const response = await request(app, "/items/3");
