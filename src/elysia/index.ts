@@ -8,8 +8,8 @@ export function apitallyPlugin(options?: ApitallyOptions): Elysia {
   return createElysiaPlugin(Elysia, options) as Elysia;
 }
 
-// Setup stays synchronous; activation begins when an HTTP server starts
-// listening, or on the first request.
+// Setup stays synchronous; activation begins when listen() starts the server,
+// or on the first request.
 export function useApitally(app: AnyElysia, options?: ApitallyOptions): void {
   installElysiaIntegration(app, options);
 }

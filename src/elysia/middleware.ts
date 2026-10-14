@@ -2,7 +2,6 @@ import { type Context, context } from "@opentelemetry/api";
 import type { AnyElysia } from "elysia";
 import {
   activate,
-  activateWhenHttpServerListens,
   configure,
   flushTelemetry,
   isActivated,
@@ -50,7 +49,6 @@ export function createElysiaPlugin(
   options?: ApitallyOptions,
 ): AnyElysia {
   configure(options);
-  activateWhenHttpServerListens();
   let app: AnyElysia | undefined;
   registerStartupEventInfo({
     framework: "elysia",
@@ -75,7 +73,6 @@ export function installElysiaIntegration(app: AnyElysia, options?: ApitallyOptio
     return;
   }
   markedApp[INSTALL_MARKER] = true;
-  activateWhenHttpServerListens();
   registerStartupEventInfo({
     framework: "elysia",
     frameworkVersion: resolvePackageVersion("elysia"),
@@ -145,11 +142,14 @@ function buildElysiaPlugin(
     startedApp = app;
     recordStartedApp?.(app);
     // Elysia's dynamic handler for aot: false never applies plugin wrap() functions.
-    if (app.config.aot === false) {
+    // @elysiajs/node passes its adapter instead of the app, and the adapter has no config.
+    if (app.config?.aot === false) {
       logWarning(
         "Apitally does not observe requests on an Elysia app with aot: false. To resolve this, remove the aot: false option.",
       );
     }
+    // Elysia runs onStart hooks once listen() has started the server.
+    activate();
   });
   plugin.onTransform({ as: "global" }, ({ request, route }) => {
     try {
