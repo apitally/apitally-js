@@ -1,3 +1,5 @@
+import diagnosticsChannel from "node:diagnostics_channel";
+import type { Server } from "node:net";
 import { isMainThread } from "node:worker_threads";
 import { ROOT_CONTEXT } from "@opentelemetry/api";
 import type { AnyValueMap } from "@opentelemetry/api-logs";
@@ -50,7 +52,11 @@ const BATCH_MAX_EXPORT_BATCH_SIZE = 512;
 const BATCH_MAX_EXPORT_BATCH_SIZE_WITH_BODY_CAPTURE = 32;
 const SIGNAL_FLUSH_TIMEOUT_MILLIS = 5_000;
 
+// Published by Node >= 20.16 and >= 22.3 once a net.Server is listening.
+const NET_SERVER_LISTEN_CHANNEL = "tracing:net.server.listen:asyncEnd";
+
 type TerminationSignal = "SIGTERM" | "SIGINT";
+type BunServe = (this: unknown, ...args: unknown[]) => unknown;
 type SignalListeners = Record<TerminationSignal, () => void>;
 
 // The ESM and CJS builds can load together, so a Symbol.for key gives both
@@ -67,6 +73,12 @@ interface ActivationState {
   beforeExitListener?: () => void;
   signalListeners?: SignalListeners;
   signalDrainPromise?: Promise<void>;
+  httpServerListenHooks?: HttpServerListenHooks;
+}
+
+interface HttpServerListenHooks {
+  onNetServerListen: (message: unknown) => void;
+  originalBunServe?: BunServe;
 }
 
 interface ActivationHandles {
@@ -119,6 +131,34 @@ export function activate(): void {
   } catch (error) {
     logError(`Apitally activation failed: ${String(error)}`);
   }
+}
+
+// For integrations without a framework startup hook. A server that started
+// listening before this call is missed and activates on its first request.
+export function activateWhenHttpServerListens(): void {
+  const activationState = getActivationState();
+  if (activationState.httpServerListenHooks) {
+    return;
+  }
+  // HTTP servers carry the app as a request listener; a cluster primary's
+  // internal round-robin server has none, so only workers activate.
+  const onNetServerListen = (message: unknown) => {
+    if ((message as { server: Server }).server.listenerCount("request") > 0) {
+      activate();
+    }
+  };
+  diagnosticsChannel.subscribe(NET_SERVER_LISTEN_CHANNEL, onNetServerListen);
+  // Bun publishes no net listen channel, but every Bun HTTP server starts through Bun.serve.
+  const bun = (globalThis as { Bun?: { serve: BunServe } }).Bun;
+  const originalBunServe = bun?.serve;
+  if (bun && originalBunServe) {
+    bun.serve = function (this: unknown, ...args: unknown[]) {
+      const server = originalBunServe.apply(this, args);
+      activate();
+      return server;
+    };
+  }
+  activationState.httpServerListenHooks = { onNetServerListen, originalBunServe };
 }
 
 export function isActivated(): boolean {
@@ -178,6 +218,14 @@ export async function resetActivation(): Promise<void> {
     return;
   }
   removeLifecycleHooks(activationState);
+  const listenHooks = activationState.httpServerListenHooks;
+  if (listenHooks) {
+    diagnosticsChannel.unsubscribe(NET_SERVER_LISTEN_CHANNEL, listenHooks.onNetServerListen);
+    const bun = (globalThis as { Bun?: { serve: BunServe } }).Bun;
+    if (bun && listenHooks.originalBunServe) {
+      bun.serve = listenHooks.originalBunServe;
+    }
+  }
   const handles = activationState.handles;
   if (!handles) {
     return;

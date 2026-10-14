@@ -2,6 +2,7 @@ import { type Context, context } from "@opentelemetry/api";
 import type { AnyElysia } from "elysia";
 import {
   activate,
+  activateWhenHttpServerListens,
   configure,
   flushTelemetry,
   isActivated,
@@ -49,6 +50,7 @@ export function createElysiaPlugin(
   options?: ApitallyOptions,
 ): AnyElysia {
   configure(options);
+  activateWhenHttpServerListens();
   let app: AnyElysia | undefined;
   registerStartupEventInfo({
     framework: "elysia",
@@ -62,6 +64,7 @@ export function createElysiaPlugin(
 
 export function installElysiaIntegration(app: AnyElysia, options?: ApitallyOptions): void {
   configure(options);
+  activateWhenHttpServerListens();
   const markedApp = app as unknown as Record<symbol, boolean | undefined>;
   if (markedApp[INSTALL_MARKER] === true) {
     return;

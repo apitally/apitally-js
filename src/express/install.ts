@@ -1,5 +1,9 @@
 import type { Express } from "express";
-import { configure, registerStartupEventInfo } from "../activation.js";
+import {
+  activateWhenHttpServerListens,
+  configure,
+  registerStartupEventInfo,
+} from "../activation.js";
 import type { ApitallyOptions } from "../config.js";
 import { logDebug } from "../logger.js";
 import type { StartupEventInfo } from "../startup.js";
@@ -12,6 +16,7 @@ export function installExpressIntegration(
   frameworkInfo: Pick<StartupEventInfo, "framework" | "frameworkVersion">,
 ): void {
   configure(options);
+  activateWhenHttpServerListens();
   registerStartupEventInfo({
     ...frameworkInfo,
     resolvePaths: () => resolveStartupPaths(app),

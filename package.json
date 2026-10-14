@@ -40,7 +40,7 @@
   "homepage": "https://apitally.io",
   "type": "module",
   "engines": {
-    "node": ">=20.6.0",
+    "node": "^20.16.0 || >=22.3.0",
     "bun": ">=1.2.0"
   },
   "sideEffects": [

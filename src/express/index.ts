@@ -5,7 +5,8 @@ import { installExpressIntegration } from "./install.js";
 
 export type { ApitallyOptions };
 
-// Setup stays synchronous; activation begins on the first request.
+// Setup stays synchronous; activation begins when an HTTP server starts
+// listening, or on the first request.
 export function useApitally(app: Express, options?: ApitallyOptions): void {
   installExpressIntegration(app, options, {
     framework: "express",
