@@ -1,3 +1,4 @@
+import { createServer as createNetServer } from "node:net";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { SpanKind, trace } from "@opentelemetry/api";
 import {
@@ -13,6 +14,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import {
   activate,
+  activateWhenHttpServerListens,
   activationFactories,
   configure,
   flushTelemetry,
@@ -29,6 +31,7 @@ import {
   captureStderr,
   clearTestRunnerMarkers,
   configureAndActivate,
+  prepareFirstRequestActivation,
   readActivationSpans,
   readFetchPaths,
   readProtobufSpanStringAttributes,
@@ -65,6 +68,42 @@ describe("activation", () => {
       framework: string;
     };
     expect(payload.framework).toBe("express");
+  });
+
+  it("activates without a request once an HTTP server starts listening", async () => {
+    prepareFirstRequestActivation();
+    activateWhenHttpServerListens();
+    expect(isActivated()).toBe(false);
+
+    await withServer(
+      () => {},
+      async () => {
+        expect(isActivated()).toBe(true);
+      },
+    );
+  });
+
+  it("does not activate when a server without request listeners starts listening", async () => {
+    prepareFirstRequestActivation();
+    activateWhenHttpServerListens();
+    const server = createNetServer();
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    server.close();
+
+    expect(isActivated()).toBe(false);
+  });
+
+  it("activates without a request once Bun.serve starts a server", () => {
+    const server = {};
+    const bun = { serve: (_options: unknown) => server };
+    vi.stubGlobal("Bun", bun);
+    prepareFirstRequestActivation();
+    activateWhenHttpServerListens();
+
+    expect(bun.serve({})).toBe(server);
+    expect(isActivated()).toBe(true);
   });
 
   it("emits one root-context log record per validation and server error group in each export cycle", async () => {

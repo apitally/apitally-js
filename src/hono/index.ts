@@ -7,7 +7,8 @@ import { resolveStartupPaths } from "./routes.js";
 
 export type { ApitallyOptions };
 
-// Setup stays synchronous; activation begins on the first request.
+// Setup stays synchronous; activation begins when an HTTP server starts
+// listening, or on the first request.
 export function useApitally(app: Hono, options?: ApitallyOptions): void {
   configure(options);
   registerStartupEventInfo({

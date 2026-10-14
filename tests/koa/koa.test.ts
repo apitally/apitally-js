@@ -337,6 +337,16 @@ describe("koa integration", () => {
     expect(await readActivationSpans()).toHaveLength(2);
   });
 
+  it("activates when the app's server starts listening, before any request", async () => {
+    prepareFirstRequestActivation();
+    const listeningServer = await listen(buildAppFixture());
+    try {
+      expect(isActivated()).toBe(true);
+    } finally {
+      await closeServer(listeningServer.server);
+    }
+  });
+
   it("drops spans while keeping metrics with a zero sample rate", async () => {
     prepareFirstRequestActivation({ sampleRate: 0 });
     await send(testServer.baseUrl, "/items/3");

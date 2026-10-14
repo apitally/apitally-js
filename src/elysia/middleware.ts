@@ -49,15 +49,13 @@ export function createElysiaPlugin(
   options?: ApitallyOptions,
 ): AnyElysia {
   configure(options);
-  let app: AnyElysia | undefined;
+  const plugin = buildElysiaPlugin(ElysiaClass);
   registerStartupEventInfo({
     framework: "elysia",
     frameworkVersion: resolvePackageVersion("elysia"),
-    resolvePaths: () => (app ? resolveStartupPaths(app) : []),
+    resolvePaths: () => resolveStartupPaths(plugin),
   });
-  return buildElysiaPlugin(ElysiaClass, (startedApp) => {
-    app = startedApp;
-  });
+  return plugin;
 }
 
 export function installElysiaIntegration(app: AnyElysia, options?: ApitallyOptions): void {
@@ -82,10 +80,7 @@ export function installElysiaIntegration(app: AnyElysia, options?: ApitallyOptio
   app.use(buildElysiaPlugin(ElysiaClass));
 }
 
-function buildElysiaPlugin(
-  ElysiaClass: ElysiaConstructor,
-  recordStartedApp?: (app: AnyElysia) => void,
-): AnyElysia {
+function buildElysiaPlugin(ElysiaClass: ElysiaConstructor): AnyElysia {
   const observations = new WeakMap<Request, ElysiaRequestObservation>();
   const plugin = new ElysiaClass({ name: PLUGIN_NAME });
   let startedApp: AnyElysia | undefined;
@@ -102,7 +97,9 @@ function buildElysiaPlugin(
           const started = startWebRequestObservation({
             request,
             tracerName: TRACER_NAME,
-            clientAddress: startedApp?.server?.requestIP(request)?.address,
+            // @elysiajs/node has no requestIP(); its srvx request carries the client address as ip.
+            clientAddress:
+              startedApp?.server?.requestIP(request)?.address ?? (request as { ip?: string }).ip,
           });
           observation = {
             ...started.observation,
@@ -140,13 +137,15 @@ function buildElysiaPlugin(
 
   plugin.onStart((app) => {
     startedApp = app;
-    recordStartedApp?.(app);
     // Elysia's dynamic handler for aot: false never applies plugin wrap() functions.
-    if (app.config.aot === false) {
+    // @elysiajs/node passes its adapter instead of the app, and the adapter has no config.
+    if (app.config?.aot === false) {
       logWarning(
         "Apitally does not observe requests on an Elysia app with aot: false. To resolve this, remove the aot: false option.",
       );
     }
+    // Elysia runs onStart hooks once listen() has started the server.
+    activate();
   });
   plugin.onTransform({ as: "global" }, ({ request, route }) => {
     try {

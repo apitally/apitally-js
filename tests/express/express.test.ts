@@ -622,6 +622,13 @@ describe("express integration", () => {
     expect(spans).toHaveLength(2);
   });
 
+  it("activates when the app's server starts listening, before any request", async () => {
+    prepareFirstRequestActivation();
+    await withServer(buildAppFixture(), async () => {
+      expect(isActivated()).toBe(true);
+    });
+  });
+
   it("drops spans while keeping metrics with a zero sample rate", async () => {
     prepareFirstRequestActivation({ sampleRate: 0 });
     await request(server).get("/items/3").expect(200);

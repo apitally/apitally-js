@@ -53,4 +53,5 @@ afterEach(async () => {
   diag.disable();
   logs.disable();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
