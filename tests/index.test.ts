@@ -173,6 +173,7 @@ describe("root entry", () => {
     });
     app.get("/things/:id", (_req, res) => {
       setConsumer("acme");
+      setRequestAttribute("tenant.plan", "free");
       setRequestAttribute("tenant.plan", "enterprise");
       captureException(new Error("observed failure"));
       const count = fetchItems();
@@ -198,6 +199,9 @@ describe("root entry", () => {
     }
     expect(serverSpan.attributes["apitally.consumer.identifier"]).toBe("acme");
     expect(serverSpan.attributes["tenant.plan"]).toBe("enterprise");
+    expect(serverSpan.attributes["apitally.request.custom_attribute_keys"]).toEqual([
+      "tenant.plan",
+    ]);
     expect(serverSpan.events).toHaveLength(1);
     expect(serverSpan.events[0].name).toBe("exception");
     expect(serverSpan.events[0].attributes?.["exception.message"]).toBe("observed failure");
