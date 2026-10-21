@@ -54,7 +54,7 @@ The SDK supports **Node.js** `^20.16` or `>= 22.3` and **Bun** `>= 1.2.0`.
 | [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/elysia) |
 | [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express) |
 | [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/fastify) |
-| [**H3**](https://github.com/h3js/h3) | `>= 2.0.1-rc.26`, `< 3` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3) |
+| [**H3**](https://github.com/h3js/h3) | `>= 2.0.1`, `< 3` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3) |
 | [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hapi) |
 | [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hono) |
 | [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa) |
