@@ -11,6 +11,11 @@
       "matchDepTypes": ["dependencies"],
       "matchPackageNames": ["@opentelemetry/**"],
       "groupName": "OpenTelemetry"
+    },
+    {
+      "description": "OpenTelemetry SDK 2.x packages require @opentelemetry/api <1.10.0",
+      "matchPackageNames": ["@opentelemetry/api"],
+      "allowedVersions": "<1.10.0"
     }
   ]
 }
