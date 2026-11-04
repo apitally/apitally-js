@@ -48,17 +48,17 @@ Learn more about Apitally on our 🌎 [website](https://apitally.io) or check ou
 
 The SDK supports **Node.js** `^20.16` or `>= 22.3` and **Bun** `>= 1.2.0`.
 
-| Framework | Supported versions | Setup guide |
-| --- | --- | --- |
-| [**AdonisJS**](https://github.com/adonisjs/core) | `>= 6.3`, `< 8` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/adonisjs) |
-| [**Elysia**](https://github.com/elysiajs/elysia) | `>= 1.1`, `< 2` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/elysia) |
-| [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express) |
-| [**Fastify**](https://github.com/fastify/fastify) | `>= 4.10.2`, `< 6` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/fastify) |
-| [**H3**](https://github.com/h3js/h3) | `>= 2.0.1`, `< 3` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3) |
-| [**Hapi**](https://github.com/hapijs/hapi) | `21.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hapi) |
-| [**Hono**](https://github.com/honojs/hono) \* | `>= 4.8.4`, `< 5` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hono) |
-| [**Koa**](https://github.com/koajs/koa) | `2.x`, `3.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa) |
-| [**NestJS**](https://github.com/nestjs/nest) | `10.x`, `11.x`, `12.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/nestjs) |
+| Framework                                           | Supported versions     | Setup guide                                                                        |
+| --------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| [**AdonisJS**](https://github.com/adonisjs/core)    | `>= 6.3`, `< 8`        | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/adonisjs) |
+| [**Elysia**](https://github.com/elysiajs/elysia)    | `>= 1.1`, `< 2`        | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/elysia)   |
+| [**Express**](https://github.com/expressjs/express) | `>= 4.18.2`, `< 6`     | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/express)  |
+| [**Fastify**](https://github.com/fastify/fastify)   | `>= 4.10.2`, `< 6`     | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/fastify)  |
+| [**H3**](https://github.com/h3js/h3)                | `>= 2.0.1`, `< 3`      | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/h3)       |
+| [**Hapi**](https://github.com/hapijs/hapi)          | `21.x`                 | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hapi)     |
+| [**Hono**](https://github.com/honojs/hono) \*       | `>= 4.8.4`, `< 5`      | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/hono)     |
+| [**Koa**](https://github.com/koajs/koa)             | `2.x`, `3.x`           | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/koa)      |
+| [**NestJS**](https://github.com/nestjs/nest)        | `10.x`, `11.x`, `12.x` | [Link](https://docs.apitally.io/sdk-reference/javascript/v1/setup-guides/nestjs)   |
 
 \* For Hono on Cloudflare Workers use our [Serverless SDK](https://github.com/apitally/apitally-js-serverless) instead.
 

@@ -25,31 +25,31 @@ The `requestLogging` object and its deprecated alias `requestLoggingConfig` have
 
 The following options have been changed:
 
-| Option | Change |
-| --- | --- |
-| `clientId` | Replaced by `writeToken`, which requires a new credential. |
-| `captureLogs` | Default changed from `false` to `true`. |
-| `logRequestHeaders` | Renamed to `captureRequestHeaders`. |
-| `logRequestBody` | Renamed to `captureRequestBody`. |
-| `logResponseHeaders` | Renamed to `captureResponseHeaders`. |
-| `logResponseBody` | Renamed to `captureResponseBody`. |
-| `maskRequestBodyCallback` | Renamed to `maskRequestBody` with new arguments. |
-| `maskResponseBodyCallback` | Renamed to `maskResponseBody` with new arguments. |
-| `excludeCallback` | Replaced by `sampleOnRequest` or `sampleOnResponse` with new arguments and return values. |
-| `excludePaths` | Matches actual request paths instead of matched route patterns. |
+| Option                     | Change                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `clientId`                 | Replaced by `writeToken`, which requires a new credential.                                |
+| `captureLogs`              | Default changed from `false` to `true`.                                                   |
+| `logRequestHeaders`        | Renamed to `captureRequestHeaders`.                                                       |
+| `logRequestBody`           | Renamed to `captureRequestBody`.                                                          |
+| `logResponseHeaders`       | Renamed to `captureResponseHeaders`.                                                      |
+| `logResponseBody`          | Renamed to `captureResponseBody`.                                                         |
+| `maskRequestBodyCallback`  | Renamed to `maskRequestBody` with new arguments.                                          |
+| `maskResponseBodyCallback` | Renamed to `maskResponseBody` with new arguments.                                         |
+| `excludeCallback`          | Replaced by `sampleOnRequest` or `sampleOnResponse` with new arguments and return values. |
+| `excludePaths`             | Matches actual request paths instead of matched route patterns.                           |
 
 ### Removed options
 
 These options are no longer accepted when initializing the SDK:
 
-| Removed option | Migration |
-| --- | --- |
-| `requestLogging` and `requestLoggingConfig` | Pass their settings directly as top-level configuration options, applying the changes above. Remove the `enabled` flag. |
+| Removed option                               | Migration                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `requestLogging` and `requestLoggingConfig`  | Pass their settings directly as top-level configuration options, applying the changes above. Remove the `enabled` flag.                          |
 | `requestLogging.enabled` and `captureTraces` | Previously defaulted to `false`. Request logging and tracing are now enabled by default. Use `sampleRate: 0` to disable request logs and traces. |
-| `logQueryParams` | Query parameters are now always captured. To mask all values, use `maskQueryParams: [/.*/]`. |
-| `logException` | Unhandled exceptions are now always captured in request traces. |
-| `logger` | SDK diagnostics are now written directly to stderr. Use `APITALLY_DEBUG` to enable debug output. |
-| `basePath` (Express) | Mounted router prefixes are captured automatically. |
+| `logQueryParams`                             | Query parameters are now always captured. To mask all values, use `maskQueryParams: [/.*/]`.                                                     |
+| `logException`                               | Unhandled exceptions are now always captured in request traces.                                                                                  |
+| `logger`                                     | SDK diagnostics are now written directly to stderr. Use `APITALLY_DEBUG` to enable debug output.                                                 |
+| `basePath` (Express)                         | Mounted router prefixes are captured automatically.                                                                                              |
 
 The [configuration reference](https://docs.apitally.io/sdk-reference/javascript/v1/configuration) lists all available options.
 
@@ -82,9 +82,10 @@ For example, a callback that masks bodies for admin routes becomes:
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 // Before
-function maskRequestBodyCallback(
-  request: { path?: string; body?: Buffer },
-): Buffer | null | undefined {
+function maskRequestBodyCallback(request: {
+  path?: string;
+  body?: Buffer;
+}): Buffer | null | undefined {
   if (request.path?.startsWith("/admin/")) {
     return null;
   }
